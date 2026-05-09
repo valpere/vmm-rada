@@ -49,15 +49,6 @@ User query
   all responses *and* the peer rankings, giving it the full picture to write the
   best possible answer.
 
-### Code review variant (`/review`)
-
-A second pipeline uses **specialised roles** instead of peer review. Four roles
-(security, logic, simplicity, architecture) analyse a code diff in parallel; the
-chairman synthesises their findings into a single consolidated review. Stage 2 is
-skipped — roles are complementary, not competing, so ranking makes no sense.
-
-See [`docs/code-review.md`](docs/code-review.md) for usage.
-
 ---
 
 ## Tech stack
@@ -128,8 +119,6 @@ All configuration is done via environment variables. Copy `.env.example` to
 | `CHAIRMAN_MODEL` | No | `openai/gpt-4o-mini`¹ | Model used for Stage 3 synthesis. |
 | `DEFAULT_COUNCIL_TYPE` | No | `default` | Council pipeline variant (`default` = PeerReview). |
 | `DEFAULT_COUNCIL_TEMPERATURE` | No | `0.7` | Sampling temperature for all LLM calls (0.0–2.0). |
-| `CODE_REVIEW_MODELS` | No | `COUNCIL_MODELS` | Models for the 4 code-review roles (round-robin if fewer than 4). |
-| `CODE_REVIEW_CHAIRMAN_MODEL` | No | `CHAIRMAN_MODEL` | Chairman model for code-review synthesis. |
 | `DATA_DIR` | No | `data/conversations` | Directory where conversation JSON files are stored. |
 | `PORT` | No | `8001` | TCP port the server listens on. |
 
@@ -173,8 +162,6 @@ make fr-lint    # ESLint
 | `GET` | `/api/conversations/{id}` | Get a conversation with all messages |
 | `POST` | `/api/conversations/{id}/message` | Send a message, wait for the full result |
 | `POST` | `/api/conversations/{id}/message/stream` | Send a message, receive stage results via SSE |
-| `POST` | `/api/conversations/{id}/review` | Code review: run 4 specialist roles, wait for the full result |
-| `POST` | `/api/conversations/{id}/review/stream` | Code review: stream each role and the synthesis via SSE |
 
 ### Streaming events (`/message/stream`)
 
@@ -222,7 +209,7 @@ llm-council/
 │   ├── openrouter/client.go      HTTP client for OpenRouter (parallel and single queries)
 │   ├── council/
 │   │   ├── runner.go             RunFull() dispatcher + PeerReview pipeline stages
-│   │   ├── rolebased.go          RoleBased/RoleBasedReview pipeline
+│   │   ├── rolebased.go          RoleBased pipeline
 │   │   ├── review_roles.go       DefaultReviewRoles + NewCodeReviewCouncilType
 │   │   ├── prompts.go            Prompt builders for all pipeline stages
 │   │   └── types.go              Result types: CouncilType, Strategy, Role, StageOneResult, etc.

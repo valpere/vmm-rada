@@ -105,11 +105,6 @@ func run() error {
 			ChairmanModel: cfg.DefaultCouncilChairmanModel,
 			Temperature:   cfg.DefaultCouncilTemperature,
 		},
-		"code-review": council.NewCodeReviewCouncilType(
-			cfg.CodeReviewModels,
-			cfg.CodeReviewChairmanModel,
-			cfg.DefaultCouncilTemperature,
-		),
 	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))

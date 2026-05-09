@@ -22,11 +22,6 @@ type Config struct {
 	DefaultCouncilChairmanModel string
 	DefaultCouncilTemperature   float64
 
-	// Code-review council (RoleBasedReview strategy).
-	// Defaults to DefaultCouncilModels / DefaultCouncilChairmanModel when not set.
-	CodeReviewModels        []string
-	CodeReviewChairmanModel string
-
 	// Stage 0 clarification loop. ClarificationMaxRounds == 0 disables the feature (set CLARIFICATION_MAX_ROUNDS=0 to disable).
 	ClarificationMaxRounds            int
 	ClarificationMaxTotalQuestions    int
@@ -82,24 +77,6 @@ func Load() (*Config, error) {
 	if chairmanModel == "" {
 		slog.Warn("CHAIRMAN_MODEL not set; using local-dev fallback model")
 		chairmanModel = "openai/gpt-4o-mini"
-	}
-
-	// Code-review models — defaults to council models when CODE_REVIEW_MODELS is not set.
-	var codeReviewModels []string
-	if raw := os.Getenv("CODE_REVIEW_MODELS"); raw != "" {
-		for _, m := range strings.Split(raw, ",") {
-			if m = strings.TrimSpace(m); m != "" {
-				codeReviewModels = append(codeReviewModels, m)
-			}
-		}
-	}
-	if len(codeReviewModels) == 0 {
-		codeReviewModels = models
-	}
-
-	codeReviewChairmanModel := os.Getenv("CODE_REVIEW_CHAIRMAN_MODEL")
-	if codeReviewChairmanModel == "" {
-		codeReviewChairmanModel = chairmanModel
 	}
 
 	temperature := 0.7
@@ -170,8 +147,6 @@ func Load() (*Config, error) {
 		DefaultCouncilModels:        models,
 		DefaultCouncilChairmanModel: chairmanModel,
 		DefaultCouncilTemperature:   temperature,
-		CodeReviewModels:            codeReviewModels,
-		CodeReviewChairmanModel:     codeReviewChairmanModel,
 
 		ClarificationMaxRounds:            clarificationMaxRounds,
 		ClarificationMaxTotalQuestions:    clarificationMaxTotalQuestions,
