@@ -24,6 +24,32 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto|manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/precompact-emit-rules.sh",
+            "timeout": 10,
+            "statusMessage": "Emitting context-essentials to compactor..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-restore-rules.sh",
+            "timeout": 10,
+            "statusMessage": "Re-injecting llm-council context-essentials..."
+          }
+        ]
+      }
     ]
   }
 }
