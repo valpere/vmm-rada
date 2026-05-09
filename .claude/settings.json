@@ -27,18 +27,7 @@
     ],
     "PreCompact": [
       {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/precompact-emit-rules.sh",
-            "timeout": 10,
-            "statusMessage": "Emitting context-essentials to compactor..."
-          }
-        ]
-      },
-      {
-        "matcher": "manual",
+        "matcher": "auto|manual",
         "hooks": [
           {
             "type": "command",
