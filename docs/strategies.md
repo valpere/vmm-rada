@@ -52,10 +52,12 @@ These fields are zero-valued for every other strategy. Adding optional fields is
 
 `QuorumMin == 0` means "use the strategy's default formula." A registration may override with any positive integer.
 
+> Today `checkQuorum` is strategy-agnostic and applies `max(2, ⌈N/2⌉+1)` whenever `QuorumMin == 0`. Only the `PeerReview` row below is implemented as a runtime default — the other formulas are *proposed* defaults that will be wired into per-strategy quorum logic when each strategy ships. `RoleBased`'s `len(Roles)` value is set at registration time (e.g. by a constructor), not by the runner.
+
 | Strategy | Default formula | Floor | Rationale |
 |----------|-----------------|-------|-----------|
 | `PeerReview` | `max(2, ⌈N/2⌉+1)` | 2 | Anonymous peer ranking is meaningless with 1 voter; majority of council needed for stable Kendall's W. |
-| `RoleBased` | `len(Roles)` | all roles | Each role covers a unique concern; missing one = missing a perspective. Convention enforced at registration time. |
+| `RoleBased` | `len(Roles)` (set at registration; runner does not enforce) | all roles | Each role covers a unique concern; missing one = missing a perspective. |
 | `Majority` | `max(3, ⌈N/2⌉+1)` | 3 | Need ≥3 to break ties; with N=2 a disagreement is a stalemate. |
 | `GenerateRankRefine` | `max(K+1, 3)` where K is `RefineTopK` | 3 | Refining the top-K is meaningless if there are only K candidates. |
 | `MultiAgentDebate` | `max(2, ⌈N/2⌉+1)` | 2 | Debate needs ≥2 actual positions. |
@@ -87,7 +89,7 @@ Stage 2 is polymorphic. When the Stage 2 polymorphism PR ships, the payload gain
 }
 ```
 
-For multi-round strategies (`MultiAgentDebate`, `Delphi`), the server fires `stage2_round_complete` per round, then a final `stage2_complete` when rounds end. PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. Existing clients that only know about today's events continue to work.
+For multi-round strategies (`MultiAgentDebate`, `Delphi`), the server fires `stage2_round_complete` per round, then a final `stage2_complete` when rounds end. PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. The `kind` field is **added** to the existing `Stage2CompleteData` shape — no field renames or removals — so today's clients keep working.
 
 ---
 
