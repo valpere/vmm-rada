@@ -5,20 +5,33 @@ type Strategy int
 
 const (
 	// PeerReview runs the 3-stage Karpathy pipeline: parallel generation →
-	// anonymous peer ranking → chairman synthesis.
+	// anonymous peer ranking → chairman synthesis. Implemented in runner.go.
 	PeerReview Strategy = iota
 
 	// RoleBased runs a 2-stage pipeline: parallel specialist roles → chairman
 	// synthesis. Stage 2 (peer ranking) is skipped; a stub Stage2CompleteData
-	// event is emitted for SSE compatibility. Use for generic role-based councils
-	// where roles are complementary rather than competing.
+	// event is emitted for SSE compatibility. Implemented in rolebased.go.
 	RoleBased
 
-	// RoleBasedReview is the code-review variant of RoleBased. It shares the
-	// same execution path but carries a distinct identity so registrations can
-	// set QuorumMin = len(Roles), enforcing that every specialist role must
-	// succeed before synthesis proceeds. Use via NewCodeReviewCouncilType.
-	RoleBasedReview
+	// Majority runs independent generation followed by a vote (exact match,
+	// cluster, or weighted). Selects rather than synthesises. Not implemented.
+	Majority
+
+	// GenerateRankRefine runs parallel generation, ranks candidates against
+	// structured criteria, then refines the top-K. Not implemented.
+	GenerateRankRefine
+
+	// MultiAgentDebate runs initial answers followed by N rounds of mutual
+	// critique and revision, then synthesises. Not implemented.
+	MultiAgentDebate
+
+	// MixtureOfAgents runs a layered architecture: proposers → aggregators →
+	// refiner. Not implemented.
+	MixtureOfAgents
+
+	// Delphi runs multiple anonymous blind rating rounds with averaged ratings.
+	// Not implemented.
+	Delphi
 )
 
 // Role defines a named participant with a specific mandate in a role-based council.
@@ -32,8 +45,8 @@ type Role struct {
 type CouncilType struct {
 	Name          string
 	Strategy      Strategy
-	Models        []string // PeerReview: all council members; RoleBased/RoleBasedReview: assigned to Roles by index mod len
-	Roles         []Role   // RoleBased/RoleBasedReview: role definitions with specialist instructions
+	Models        []string // Council members. RoleBased assigns models to Roles by index mod len; other strategies use all.
+	Roles         []Role   // RoleBased only: role definitions with specialist instructions.
 	ChairmanModel string
 	Temperature   float64
 	QuorumMin     int // 0 = use formula: max(2, ⌈N/2⌉+1)

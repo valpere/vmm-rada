@@ -43,7 +43,7 @@ If no issues found, return an empty array: []`,
 func NewCodeReviewCouncilType(models []string, chairmanModel string, temperature float64) CouncilType {
 	return CouncilType{
 		Name:          "code-review",
-		Strategy:      RoleBasedReview,
+		Strategy:      RoleBased,
 		Models:        models,
 		Roles:         DefaultReviewRoles,
 		ChairmanModel: chairmanModel,

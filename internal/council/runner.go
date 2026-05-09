@@ -64,7 +64,7 @@ func (c *Council) RunFull(ctx context.Context, query string, councilTypeName str
 	switch ct.Strategy {
 	case PeerReview:
 		return c.runPeerReview(ctx, query, ct, onEvent)
-	case RoleBased, RoleBasedReview:
+	case RoleBased:
 		return c.runRoleBased(ctx, query, ct, onEvent)
 	default:
 		return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)

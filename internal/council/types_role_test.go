@@ -2,15 +2,17 @@ package council
 
 import "testing"
 
-func TestRoleBasedStrategyConstants(t *testing.T) {
-	if RoleBased == PeerReview {
-		t.Fatal("RoleBased must differ from PeerReview")
+func TestStrategyConstants_AllUnique(t *testing.T) {
+	strategies := []Strategy{
+		PeerReview, RoleBased, Majority, GenerateRankRefine,
+		MultiAgentDebate, MixtureOfAgents, Delphi,
 	}
-	if RoleBasedReview == PeerReview {
-		t.Fatal("RoleBasedReview must differ from PeerReview")
-	}
-	if RoleBased == RoleBasedReview {
-		t.Fatal("RoleBased must differ from RoleBasedReview")
+	seen := make(map[Strategy]struct{}, len(strategies))
+	for _, s := range strategies {
+		if _, dup := seen[s]; dup {
+			t.Fatalf("strategy %d duplicated in iota block", s)
+		}
+		seen[s] = struct{}{}
 	}
 }
 

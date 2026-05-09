@@ -34,8 +34,8 @@ func TestNewCodeReviewCouncilType_Strategy(t *testing.T) {
 	chairman := "chairman-model"
 	ct := NewCodeReviewCouncilType(models, chairman, 0.7)
 
-	if ct.Strategy != RoleBasedReview {
-		t.Errorf("expected RoleBasedReview strategy, got %d", ct.Strategy)
+	if ct.Strategy != RoleBased {
+		t.Errorf("expected RoleBased strategy, got %d", ct.Strategy)
 	}
 	if ct.Name != "code-review" {
 		t.Errorf("expected name 'code-review', got %q", ct.Name)

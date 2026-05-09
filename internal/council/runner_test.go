@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -542,5 +543,24 @@ func TestRunFull_Stage2CompletePayload_IsStage2CompleteData(t *testing.T) {
 		if !expectedModels[r.Model] {
 			t.Errorf("AggregateRankings entry %q is not a known model", r.Model)
 		}
+	}
+}
+
+func TestRunFull_UnimplementedStrategy_ReturnsError(t *testing.T) {
+	unimplemented := []Strategy{
+		Majority, GenerateRankRefine, MultiAgentDebate, MixtureOfAgents, Delphi,
+	}
+	for _, s := range unimplemented {
+		s := s
+		t.Run(fmt.Sprintf("strategy_%d", s), func(t *testing.T) {
+			registry := map[string]CouncilType{
+				"test": {Name: "test", Strategy: s, Models: []string{"m1"}},
+			}
+			c := NewCouncil(&mockLLMClient{}, registry, nil)
+			err := c.RunFull(context.Background(), "q", "test", nil)
+			if err == nil || !strings.Contains(err.Error(), "not implemented") {
+				t.Fatalf("expected 'not implemented' error, got %v", err)
+			}
+		})
 	}
 }
