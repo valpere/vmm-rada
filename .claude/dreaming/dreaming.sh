@@ -44,11 +44,12 @@ Current branch: $(git rev-parse --abbrev-ref HEAD).
 Project root: $PROJECT_DIR.
 Write the report to stdout."
 
-claude \
+# Prompt via stdin — `--allowed-tools <tools...>` is variadic and would
+# otherwise consume the positional prompt argument.
+echo "$PROMPT" | claude \
   --print \
   --model opus \
   --allowed-tools "Read,Glob,Grep,Bash(ls:*),Bash(cat:*),Bash(wc:*),Bash(stat:*),Bash(find:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git rev-parse:*),Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue list:*)" \
-  "$PROMPT" \
   > "$REPORT" 2>> "$LOG"
 
 EXIT=$?
