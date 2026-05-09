@@ -156,8 +156,12 @@ func run() error {
 	}
 
 	summary := eval.Aggregate(results)
-	fmt.Fprintf(os.Stdout, "%s\n", summary.Format(len(results)))
-	fmt.Fprintf(os.Stderr, "wrote %s (seed=%d, sha256=%s)\n", *outPath, chosenSeed, meta.InputSHA256)
+	if _, err := fmt.Fprintf(os.Stdout, "%s\n", summary.Format(len(results))); err != nil {
+		return fmt.Errorf("write summary: %w", err)
+	}
+	if _, err := fmt.Fprintf(os.Stderr, "wrote %s (seed=%d, sha256=%s)\n", *outPath, chosenSeed, meta.InputSHA256); err != nil {
+		return fmt.Errorf("write stderr: %w", err)
+	}
 	return nil
 }
 
