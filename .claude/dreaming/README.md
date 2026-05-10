@@ -10,26 +10,34 @@ Manually:
 ~/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
 ```
 
-Cron (weekly Sunday 04:00):
-```cron
-0 4 * * 0  /home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
-```
+Scheduled — **systemd user timer** (recommended, catches up missed runs):
 
-Або systemd timer:
 ```ini
 # ~/.config/systemd/user/dreaming-llm-council.service
 [Service]
 Type=oneshot
 ExecStart=/home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
+StandardOutput=append:/tmp/dreaming-cron.log
+StandardError=append:/tmp/dreaming-cron.log
 
 # ~/.config/systemd/user/dreaming-llm-council.timer
 [Timer]
-OnCalendar=Sun 04:00
-Persistent=true
+OnCalendar=Sun 04:00          # Nominal — комп зазвичай вимкнений
+Persistent=true                # Catch up at next login
+RandomizedDelaySec=5min        # Spread bursty boot-time catchups
 
 [Install]
 WantedBy=timers.target
 ```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now dreaming-llm-council.timer
+```
+
+**Чому НЕ cron:** cron не догоняє пропущених runs — якщо комп вимкнений
+у Sun 04:00, run просто втрачається. systemd `Persistent=true` запам'ятовує
+і фаєриться на наступному login.
 
 ## Що шукає
 
