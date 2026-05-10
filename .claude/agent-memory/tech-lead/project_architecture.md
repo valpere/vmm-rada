@@ -72,8 +72,8 @@ internal/eval/                — Eval harness: judge, report, eval runner; LLM-
 
 ## What changed since 2026-03-14 (previous version of this file)
 
-This memory was rewritten on 2026-05-10 from current code state, after a
-dreaming pass (W19) flagged 4 false claims:
+This memory was updated and expanded on 2026-05-10 from current code state,
+after a dreaming pass (W19) flagged 4 false claims:
 - ❌ "No tests exist yet" → ✅ 17 test files
 - ❌ "No structured logging; stdlib log only" → ✅ `log/slog` in 5 modules
 - ❌ "No graceful shutdown" → ✅ `srv.Shutdown` with signal trap
