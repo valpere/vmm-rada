@@ -297,6 +297,26 @@ data: {"type":"complete"}
 
 When Stage 0 is disabled (`CLARIFICATION_MAX_ROUNDS=0`, the default), no `stage0_*` events are emitted and the sequence is unchanged.
 
+#### Multi-round strategies — `stage2_round_complete`
+
+Multi-round strategies (currently `MultiAgentDebate`; `Delphi` planned) fire one `stage2_round_complete` event per debate round, then a terminal `stage2_complete` carrying the full transcript:
+
+```
+data: {"type":"stage1_complete","data":[...StageOneResult]}
+data: {"type":"stage2_round_complete","kind":"debate_round","round":1,"data":[],"metadata":{"debate":{"rounds":[{"round":1,"revisions":[...]}],"final_round":1,...}}}
+data: {"type":"stage2_round_complete","kind":"debate_round","round":2,"data":[],"metadata":{"debate":{"rounds":[{"round":2,"revisions":[...]}],"final_round":2,...}}}
+data: {"type":"stage2_complete","kind":"debate_round","data":[],"metadata":{"debate":{"rounds":[{"round":1,...},{"round":2,...}],"final_round":2,"dropouts":[...]},...}}
+data: {"type":"stage3_complete","data":{...}}
+```
+
+**Wire-format invariants for `stage2_round_complete`:**
+
+- `round` is **required** on the wire (not omitempty) — the event is meaningless without it. The terminal `stage2_complete` event omits `round` when zero.
+- `kind` is the same discriminator as the terminal `stage2_complete` (`debate_round` for MultiAgentDebate). The frontend dispatcher routes both events through the same view component.
+- Each per-round event's `metadata.debate.rounds` carries **only that round** (one-element slice). The terminal `stage2_complete` carries the **cumulative** transcript across all rounds, plus `dropouts` if any.
+
+**Replay semantics:** persisted conversations carry only the terminal `stage2_complete` state (via `Metadata.Debate`). A client that misses round events can still render the full debate from the terminal event alone. Live UIs should append per-round events to `metadata.debate.rounds` for progressive display.
+
 On failure at any point:
 
 ```

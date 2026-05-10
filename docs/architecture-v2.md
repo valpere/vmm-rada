@@ -189,6 +189,28 @@ Cost: **N + 2** LLM calls per request (N generation + 1 rank + 1 refine). Both t
 
 Registration is opt-in AND requires both `GENERATE_RANK_REFINE_MODELS` and `GENERATE_RANK_REFINE_CHAIRMAN_MODEL`. If models alone are set, the server logs a warning at startup and skips registration so requests fail-fast at startup rather than silently at request time.
 
+#### `MultiAgentDebate` pipeline (multi-round, first to use stage2_round_complete)
+
+Implemented in `internal/council/debate.go`. Best for reasoning, ethics, and strategy — tasks where critique reveals logical errors that single-shot generation misses. **First multi-round strategy** in the project, and the first to actually emit the `stage2_round_complete` SSE event type that #202 designed.
+
+1. **Round 0 (Stage 1)** — `runStage1` reused; emits `stage1_complete` with anonymously-labelled successful results. `assignLabels` runs once and labels persist across all rounds.
+2. **Quorum check** — `max(2, ⌈N/2⌉+1)` when `QuorumMin == 0`. Standard `*QuorumError` if round 0 fails.
+3. **Rounds 1..R** — for each round, all surviving debaters run in parallel via `runDebateRound`. Each debater sees all OTHER debaters' previous-round answers (anonymised — labels only, never model names) plus their own previous-round output (so they revise rather than start from scratch). Output is JSON `{critique, revision}` produced via `BuildDebateRoundPrompt`. Per-round event: `stage2_round_complete` with `kind: "debate_round"` and `round: r`.
+4. **Per-round failure handling.** A debater's call error, JSON parse failure, or empty revision drops them from round R+1 onwards. The runner records a `DebaterDropout` entry (`{label, last_round, reason}`) so the chairman + frontend can reason about the evolving cast.
+5. **Per-round quorum re-check.** After every round, if survivors drop below `need`, `runMultiAgentDebate` returns `fmt.Errorf("multi-agent debate: quorum failed after round %d (...)")` — loud failure, no partial-progress fallback. Matches the loud-error ethos from #204 (Stage 0) and #206 (Majority ties).
+6. **Stage 2 terminal event** — `stage2_complete` with `kind: "debate_round"`, `Metadata.Debate` populated with the full transcript: `Rounds[]` (one entry per completed round), `FinalRound`, and `Dropouts` (omitempty). The terminal event is authoritative on replay.
+7. **Stage 3** — `runDebateStage3`: chairman synthesises across the whole transcript via `BuildDebateChairmanPrompt`. The chairman receives round 0 (`Stage1`), all rounds' revisions WITH model attribution (the `LabelToModel` map is included), and any dropout markers. Failure path matches `runStage3` and `runRoleBasedStage3` (returns `StageThreeResult{Model, DurationMs, Error}` even on error).
+
+**Cost:** `N + N×R + 1` LLM calls per request (round 0 + R rounds × N debaters + chairman). With defaults N=4 R=2: **13 calls**. The most expensive shipped strategy.
+
+**Anonymisation contract:** the per-round prompt MUST NOT contain model names — only labels. The Stage 3 chairman prompt does include the `LabelToModel` map so the chairman can attribute provenance in its synthesis.
+
+**Single source of truth on the frontend:** `msg.metadata.debate`. The `stage2_round_complete` handler appends to `metadata.debate.rounds`; the terminal `stage2_complete` overwrites with the canonical state (which includes any dropouts populated by the runner). On replay, only `metadata.debate` is available — the same render path applies.
+
+**Round 0 is not in `Debate.Rounds`.** It lives on `AssistantMessage.Stage1` (backend) and `msg.stage1` (frontend). Single source of truth per layer; the schema doesn't lie about what a "debate round" is.
+
+Registration is opt-in AND requires both `DEBATE_MODELS` and `DEBATE_CHAIRMAN_MODEL`. `DEBATE_MAX_ROUNDS` is optional (default 2; invalid values warn and fall back to default).
+
 #### Per-registration model configuration
 
 Every `CouncilType` registration is independent. Two registrations with the same `Strategy` but different `Models` / `ChairmanModel` are valid — e.g. `"factual-majority"` and `"creative-majority"` both use `Strategy: Majority` with different voter pools. Each strategy has its own namespaced env var family (`MAJORITY_MODELS`, `MAJORITY_CHAIRMAN_MODEL`, `DEBATE_MODELS`, etc.) with fall-through to `COUNCIL_MODELS` / `CHAIRMAN_MODEL` when unset; see [`strategies.md`](./strategies.md) for the full table. Plumbing lands with each strategy's implementation PR.

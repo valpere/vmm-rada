@@ -136,6 +136,7 @@ export default function ChatInterface({
                     consensusW={msg.metadata?.consensus_w}
                     voteTally={msg.metadata?.vote_tally}
                     rankRefine={msg.metadata?.rank_refine}
+                    debate={msg.metadata?.debate}
                     isLoading={msg.loading?.stage2}
                   />
 

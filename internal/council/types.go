@@ -49,8 +49,9 @@ type CouncilType struct {
 	Roles         []Role   // RoleBased only: role definitions with specialist instructions.
 	ChairmanModel string
 	Temperature   float64
-	QuorumMin     int // 0 = strategy-specific default formula
-	RefineTopK    int // GenerateRankRefine only: how many ranked candidates advance to refinement; 0 = default (3)
+	QuorumMin       int // 0 = strategy-specific default formula
+	RefineTopK      int // GenerateRankRefine only: how many ranked candidates advance to refinement; 0 = default (3)
+	MaxDebateRounds int // MultiAgentDebate only: number of debate rounds after Stage 1; 0 = default (2)
 }
 
 // ChatMessage is a single turn in a conversation history.
@@ -159,11 +160,53 @@ type RankRefine struct {
 	Criteria []string          `json:"criteria"`
 }
 
+// DebaterRevision is a single debater's output in one round of the
+// MultiAgentDebate strategy: a critique of the OTHER debaters' previous-round
+// answers plus this debater's revised answer. Critique is omitempty so empty
+// critiques don't bloat the wire.
+type DebaterRevision struct {
+	Label      string `json:"label"`
+	Critique   string `json:"critique,omitempty"`
+	Content    string `json:"content"`
+	Model      string `json:"model"`
+	DurationMs int64  `json:"duration_ms"`
+	Error      error  `json:"-"`
+}
+
+// DebateRound holds all surviving debaters' revisions for a single round
+// (rounds 1..R; round 0 is the initial Stage 1 generation and lives on
+// AssistantMessage.Stage1, not here). Revisions are sorted by Label ascending
+// for stable output across runs.
+type DebateRound struct {
+	Round     int               `json:"round"`
+	Revisions []DebaterRevision `json:"revisions"`
+}
+
+// DebaterDropout records when and why a debater stopped producing revisions.
+// Surfaced to the chairman prompt (so it can reason about an evolving cast)
+// and to the frontend DebateView (rendered as muted timeline rows).
+type DebaterDropout struct {
+	Label     string `json:"label"`
+	LastRound int    `json:"last_round"` // last round in which they produced a successful revision; 0 = round 0 only
+	Reason    string `json:"reason"`     // "error" / "json_parse" / "empty_revision"
+}
+
+// Debate is the Stage 2 payload for the MultiAgentDebate strategy. Rounds
+// holds the per-round revisions (rounds 1..FinalRound). FinalRound is the
+// last completed round (==len(Rounds) on success). Dropouts records debaters
+// that fell out of the debate; omitempty so the field is absent when nobody
+// dropped.
+type Debate struct {
+	Rounds     []DebateRound    `json:"rounds"`
+	FinalRound int              `json:"final_round"`
+	Dropouts   []DebaterDropout `json:"dropouts,omitempty"`
+}
+
 // Metadata is persisted with every assistant message.
 //
 // VoteTally is populated only by the Majority strategy; RankRefine only by
-// GenerateRankRefine. omitempty keeps each absent on the wire and at rest
-// for every other strategy.
+// GenerateRankRefine; Debate only by MultiAgentDebate. omitempty keeps each
+// absent on the wire and at rest for every other strategy.
 type Metadata struct {
 	CouncilType       string            `json:"council_type"`
 	LabelToModel      map[string]string `json:"label_to_model"`
@@ -171,6 +214,7 @@ type Metadata struct {
 	ConsensusW        float64           `json:"consensus_w"`
 	VoteTally         *VoteTally        `json:"vote_tally,omitempty"`
 	RankRefine        *RankRefine       `json:"rank_refine,omitempty"`
+	Debate            *Debate           `json:"debate,omitempty"`
 }
 
 // Stage2CompleteData is the payload emitted by Runner for the "stage2_complete" event.

@@ -164,12 +164,33 @@ function App() {
       msg.loading.stage1 = false;
     }),
     stage2_start: () => updateLast((msg) => { msg.loading.stage2 = true; }),
+    // Per-round events (currently only from MultiAgentDebate). Single source
+    // of truth: msg.metadata.debate.rounds. Each event APPENDS its round's
+    // revisions to the existing transcript; the terminal stage2_complete
+    // overwrites with the canonical state. No separate `debateRounds` field —
+    // dual state is a drift hazard.
+    stage2_round_complete: (event) => updateLast((msg) => {
+      if (!msg.metadata) {
+        msg.metadata = event.metadata ? { ...event.metadata } : {};
+      }
+      if (!msg.metadata.debate) {
+        msg.metadata.debate = { rounds: [], final_round: 0 };
+      }
+      const incoming = event.metadata?.debate?.rounds ?? [];
+      msg.metadata.debate.rounds.push(...incoming);
+      msg.metadata.debate.final_round = event.round ?? msg.metadata.debate.rounds.length;
+      // Surface the kind so the dispatcher renders DebateView during streaming
+      // (otherwise the view stays at peer_ranking until the terminal event).
+      msg.stage2Kind = normaliseStage2Kind(event.kind);
+    }),
     stage2_complete: (event) => updateLast((msg) => {
       msg.stage2 = event.data;
       // Treat null / undefined / empty / whitespace-only as missing and
       // fall back to "peer_ranking". Without this, an older backend or a
       // malformed event would route the dispatcher to UnknownKindView.
       msg.stage2Kind = normaliseStage2Kind(event.kind);
+      // Terminal event is authoritative — overwrite metadata wholesale, which
+      // includes the canonical debate transcript (with dropouts) for replay.
       msg.metadata = event.metadata;
       msg.loading.stage2 = false;
     }),

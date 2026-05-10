@@ -50,6 +50,15 @@ type Config struct {
 	GenerateRankRefineModels        []string
 	GenerateRankRefineChairmanModel string
 
+	// MultiAgentDebate strategy registration. BOTH DebateModels AND
+	// DebateChairmanModel must be set for the council type to be registered.
+	// DebateMaxRounds is optional; 0 = use the runner's default of 2.
+	// Cost note: this strategy fires N + N*R + 1 LLM calls per request; with
+	// the default 4 debaters × 2 rounds + chairman that's 13 calls.
+	DebateModels        []string
+	DebateChairmanModel string
+	DebateMaxRounds     int
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -202,6 +211,33 @@ func Load() (*Config, error) {
 	// to match CLARIFICATION_ARBITER_MODEL / MAJORITY_CHAIRMAN_MODEL).
 	generateRankRefineChairmanModel := strings.TrimSpace(os.Getenv("GENERATE_RANK_REFINE_CHAIRMAN_MODEL"))
 
+	// MultiAgentDebate generator pool. Empty slice when unset — registration
+	// requires both this and the chairman var (no no-LLM path; Stage 3 chairman
+	// always runs).
+	var debateModels []string
+	if raw := os.Getenv("DEBATE_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				debateModels = append(debateModels, m)
+			}
+		}
+	}
+
+	// MultiAgentDebate chairman (required when models are set; whitespace-trim).
+	debateChairmanModel := strings.TrimSpace(os.Getenv("DEBATE_CHAIRMAN_MODEL"))
+
+	// MultiAgentDebate round budget. 0 = let the runner use its default of 2.
+	// Invalid values warn + use 0 (mirrors how CLARIFICATION_MAX_* handle bad input).
+	debateMaxRounds := 0
+	if raw := os.Getenv("DEBATE_MAX_ROUNDS"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			debateMaxRounds = v
+		} else {
+			slog.Warn("DEBATE_MAX_ROUNDS is invalid; using runner default",
+				"value", raw, "error", err)
+		}
+	}
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -233,6 +269,10 @@ func Load() (*Config, error) {
 
 		GenerateRankRefineModels:        generateRankRefineModels,
 		GenerateRankRefineChairmanModel: generateRankRefineChairmanModel,
+
+		DebateModels:        debateModels,
+		DebateChairmanModel: debateChairmanModel,
+		DebateMaxRounds:     debateMaxRounds,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 	}, nil

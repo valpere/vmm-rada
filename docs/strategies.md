@@ -16,7 +16,7 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | `RoleBased` | shipped | `rolebased.go:runRoleBased` | #177 |
 | `Majority` | shipped | `majority.go:runMajority` | #205 |
 | `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
-| `MultiAgentDebate` | planned | — | TBD |
+| `MultiAgentDebate` | shipped | `debate.go:runMultiAgentDebate` | #212 |
 | `MixtureOfAgents` | planned | — | TBD |
 | `Delphi` | planned | — | TBD |
 
@@ -30,8 +30,9 @@ Operators pick strategies on cost as much as on output quality. For a council of
 | `RoleBased` | **N + 1** | N role outputs + 1 chairman synthesis |
 | `Majority` | **N + (0 or 1)** | N generation; 0 chairman calls when there's a clear plurality and no chairman is configured; 1 for tiebreak or polish |
 | `GenerateRankRefine` | **N + 2** | N generation + 1 ranking + 1 refinement (both go to the chairman) |
+| `MultiAgentDebate` | **N + N×R + 1** | N generation + R rounds × N debaters revising + 1 chairman synthesis. With defaults N=4, R=2 → 13 calls. The most expensive shipped strategy; cost note in `.env.example`. |
 
-`MultiAgentDebate`, `MixtureOfAgents`, and `Delphi` are still planned; their costs will be added when each ships.
+`MixtureOfAgents` and `Delphi` are still planned; their costs will be added when each ships.
 
 ---
 
@@ -104,7 +105,7 @@ Stage 2 is polymorphic. The on-the-wire envelope carries a `kind` discriminator 
 
 The `kind` field is **added** to the existing `Stage2CompleteData` shape — no field renames or removals — so today's clients keep working.
 
-PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. For multi-round strategies (`MultiAgentDebate`, `Delphi`) — both **planned, not yet implemented** — the server is expected to fire a `stage2_round_complete` event per round followed by a final `stage2_complete` summary; this event type does not exist in the runtime today and ships with the first multi-round strategy.
+PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. **Multi-round strategies** (`MultiAgentDebate` shipped; `Delphi` planned) fire a `stage2_round_complete` event per round followed by a terminal `stage2_complete` summary. The per-round event has a **required** `round: N` field (not omitempty); the terminal event omits `round` when zero. The terminal event's `metadata.debate` carries the canonical transcript across all rounds, so a client that misses round events can still render the full debate from the terminal event alone.
 
 ### Stage 2 `kind` values
 
@@ -114,7 +115,7 @@ PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's
 | `role_stub` | `RoleBased` | **shipped** | `[]` — empty; metadata carries `aggregate_rankings: []`, `consensus_w: 1.0` | always `0` |
 | `vote_tally` | `Majority` | **shipped** | `metadata.vote_tally` is a `VoteTally` (`{clusters: VoteCluster[], winner_label: string}`); `data` is `[]` (Majority does not produce per-reviewer Stage 2 results). `VoteCluster` is `{members: string[], representative: string, votes: int}`. Clusters are sorted by votes desc, then representative asc. | always `0` |
 | `rank_refine` | `GenerateRankRefine` | **shipped** | `metadata.rank_refine` is a `RankRefine` (`{rankings: RankedCandidate[], top_k: int, criteria: string[]}`); `data` is `[]` (the ranking lives in metadata, not per-reviewer). `RankedCandidate` is `{label: string, scores: map<string, float64>, total_score: float64, advancing: bool}`. Rankings are sorted by `total_score` desc, then `label` asc. Exactly `top_k` candidates have `advancing: true`. Per-criterion scores clamped to `[0.0, 1.0]`; `total_score` to `[0.0, len(criteria)]`. | always `0` |
-| `debate_round` | `MultiAgentDebate` | **reserved** | per-debater critique-and-revise output for the current round; references to the round's targets | `1..N`; one event per round, then a final `stage2_complete` with summary |
+| `debate_round` | `MultiAgentDebate` | **shipped** | `metadata.debate` is a `Debate` (`{rounds: DebateRound[], final_round: int, dropouts?: DebaterDropout[]}`); `data` is `[]` (the transcript lives in metadata, not per-reviewer). Round events fire as `stage2_round_complete` per round (carrying just that round); the terminal `stage2_complete` carries the full transcript including dropouts. `DebaterDropout` is `{label, last_round, reason: "error"\|"json_parse"\|"empty_revision"}`. | `1..R`; one `stage2_round_complete` per round, then a terminal `stage2_complete` |
 | `moa_aggregator` | `MixtureOfAgents` | **reserved** | Layer-2 aggregator outputs; references to which Layer-1 proposers fed each aggregator | always `0` (single aggregator pass) |
 | `delphi_round` | `Delphi` | **reserved** | per-rater rating list for the current round; running averages and convergence indicator | `1..N`; one event per round |
 

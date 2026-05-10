@@ -36,12 +36,12 @@ describe('Stage2 dispatcher', () => {
   });
 
   it('routes an unknown kind to the unknown-kind view, surfacing the kind name', () => {
-    // Use one of the still-unimplemented reserved kinds (debate_round) — vote_tally
-    // is shipped now, so the unknown-kind view test must use a kind that's still
-    // reserved.
-    render(<Stage2 kind="debate_round" isLoading={false} />);
+    // Use one of the still-unimplemented reserved kinds. moa_aggregator and
+    // delphi_round are reserved as of this PR; debate_round and vote_tally
+    // are shipped, so they'd route to their proper views.
+    render(<Stage2 kind="moa_aggregator" isLoading={false} />);
     expect(screen.getByText(/view not implemented yet/i)).toBeInTheDocument();
-    expect(screen.getByText('debate_round')).toBeInTheDocument();
+    expect(screen.getByText('moa_aggregator')).toBeInTheDocument();
   });
 
   it('defaults to peer_ranking when kind is undefined (old-backend safety net)', () => {
@@ -222,6 +222,97 @@ describe('Stage2 dispatcher', () => {
         ],
       };
       render(<Stage2 kind="rank_refine" rankRefine={tally} stage1={stage1} isLoading={false} />);
+      expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('DebateView (kind="debate_round")', () => {
+    const twoRoundDebate = {
+      final_round: 2,
+      rounds: [
+        {
+          round: 1,
+          revisions: [
+            { label: 'Response A', critique: 'A1 critique', content: 'A1 revision' },
+            { label: 'Response B', critique: 'B1 critique', content: 'B1 revision' },
+            { label: 'Response C', critique: 'C1 critique', content: 'C1 revision' },
+          ],
+        },
+        {
+          round: 2,
+          revisions: [
+            { label: 'Response A', critique: 'A2 critique', content: 'A2 revision' },
+            { label: 'Response B', critique: 'B2 critique', content: 'B2 revision' },
+            { label: 'Response C', critique: 'C2 critique', content: 'C2 revision' },
+          ],
+        },
+      ],
+    };
+
+    it('renders rounds with all debater revisions', () => {
+      render(<Stage2 kind="debate_round" debate={twoRoundDebate} isLoading={false} />);
+      expect(screen.getByText(/Stage 2: Debate \(2 rounds\)/i)).toBeInTheDocument();
+      // Round headers.
+      expect(screen.getByText(/Round 1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Round 2/i)).toBeInTheDocument();
+      // Both rounds × 3 debaters = 6 revisions visible.
+      expect(screen.getByText('A1 revision')).toBeInTheDocument();
+      expect(screen.getByText('A2 revision')).toBeInTheDocument();
+      expect(screen.getByText('B1 revision')).toBeInTheDocument();
+      expect(screen.getByText('C2 revision')).toBeInTheDocument();
+      // Critiques visible too.
+      expect(screen.getByText('A1 critique')).toBeInTheDocument();
+    });
+
+    it('appends a new round when state updates (live progressive UI)', () => {
+      const oneRound = {
+        final_round: 1,
+        rounds: [
+          {
+            round: 1,
+            revisions: [
+              { label: 'Response A', content: 'first round answer' },
+            ],
+          },
+        ],
+      };
+      const { rerender } = render(<Stage2 kind="debate_round" debate={oneRound} isLoading={false} />);
+      expect(screen.getByText('first round answer')).toBeInTheDocument();
+      expect(screen.queryByText('second round answer')).not.toBeInTheDocument();
+
+      // Update to add round 2 — first round must remain visible.
+      const twoRounds = {
+        final_round: 2,
+        rounds: [
+          ...oneRound.rounds,
+          {
+            round: 2,
+            revisions: [
+              { label: 'Response A', content: 'second round answer' },
+            ],
+          },
+        ],
+      };
+      rerender(<Stage2 kind="debate_round" debate={twoRounds} isLoading={false} />);
+      expect(screen.getByText('first round answer')).toBeInTheDocument();
+      expect(screen.getByText('second round answer')).toBeInTheDocument();
+    });
+
+    it('truncates long revision content with a Show full answer button', () => {
+      const longText =
+        'A long revision that exceeds the truncation threshold so the dispatcher exposes a Show full answer button — '.repeat(2);
+      const debate = {
+        final_round: 1,
+        rounds: [
+          {
+            round: 1,
+            revisions: [
+              { label: 'Response A', critique: 'short critique', content: longText },
+            ],
+          },
+        ],
+      };
+      render(<Stage2 kind="debate_round" debate={debate} isLoading={false} />);
       expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
     });
   });

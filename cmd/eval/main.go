@@ -135,6 +135,21 @@ func run() error {
 			}
 		}
 	}
+	// Mirror cmd/server's opt-in MultiAgentDebate registration.
+	if len(cfg.DebateModels) > 0 {
+		if cfg.DebateChairmanModel == "" {
+			logger.Warn("DEBATE_MODELS set but DEBATE_CHAIRMAN_MODEL is empty; skipping registration of \"debate\" council type")
+		} else {
+			registry["debate"] = council.CouncilType{
+				Name:            "debate",
+				Strategy:        council.MultiAgentDebate,
+				Models:          cfg.DebateModels,
+				ChairmanModel:   cfg.DebateChairmanModel,
+				Temperature:     cfg.DefaultCouncilTemperature,
+				MaxDebateRounds: cfg.DebateMaxRounds,
+			}
+		}
+	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}

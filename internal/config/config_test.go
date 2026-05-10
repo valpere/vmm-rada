@@ -371,3 +371,94 @@ func TestLoad_GenerateRankRefineModels_ChairmanWhitespace_TreatedAsUnset(t *test
 		t.Errorf("GenerateRankRefineChairmanModel: got %q, want empty (whitespace trim)", cfg.GenerateRankRefineChairmanModel)
 	}
 }
+
+// ── TestLoad_DebateModels ─────────────────────────────────────────────────
+//
+// Both DEBATE_MODELS and DEBATE_CHAIRMAN_MODEL must be set for the council
+// type to register (Stage 3 chairman always runs; no no-LLM path).
+// DEBATE_MAX_ROUNDS is optional; 0 = use the runner's default of 2.
+
+func TestLoad_DebateModels_BothSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "DEBATE_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5, google/gemini-flash-1.5, qwen/qwen3.6-plus")
+	setenv(t, "DEBATE_CHAIRMAN_MODEL", "anthropic/claude-sonnet-4-5")
+	setenv(t, "DEBATE_MAX_ROUNDS", "3")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5", "google/gemini-flash-1.5", "qwen/qwen3.6-plus"}
+	if len(cfg.DebateModels) != len(want) {
+		t.Fatalf("DebateModels: got %v, want %v", cfg.DebateModels, want)
+	}
+	for i, m := range want {
+		if cfg.DebateModels[i] != m {
+			t.Errorf("DebateModels[%d]: got %q, want %q", i, cfg.DebateModels[i], m)
+		}
+	}
+	if cfg.DebateChairmanModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("DebateChairmanModel: got %q, want %q", cfg.DebateChairmanModel, "anthropic/claude-sonnet-4-5")
+	}
+	if cfg.DebateMaxRounds != 3 {
+		t.Errorf("DebateMaxRounds: got %d, want 3", cfg.DebateMaxRounds)
+	}
+}
+
+func TestLoad_DebateModels_ModelsOnly_ChairmanEmpty(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "DEBATE_MODELS", "openai/gpt-4o-mini")
+	unsetenv(t, "DEBATE_CHAIRMAN_MODEL")
+	// Loader does NOT pre-fill from CHAIRMAN_MODEL — the registration site
+	// at cmd/server/main.go decides whether the partial config is enough.
+	setenv(t, "CHAIRMAN_MODEL", "global-chairman")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DebateModels) != 1 || cfg.DebateModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("DebateModels: got %v, want [openai/gpt-4o-mini]", cfg.DebateModels)
+	}
+	if cfg.DebateChairmanModel != "" {
+		t.Errorf("DebateChairmanModel: got %q, want empty (loader does not pre-fill from CHAIRMAN_MODEL)", cfg.DebateChairmanModel)
+	}
+}
+
+func TestLoad_DebateModels_BothUnset(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "DEBATE_MODELS")
+	unsetenv(t, "DEBATE_CHAIRMAN_MODEL")
+	unsetenv(t, "DEBATE_MAX_ROUNDS")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DebateModels) != 0 {
+		t.Errorf("DebateModels: got %v, want empty", cfg.DebateModels)
+	}
+	if cfg.DebateChairmanModel != "" {
+		t.Errorf("DebateChairmanModel: got %q, want empty", cfg.DebateChairmanModel)
+	}
+	if cfg.DebateMaxRounds != 0 {
+		t.Errorf("DebateMaxRounds: got %d, want 0 (sentinel for runner default)", cfg.DebateMaxRounds)
+	}
+}
+
+func TestLoad_DebateMaxRounds_Invalid_DefaultsToZero(t *testing.T) {
+	// Invalid DEBATE_MAX_ROUNDS warns and falls back to 0 (which the runner
+	// treats as the default 2). Mirrors how CLARIFICATION_MAX_* handle bad input.
+	baseEnv(t)
+	setenv(t, "DEBATE_MODELS", "m-a")
+	setenv(t, "DEBATE_CHAIRMAN_MODEL", "chairman-z")
+	setenv(t, "DEBATE_MAX_ROUNDS", "not-a-number")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DebateMaxRounds != 0 {
+		t.Errorf("DebateMaxRounds: got %d, want 0 (invalid input → runner default)", cfg.DebateMaxRounds)
+	}
+}

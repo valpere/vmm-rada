@@ -786,6 +786,125 @@ func TestSendMessageStream(t *testing.T) {
 			},
 		},
 		{
+			name:   "MultiAgentDebate emits stage2_round_complete events with required round",
+			body:   `{"content":"q","council_type":"debate"}`,
+			storer: okStorer(),
+			runner: &mockRunner{
+				runFull: func(ctx context.Context, query, ct string, onEvent council.EventFunc) error {
+					onEvent("stage1_complete", []council.StageOneResult{
+						{Label: "Response A", Content: "ans-a", Model: "openai/gpt-4o-mini"},
+						{Label: "Response B", Content: "ans-b", Model: "anthropic/claude-haiku-4-5"},
+						{Label: "Response C", Content: "ans-c", Model: "google/gemini-flash-1.5"},
+					})
+					// Round 1 — per-round event with required `round` field.
+					onEvent("stage2_round_complete", council.Stage2CompleteData{
+						Kind:    "debate_round",
+						Round:   1,
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType:       "debate",
+							LabelToModel:      map[string]string{"Response A": "openai/gpt-4o-mini"},
+							AggregateRankings: []council.RankedModel{},
+							Debate: &council.Debate{
+								Rounds: []council.DebateRound{{Round: 1, Revisions: []council.DebaterRevision{
+									{Label: "Response A", Critique: "c", Content: "rev-a-1"},
+								}}},
+								FinalRound: 1,
+							},
+						},
+					})
+					// Terminal event — canonical transcript with both rounds.
+					onEvent("stage2_complete", council.Stage2CompleteData{
+						Kind:    "debate_round",
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType:       "debate",
+							LabelToModel:      map[string]string{"Response A": "openai/gpt-4o-mini"},
+							AggregateRankings: []council.RankedModel{},
+							Debate: &council.Debate{
+								Rounds: []council.DebateRound{
+									{Round: 1, Revisions: []council.DebaterRevision{{Label: "Response A", Content: "rev-a-1"}}},
+									{Round: 2, Revisions: []council.DebaterRevision{{Label: "Response A", Content: "rev-a-2"}}},
+								},
+								FinalRound: 2,
+							},
+						},
+					})
+					onEvent("stage3_complete", council.StageThreeResult{Content: "synthesis", Model: "chairman-z", DurationMs: 100})
+					return nil
+				},
+			},
+			wantCode: http.StatusOK,
+			checkSSE: func(t *testing.T, body string) {
+				// 1. A stage2_round_complete event MUST appear with `round: 1`
+				//    present on the wire (not omitempty).
+				// 2. The terminal stage2_complete event MUST carry the full
+				//    transcript with metadata.debate populated.
+				var sawRoundEvent bool
+				var sawTerminalDebate bool
+				for _, line := range strings.Split(body, "\n") {
+					if !strings.HasPrefix(line, "data: ") {
+						continue
+					}
+					raw := []byte(line[6:])
+
+					// Detect round events by Type+Round-key presence in raw JSON.
+					var keys map[string]json.RawMessage
+					if err := json.Unmarshal(raw, &keys); err != nil {
+						continue
+					}
+					var typ string
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_round_complete" {
+						sawRoundEvent = true
+						roundRaw, present := keys["round"]
+						if !present {
+							t.Errorf("stage2_round_complete: 'round' key missing on the wire (must be required, not omitempty)")
+						}
+						var roundVal int
+						if err := json.Unmarshal(roundRaw, &roundVal); err != nil || roundVal != 1 {
+							t.Errorf("stage2_round_complete round: got %s, want 1", string(roundRaw))
+						}
+						var kind string
+						_ = json.Unmarshal(keys["kind"], &kind)
+						if kind != "debate_round" {
+							t.Errorf("stage2_round_complete kind: got %q, want %q", kind, "debate_round")
+						}
+					}
+
+					// Detect the terminal event with full transcript.
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_complete" {
+						var env struct {
+							Kind     string           `json:"kind"`
+							Metadata council.Metadata `json:"metadata"`
+						}
+						if err := json.Unmarshal(raw, &env); err != nil {
+							continue
+						}
+						if env.Kind != "debate_round" {
+							t.Errorf("terminal kind: got %q, want %q", env.Kind, "debate_round")
+						}
+						if env.Metadata.Debate == nil {
+							t.Errorf("terminal stage2_complete: metadata.debate is nil")
+							continue
+						}
+						if env.Metadata.Debate.FinalRound != 2 {
+							t.Errorf("FinalRound: got %d, want 2", env.Metadata.Debate.FinalRound)
+						}
+						if len(env.Metadata.Debate.Rounds) != 2 {
+							t.Errorf("transcript rounds: got %d, want 2", len(env.Metadata.Debate.Rounds))
+						}
+						sawTerminalDebate = true
+					}
+				}
+				if !sawRoundEvent {
+					t.Error("stage2_round_complete event not seen on the wire")
+				}
+				if !sawTerminalDebate {
+					t.Error("terminal stage2_complete with debate transcript not seen on the wire")
+				}
+			},
+		},
+		{
 			name:   "QuorumError emits error event",
 			body:   `{"content":"test","council_type":"standard"}`,
 			storer: okStorer(),

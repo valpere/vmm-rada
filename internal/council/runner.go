@@ -70,6 +70,8 @@ func (c *Council) RunFull(ctx context.Context, query string, councilTypeName str
 		return c.runMajority(ctx, query, ct, onEvent)
 	case GenerateRankRefine:
 		return c.runGenerateRankRefine(ctx, query, ct, onEvent)
+	case MultiAgentDebate:
+		return c.runMultiAgentDebate(ctx, query, ct, onEvent)
 	default:
 		return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)
 	}

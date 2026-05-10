@@ -83,6 +83,24 @@ func main() {
 		}
 	}
 
+	// MultiAgentDebate registration is opt-in AND requires both env vars.
+	// Stage 3 chairman always runs; no no-LLM path. DebateMaxRounds=0 is the
+	// sentinel for "use runner default of 2".
+	if len(cfg.DebateModels) > 0 {
+		if cfg.DebateChairmanModel == "" {
+			logger.Warn("DEBATE_MODELS set but DEBATE_CHAIRMAN_MODEL is empty; skipping registration of \"debate\" council type")
+		} else {
+			registry["debate"] = council.CouncilType{
+				Name:            "debate",
+				Strategy:        council.MultiAgentDebate,
+				Models:          cfg.DebateModels,
+				ChairmanModel:   cfg.DebateChairmanModel,
+				Temperature:     cfg.DefaultCouncilTemperature,
+				MaxDebateRounds: cfg.DebateMaxRounds,
+			}
+		}
+	}
+
 	client := openrouter.NewClient(cfg.OpenRouterAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
 	runner := council.NewCouncil(client, registry, logger)
 

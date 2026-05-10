@@ -301,6 +301,114 @@ function RankRefineView({ rankRefine, rankings: stage1Rankings, isLoading }) {
   );
 }
 
+// DebateView renders the MultiAgentDebate strategy's Stage 2 payload as a
+// vertical timeline: one section per round, with each surviving debater's
+// critique + revision shown as a row, plus dropout markers in muted style.
+// Long content truncated with click-to-expand (same pattern as
+// VoteTallyView and RankRefineView).
+function DebaterRow({ revision, isDropout }) {
+  const [expanded, setExpanded] = useState(false);
+  const longText = (revision?.content ?? '').length > REPRESENTATIVE_TRUNCATE_THRESHOLD;
+
+  if (isDropout) {
+    return (
+      <div className="debate-row dropout" title={`reason: ${revision.reason}`}>
+        <span className="debate-row-label">{revision.label}</span>
+        <span className="debate-dropout-mark">
+          ✗ dropped after round {revision.last_round} ({revision.reason})
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="debate-row">
+      <div className="debate-row-header">
+        <span className="debate-row-label">{revision.label}</span>
+      </div>
+      {revision.critique && (
+        <div className="debate-critique">
+          <span className="debate-critique-label">Critique:</span>
+          <span className="debate-critique-text">{revision.critique}</span>
+        </div>
+      )}
+      <div className={`debate-revision${longText && !expanded ? ' collapsed' : ''}`}>
+        {revision.content}
+      </div>
+      {longText && (
+        <button
+          type="button"
+          className="vote-expand-btn"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+        >
+          {expanded ? 'Show less' : 'Show full answer'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DebateView({ debate, isLoading }) {
+  if (isLoading && (!debate || !debate.rounds || debate.rounds.length === 0)) {
+    return (
+      <div className="stage stage2">
+        <div className="stage-accordion" aria-disabled="true">
+          <span className="stage-accordion-label">
+            <span className="spinner-sm" />
+            Debate in progress…
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!debate || !debate.rounds || debate.rounds.length === 0) {
+    return null;
+  }
+
+  // Build per-round dropout map: which debaters dropped at the END of round N
+  // (i.e., LastRound = N, and they no longer appear in round N+1).
+  const dropoutsByRound = {};
+  if (Array.isArray(debate.dropouts)) {
+    for (const d of debate.dropouts) {
+      const r = d.last_round;
+      if (!dropoutsByRound[r]) dropoutsByRound[r] = [];
+      dropoutsByRound[r].push(d);
+    }
+  }
+
+  const finalRound = debate.final_round ?? debate.rounds.length;
+
+  return (
+    <div className="stage stage2">
+      <div className="stage-accordion" aria-disabled="true">
+        <span className="stage-accordion-label">
+          Stage 2: Debate ({finalRound} {finalRound === 1 ? 'round' : 'rounds'})
+        </span>
+      </div>
+      <div className="stage-body">
+        <div className="debate-timeline">
+          {debate.rounds.map((round) => {
+            // Dropouts that occurred BEFORE this round (LastRound = round - 1).
+            const before = dropoutsByRound[round.round - 1] || [];
+            return (
+              <div className="debate-round" key={round.round}>
+                <div className="debate-round-header">Round {round.round}</div>
+                {before.map((d) => (
+                  <DebaterRow key={`drop-${d.label}-${round.round}`} revision={d} isDropout />
+                ))}
+                {round.revisions.map((rev, i) => (
+                  <DebaterRow key={`${rev.label}-${round.round}-${i}`} revision={rev} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // RoleStubView renders a minimal placeholder for the RoleBased strategy,
 // where Stage 2 has no peer-ranking content (roles are complementary).
 function RoleStubView({ isLoading }) {
@@ -358,6 +466,7 @@ export default function Stage2({
   consensusW,
   voteTally,
   rankRefine,
+  debate,
   stage1,
   isLoading,
 }) {
@@ -381,6 +490,8 @@ export default function Stage2({
       return <VoteTallyView voteTally={voteTally} isLoading={isLoading} />;
     case 'rank_refine':
       return <RankRefineView rankRefine={rankRefine} rankings={stage1} isLoading={isLoading} />;
+    case 'debate_round':
+      return <DebateView debate={debate} isLoading={isLoading} />;
     default:
       return <UnknownKindView kind={effectiveKind} />;
   }

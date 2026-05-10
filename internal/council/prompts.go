@@ -388,6 +388,107 @@ func BuildRankPrompt(query string, candidates []StageOneResult, criteria []strin
 	}
 }
 
+// BuildDebateRoundPrompt asks a single debater to critique the OTHER
+// debaters' previous-round answers and produce a revised answer of their own.
+//
+// Anonymisation contract: `others` shows OTHER debaters' content with labels
+// only — model names MUST NOT appear in the body. `selfPrev` is the
+// debater's own previous-round output (round-0 answer in round 1; prior
+// revision in subsequent rounds) so the model can revise rather than start
+// from scratch.
+//
+// Discriminator prefix: "You debate council answers." — used by tests to
+// classify the call as a debate round.
+func BuildDebateRoundPrompt(query string, selfPrev DebaterRevision, others []DebaterRevision, round, totalRounds int) []ChatMessage {
+	var sb strings.Builder
+	sb.WriteString("You debate council answers. ")
+	fmt.Fprintf(&sb, "This is round %d of %d in a multi-agent debate.\n\n", round, totalRounds)
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\n")
+
+	sb.WriteString("Your previous-round answer (revise it, don't start from scratch):\n")
+	sb.WriteString(selfPrev.Content)
+	sb.WriteString("\n\n")
+
+	sb.WriteString("Other debaters' previous-round answers (anonymous; you don't know which model wrote which):\n")
+	if len(others) == 0 {
+		sb.WriteString("(no other debaters in this round)\n")
+	} else {
+		for _, o := range others {
+			fmt.Fprintf(&sb, "\n[%s]\n%s\n", o.Label, o.Content)
+		}
+	}
+
+	sb.WriteString("\nProduce a JSON object with this shape:\n")
+	sb.WriteString("```json\n")
+	sb.WriteString("{\n  \"critique\": \"<your critique of the other debaters' answers — what they got right, what they got wrong>\",\n")
+	sb.WriteString("  \"revision\": \"<your revised answer to the question, taking the others' arguments into account>\"\n}\n")
+	sb.WriteString("```\n")
+	sb.WriteString("Be specific in critique. Be substantive in revision — don't just defend your previous answer if the others raised valid points; revise. ")
+	sb.WriteString("If you genuinely think the others are wrong on every point, your revision can match your previous answer, but explain why in critique.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
+// BuildDebateChairmanPrompt asks the chairman to synthesise a final answer
+// from the full debate transcript: round-0 initial answers (from Stage 1)
+// plus all subsequent rounds' revisions, plus any dropout markers.
+//
+// The chairman receives the LabelToModel map so it can attribute model
+// provenance in its synthesis. Dropouts are surfaced explicitly so the
+// chairman can reason about an evolving cast.
+func BuildDebateChairmanPrompt(query string, stage1 []StageOneResult, debate *Debate, labelToModel map[string]string) []ChatMessage {
+	var sb strings.Builder
+	sb.WriteString("You synthesise the final answer from a multi-agent debate. ")
+	fmt.Fprintf(&sb, "%d debaters argued the question below across %d rounds.\n\n", len(stage1), debate.FinalRound)
+
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\n")
+
+	sb.WriteString("Round 0 (initial answers):\n")
+	for _, s1 := range stage1 {
+		modelName := labelToModel[s1.Label]
+		if modelName == "" {
+			modelName = s1.Model
+		}
+		fmt.Fprintf(&sb, "\n[%s — %s]\n%s\n", s1.Label, modelName, s1.Content)
+	}
+
+	for _, round := range debate.Rounds {
+		fmt.Fprintf(&sb, "\nRound %d:\n", round.Round)
+		for _, rev := range round.Revisions {
+			modelName := labelToModel[rev.Label]
+			if modelName == "" {
+				modelName = rev.Model
+			}
+			if rev.Critique != "" {
+				fmt.Fprintf(&sb, "\n[%s — %s] Critique: %s\n", rev.Label, modelName, rev.Critique)
+			}
+			fmt.Fprintf(&sb, "\n[%s — %s] Revision: %s\n", rev.Label, modelName, rev.Content)
+		}
+	}
+
+	if len(debate.Dropouts) > 0 {
+		sb.WriteString("\nDropouts (debaters who stopped revising mid-debate):\n")
+		for _, d := range debate.Dropouts {
+			fmt.Fprintf(&sb, "- [%s] dropped after round %d (reason: %s)\n", d.Label, d.LastRound, d.Reason)
+		}
+	}
+
+	sb.WriteString("\nSynthesise the final answer. Use the strongest threads from each debater's arguments — don't just copy one position. ")
+	sb.WriteString("If the debaters converged on a position, take that as a strong signal. ")
+	sb.WriteString("If they diverged, weigh the critiques and pick the most defensible synthesis. ")
+	sb.WriteString("Reply with the final answer only — no preamble, no commentary on the debate process.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
 // BuildRankRefinePrompt asks the GenerateRankRefine refiner (the chairman) to
 // produce a final answer from the top-K advancing candidates. The instruction
 // emphasises picking strong threads over averaging — bland blends are the

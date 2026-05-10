@@ -485,40 +485,78 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	// sendStage2SSE emits the spec-correct stage2_complete shape:
-	// { "type": "stage2_complete", "kind": "...", "data": [...], "metadata": {...}, "round": N }
-	// kind discriminates the strategy-specific payload (peer_ranking, role_stub, …);
-	// round is omitted when zero (reserved for future multi-round strategies).
-	sendStage2SSE := func(d council.Stage2CompleteData) {
-		type stage2Payload struct {
+	// sendStage2Envelope emits one of the two Stage 2 SSE event types:
+	//   - eventType="stage2_complete"        — terminal event; round is omitempty
+	//   - eventType="stage2_round_complete"  — per-round event; round is required
+	//
+	// The two share an envelope shape but differ in whether `round` may be
+	// elided. We use two struct shapes (parallel) to encode that — anonymous
+	// types in the closure keep the parallel pair colocated and prevent the
+	// drift that a single shared struct + runtime decision would invite.
+	//
+	// Default kind on empty Kind is the strategy-typical default for the
+	// event: "peer_ranking" for terminal stage2_complete (matches the only
+	// previously-emitted event), "debate_round" for per-round events (which
+	// only ever fire from MultiAgentDebate today).
+	sendStage2Envelope := func(eventType string, d council.Stage2CompleteData, requireRound bool) {
+		type stage2OmitRound struct {
 			Type     string                   `json:"type"`
 			Kind     string                   `json:"kind"`
 			Round    int                      `json:"round,omitempty"`
 			Data     []council.StageTwoResult `json:"data"`
 			Metadata council.Metadata         `json:"metadata"`
 		}
-		// Default empty Kind to "peer_ranking" so a Stage2CompleteData built
-		// without an explicit Kind (e.g. by older callers or test fakes) does
-		// not produce wire-level `"kind":""`, which would route the frontend
-		// dispatcher to the unknown-kind view.
+		type stage2RequireRound struct {
+			Type     string                   `json:"type"`
+			Kind     string                   `json:"kind"`
+			Round    int                      `json:"round"`
+			Data     []council.StageTwoResult `json:"data"`
+			Metadata council.Metadata         `json:"metadata"`
+		}
+
 		kind := d.Kind
 		if kind == "" {
-			kind = "peer_ranking"
+			if requireRound {
+				kind = "debate_round"
+			} else {
+				kind = "peer_ranking"
+			}
 		}
-		b, err := json.Marshal(stage2Payload{
-			Type:     "stage2_complete",
-			Kind:     kind,
-			Round:    d.Round,
-			Data:     d.Results,
-			Metadata: d.Metadata,
-		})
+
+		var b []byte
+		var err error
+		if requireRound {
+			b, err = json.Marshal(stage2RequireRound{
+				Type:     eventType,
+				Kind:     kind,
+				Round:    d.Round,
+				Data:     d.Results,
+				Metadata: d.Metadata,
+			})
+		} else {
+			b, err = json.Marshal(stage2OmitRound{
+				Type:     eventType,
+				Kind:     kind,
+				Round:    d.Round,
+				Data:     d.Results,
+				Metadata: d.Metadata,
+			})
+		}
 		if err != nil {
-			h.logger.Error("marshal stage2 SSE payload", "error", err)
+			h.logger.Error("marshal stage2 SSE payload", "type", eventType, "error", err)
 			return
 		}
 		fmt.Fprintf(w, "data: %s\n\n", b)
 		flusher.Flush()
 	}
+
+	// sendStage2SSE preserves the existing call sites for the terminal
+	// stage2_complete event. New callers (per-round events) call
+	// sendStage2Envelope("stage2_round_complete", d, true) directly.
+	sendStage2SSE := func(d council.Stage2CompleteData) {
+		sendStage2Envelope("stage2_complete", d, false)
+	}
+	_ = sendStage2SSE // referenced below; suppress "declared but unused" if call sites change
 
 	// sendErrorSSE emits { "type": "error", "message": "..." } per the SSE spec.
 	sendErrorSSE := func(msg string) {
@@ -556,6 +594,15 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 				stage1Results = results
 			}
 			sendSSE(eventType, data)
+		case "stage2_round_complete":
+			// Per-round event from multi-round strategies (currently only
+			// MultiAgentDebate). Round events do NOT update stage2Data — that
+			// reflects the terminal stage2_complete only. Each round event
+			// streams immediately to the client; the canonical transcript
+			// arrives on the terminal event.
+			if d, ok := data.(council.Stage2CompleteData); ok {
+				sendStage2Envelope("stage2_round_complete", d, true)
+			}
 		case "stage2_complete":
 			if d, ok := data.(council.Stage2CompleteData); ok {
 				stage2Data = d
