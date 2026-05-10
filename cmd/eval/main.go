@@ -119,6 +119,22 @@ func run() error {
 			Temperature:   cfg.DefaultCouncilTemperature,
 		}
 	}
+	// Mirror cmd/server's opt-in GenerateRankRefine registration. Both env
+	// vars are required (no no-LLM path); skip with a warn if chairman is
+	// missing.
+	if len(cfg.GenerateRankRefineModels) > 0 {
+		if cfg.GenerateRankRefineChairmanModel == "" {
+			logger.Warn("GENERATE_RANK_REFINE_MODELS set but GENERATE_RANK_REFINE_CHAIRMAN_MODEL is empty; skipping registration of \"generate-rank-refine\" council type")
+		} else {
+			registry["generate-rank-refine"] = council.CouncilType{
+				Name:          "generate-rank-refine",
+				Strategy:      council.GenerateRankRefine,
+				Models:        cfg.GenerateRankRefineModels,
+				ChairmanModel: cfg.GenerateRankRefineChairmanModel,
+				Temperature:   cfg.DefaultCouncilTemperature,
+			}
+		}
+	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}

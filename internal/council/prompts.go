@@ -344,3 +344,74 @@ func BuildMajorityTiebreakPrompt(query string, tied []VoteCluster) []ChatMessage
 		{Role: "user", Content: sb.String()},
 	}
 }
+
+// BuildRankPrompt asks the GenerateRankRefine arbiter to score each candidate
+// answer against a fixed set of criteria. Each criterion is scored on [0.0, 1.0];
+// total_score is the sum across criteria.
+//
+// Discriminator prefix: "You rank council answers." — used by tests to classify
+// the call as the rank step (vs the refine step's "You refine the top-K").
+func BuildRankPrompt(query string, candidates []StageOneResult, criteria []string, k int) []ChatMessage {
+	var sb strings.Builder
+	sb.WriteString("You rank council answers. ")
+	fmt.Fprintf(&sb, "%d candidate answers were generated independently for the question below; ", len(candidates))
+	fmt.Fprintf(&sb, "score each one on the criteria below, then identify the top %d that should advance to refinement.\n\n", k)
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nCriteria (each scored 0.0–1.0):\n")
+	for _, c := range criteria {
+		fmt.Fprintf(&sb, "- %s\n", c)
+	}
+	sb.WriteString("\nCandidates:\n")
+	for _, cand := range candidates {
+		fmt.Fprintf(&sb, "\n[%s]\n%s\n", cand.Label, cand.Content)
+	}
+	sb.WriteString("\nReturn ONLY a JSON object with this shape:\n")
+	sb.WriteString("```json\n")
+	sb.WriteString("{\n  \"rankings\": [\n    {\n")
+	sb.WriteString("      \"label\": \"<exact label from above>\",\n")
+	sb.WriteString("      \"scores\": { ")
+	for i, c := range criteria {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		fmt.Fprintf(&sb, "\"%s\": <0.0..1.0>", c)
+	}
+	sb.WriteString(" },\n")
+	sb.WriteString("      \"total_score\": <sum of scores>\n")
+	sb.WriteString("    }\n  ]\n}\n```\n")
+	sb.WriteString("Score every candidate. Use the exact label string. ")
+	sb.WriteString("Be discriminating — spread scores across the range so the top-K cut is meaningful.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
+// BuildRankRefinePrompt asks the GenerateRankRefine refiner (the chairman) to
+// produce a final answer from the top-K advancing candidates. The instruction
+// emphasises picking strong threads over averaging — bland blends are the
+// failure mode this strategy is most prone to.
+//
+// Discriminator prefix: "You refine the top-K council answers." — used by
+// tests to classify the call as the refine step.
+func BuildRankRefinePrompt(query string, advancing []StageOneResult, criteria []string) []ChatMessage {
+	var sb strings.Builder
+	sb.WriteString("You refine the top-K council answers. ")
+	fmt.Fprintf(&sb, "An arbiter ranked %d council answers for the question below against these criteria: %s. ", len(advancing), strings.Join(criteria, ", "))
+	sb.WriteString("The top candidates are shown below; produce one refined final answer.\n\n")
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nTop candidates:\n")
+	for i, cand := range advancing {
+		fmt.Fprintf(&sb, "\n[Candidate %d] (%s)\n%s\n", i+1, cand.Label, cand.Content)
+	}
+	sb.WriteString("\nRefine — do NOT produce a bland blend or averaged synthesis. ")
+	sb.WriteString("Pick the strongest threads from each candidate and weave them into one answer that is more accurate, clearer, and more complete than any individual candidate. ")
+	sb.WriteString("If one candidate is clearly best on every criterion, prefer it over an unnecessary synthesis. ")
+	sb.WriteString("Reply with the refined answer only — no preamble, no commentary on the ranking process.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}

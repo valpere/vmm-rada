@@ -42,6 +42,14 @@ type Config struct {
 	MajorityModels        []string
 	MajorityChairmanModel string
 
+	// GenerateRankRefine strategy registration. BOTH GenerateRankRefineModels
+	// AND GenerateRankRefineChairmanModel must be set for the council type to
+	// be registered — unlike Majority, this strategy has no no-LLM path
+	// (Stage 2 ranking and Stage 3 refinement are both LLM calls). When models
+	// are set but chairman is missing, registration is skipped with a warn log.
+	GenerateRankRefineModels        []string
+	GenerateRankRefineChairmanModel string
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -178,6 +186,22 @@ func Load() (*Config, error) {
 	// "no chairman" loud-error path on ties.
 	majorityChairmanModel := strings.TrimSpace(os.Getenv("MAJORITY_CHAIRMAN_MODEL"))
 
+	// GenerateRankRefine generator pool. Empty slice when unset — registration
+	// in cmd/server/main.go also requires the chairman var, otherwise the
+	// strategy can't run (no no-LLM path).
+	var generateRankRefineModels []string
+	if raw := os.Getenv("GENERATE_RANK_REFINE_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				generateRankRefineModels = append(generateRankRefineModels, m)
+			}
+		}
+	}
+
+	// GenerateRankRefine chairman (required when models are set; whitespace-trim
+	// to match CLARIFICATION_ARBITER_MODEL / MAJORITY_CHAIRMAN_MODEL).
+	generateRankRefineChairmanModel := strings.TrimSpace(os.Getenv("GENERATE_RANK_REFINE_CHAIRMAN_MODEL"))
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -206,6 +230,9 @@ func Load() (*Config, error) {
 
 		MajorityModels:        majorityModels,
 		MajorityChairmanModel: majorityChairmanModel,
+
+		GenerateRankRefineModels:        generateRankRefineModels,
+		GenerateRankRefineChairmanModel: generateRankRefineChairmanModel,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 	}, nil

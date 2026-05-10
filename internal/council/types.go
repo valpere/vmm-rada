@@ -49,7 +49,8 @@ type CouncilType struct {
 	Roles         []Role   // RoleBased only: role definitions with specialist instructions.
 	ChairmanModel string
 	Temperature   float64
-	QuorumMin     int // 0 = use formula: max(2, ⌈N/2⌉+1)
+	QuorumMin     int // 0 = strategy-specific default formula
+	RefineTopK    int // GenerateRankRefine only: how many ranked candidates advance to refinement; 0 = default (3)
 }
 
 // ChatMessage is a single turn in a conversation history.
@@ -136,16 +137,40 @@ type VoteTally struct {
 	WinnerLabel string        `json:"winner_label"`
 }
 
+// RankedCandidate is a single Stage 1 answer scored by the GenerateRankRefine
+// arbiter against a fixed set of criteria. Scores are clamped to [0.0, 1.0]
+// per criterion; TotalScore is the sum across all criteria, clamped to
+// [0.0, len(Criteria)].
+type RankedCandidate struct {
+	Label      string             `json:"label"`
+	Scores     map[string]float64 `json:"scores"`
+	TotalScore float64            `json:"total_score"`
+	Advancing  bool               `json:"advancing"`
+}
+
+// RankRefine is the Stage 2 payload for the GenerateRankRefine strategy.
+// Rankings are sorted by TotalScore descending, then by Label ascending for
+// stable output. Exactly TopK candidates have Advancing=true; ties at the
+// K boundary are broken by the secondary Label sort (no rebalancing, no
+// chairman tiebreak). Criteria lists the criterion names in fixed order.
+type RankRefine struct {
+	Rankings []RankedCandidate `json:"rankings"`
+	TopK     int               `json:"top_k"`
+	Criteria []string          `json:"criteria"`
+}
+
 // Metadata is persisted with every assistant message.
 //
-// VoteTally is populated only by the Majority strategy; omitempty keeps it
-// absent on the wire and at rest for every other strategy.
+// VoteTally is populated only by the Majority strategy; RankRefine only by
+// GenerateRankRefine. omitempty keeps each absent on the wire and at rest
+// for every other strategy.
 type Metadata struct {
 	CouncilType       string            `json:"council_type"`
 	LabelToModel      map[string]string `json:"label_to_model"`
 	AggregateRankings []RankedModel     `json:"aggregate_rankings"`
 	ConsensusW        float64           `json:"consensus_w"`
 	VoteTally         *VoteTally        `json:"vote_tally,omitempty"`
+	RankRefine        *RankRefine       `json:"rank_refine,omitempty"`
 }
 
 // Stage2CompleteData is the payload emitted by Runner for the "stage2_complete" event.
