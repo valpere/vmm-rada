@@ -10,26 +10,61 @@ Manually:
 ~/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
 ```
 
-Cron (weekly Sunday 04:00):
-```cron
-0 4 * * 0  /home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
-```
+Scheduled — **systemd user timer** (recommended, catches up missed runs).
+Create **two** unit files at the paths shown below:
 
-Або systemd timer:
+`~/.config/systemd/user/dreaming-llm-council.service`:
+
 ```ini
-# ~/.config/systemd/user/dreaming-llm-council.service
 [Service]
 Type=oneshot
 ExecStart=/home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
+# `claude` CLI needs OPENROUTER_API_KEY (and any other secrets the script
+# uses). systemd user units start with a near-empty environment, so the
+# script's reliance on a parent shell loading .env doesn't apply here —
+# load it explicitly. EnvironmentFile= treats the file as missing-OK only
+# when prefixed with `-`, which is what we want during first-run setup.
+EnvironmentFile=-%h/wrk/projects/llm-council/llm-council/.env
+# Use the script's own log directory (~/.cache/llm-council/, mode 0700)
+# rather than /tmp — /tmp is world-readable and could leak secrets if the
+# pass ever logs prompt content, env values, or stack traces.
+StandardOutput=append:%h/.cache/llm-council/dreaming-systemd.log
+StandardError=append:%h/.cache/llm-council/dreaming-systemd.log
+```
 
-# ~/.config/systemd/user/dreaming-llm-council.timer
+`~/.config/systemd/user/dreaming-llm-council.timer`:
+
+```ini
+[Unit]
+Description=Weekly llm-council dreaming pass
+
 [Timer]
-OnCalendar=Sun 04:00
-Persistent=true
+OnCalendar=Sun 04:00          # Nominal — комп зазвичай вимкнений
+Persistent=true                # Catch up the most recent missed run at next login
+RandomizedDelaySec=5min        # Spread bursty boot-time catchups
 
 [Install]
 WantedBy=timers.target
 ```
+
+Activate:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now dreaming-llm-council.timer
+
+# Optional but recommended: keeps the user-level systemd manager running
+# even when you're logged out, so the timer fires on overnight catchup
+# instead of waiting for your next login session.
+loginctl enable-linger "$USER"
+```
+
+**Чому НЕ cron:** vanilla cron не догоняє пропущених runs — якщо комп
+вимкнений у Sun 04:00, run просто втрачається. systemd `Persistent=true`
+запам'ятовує **останній** пропущений елапс і фаєриться на наступному
+login (multi-week downtime ≠ multiple backfilled runs — one catch-up only,
+plus the next normal cadence). `anacron` would also catch up but it lacks
+per-minute granularity and rarely covers user crontabs.
 
 ## Що шукає
 
@@ -59,7 +94,7 @@ WantedBy=timers.target
 
 | | /revival | dreaming |
 |---|----------|----------|
-| Тригер | On-demand | Scheduled (cron) |
+| Тригер | On-demand | Scheduled (systemd timer) |
 | Scope | Health snapshot | Pattern detection across time |
 | Вхід | Структура зараз | Recent commits + PR comments |
 | Output | Snapshot діагноз | Trend report |
