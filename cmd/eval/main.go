@@ -150,6 +150,27 @@ func run() error {
 			}
 		}
 	}
+	// Mirror cmd/server's opt-in MixtureOfAgents registration. Requires all
+	// three MOA_* env vars; partial config is logged and skipped.
+	if len(cfg.MoaProposerModels) > 0 || len(cfg.MoaAggregatorModels) > 0 || cfg.MoaRefinerModel != "" {
+		switch {
+		case len(cfg.MoaProposerModels) == 0:
+			logger.Warn("MOA_AGGREGATOR_MODELS or MOA_REFINER_MODEL set but MOA_PROPOSER_MODELS is empty; skipping registration of \"moa\" council type")
+		case len(cfg.MoaAggregatorModels) == 0:
+			logger.Warn("MOA_PROPOSER_MODELS set but MOA_AGGREGATOR_MODELS is empty; skipping registration of \"moa\" council type")
+		case cfg.MoaRefinerModel == "":
+			logger.Warn("MOA_PROPOSER_MODELS / MOA_AGGREGATOR_MODELS set but MOA_REFINER_MODEL is empty; skipping registration of \"moa\" council type")
+		default:
+			registry["moa"] = council.CouncilType{
+				Name:             "moa",
+				Strategy:         council.MixtureOfAgents,
+				ProposerModels:   cfg.MoaProposerModels,
+				AggregatorModels: cfg.MoaAggregatorModels,
+				RefinerModel:     cfg.MoaRefinerModel,
+				Temperature:      cfg.DefaultCouncilTemperature,
+			}
+		}
+	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}

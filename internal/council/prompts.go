@@ -489,6 +489,82 @@ func BuildDebateChairmanPrompt(query string, stage1 []StageOneResult, debate *De
 	}
 }
 
+// BuildMoaAggregatorPrompt asks a single MixtureOfAgents Layer 2 aggregator to
+// digest the Layer 1 proposer drafts and produce one improved draft.
+//
+// Anonymisation contract: proposer outputs are shown with labels only —
+// model names MUST NOT appear in the body (the aggregator should not weight
+// drafts by source identity).
+//
+// Output is free-form text — no JSON-mode constraint. The aggregator's draft
+// flows directly into the Layer 3 refiner prompt; nothing parses it. Proposers
+// are sorted by Label so the prompt is deterministic across runs.
+//
+// Discriminator prefix: "You aggregate council proposals." — used by tests to
+// classify the call as a Layer 2 aggregator call (vs Layer 3 refiner).
+func BuildMoaAggregatorPrompt(query string, proposers []StageOneResult) []ChatMessage {
+	sorted := make([]StageOneResult, len(proposers))
+	copy(sorted, proposers)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Label < sorted[j].Label })
+
+	var sb strings.Builder
+	sb.WriteString("You aggregate council proposals. ")
+	fmt.Fprintf(&sb, "%d proposers wrote independent drafts for the question below; ", len(sorted))
+	sb.WriteString("read all drafts carefully and write ONE improved draft that integrates the strongest ideas from each. ")
+	sb.WriteString("Do not just pick a favourite — synthesise. Do not list the proposers' weaknesses; produce the better answer directly.\n\n")
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nProposer drafts (anonymous; you do not know which model wrote which):\n")
+	for _, p := range sorted {
+		fmt.Fprintf(&sb, "\n[%s]\n%s\n", p.Label, p.Content)
+	}
+	sb.WriteString("\nWrite your improved draft. Reply with the draft only — no preamble, no commentary on the proposers.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
+// BuildMoaRefinerPrompt asks the MixtureOfAgents Layer 3 refiner to synthesise
+// a final answer from the Layer 2 aggregator drafts. The refiner does NOT see
+// raw proposer outputs — the aggregators have already digested them; passing
+// proposers again would defeat the layered-aggregation premise.
+//
+// The refiner receives aggregator outputs WITH model attribution (label +
+// model name), mirroring how PeerReview / MultiAgentDebate chairmen receive
+// LabelToModel — Layer 3 is the strategy's "chairman" equivalent and model
+// attribution is allowed at this stage.
+//
+// Discriminator prefix: "You synthesise the final answer from MoA aggregator
+// drafts." — used by tests to classify the call as the Layer 3 refiner call.
+func BuildMoaRefinerPrompt(query string, aggregators []AggregatorOutput, labelToModel map[string]string) []ChatMessage {
+	sorted := make([]AggregatorOutput, len(aggregators))
+	copy(sorted, aggregators)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Label < sorted[j].Label })
+
+	var sb strings.Builder
+	sb.WriteString("You synthesise the final answer from MoA aggregator drafts. ")
+	fmt.Fprintf(&sb, "%d aggregators each digested the council's proposer drafts and produced an improved draft for the question below. ", len(sorted))
+	sb.WriteString("Combine the strongest threads from these aggregator drafts into one final answer.\n\n")
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nAggregator drafts:\n")
+	for _, a := range sorted {
+		modelName := labelToModel[a.Label]
+		if modelName == "" {
+			modelName = a.Model
+		}
+		fmt.Fprintf(&sb, "\n[%s — %s]\n%s\n", a.Label, modelName, a.Content)
+	}
+	sb.WriteString("\nProduce the final answer. Pick the strongest threads from each aggregator draft and weave them into one answer that is more accurate, clearer, and more complete than any individual draft. ")
+	sb.WriteString("If one aggregator is clearly best, prefer it over an unnecessary synthesis. ")
+	sb.WriteString("Reply with the final answer only — no preamble, no commentary on the aggregation process.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
 // BuildRankRefinePrompt asks the GenerateRankRefine refiner (the chairman) to
 // produce a final answer from the top-K advancing candidates. The instruction
 // emphasises picking strong threads over averaging — bland blends are the

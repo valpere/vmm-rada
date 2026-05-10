@@ -905,6 +905,90 @@ func TestSendMessageStream(t *testing.T) {
 			},
 		},
 		{
+			name:   "MixtureOfAgents emits kind=moa_aggregator with sources, no stage2_round_complete",
+			body:   `{"content":"q","council_type":"moa"}`,
+			storer: okStorer(),
+			runner: &mockRunner{
+				runFull: func(ctx context.Context, query, ct string, onEvent council.EventFunc) error {
+					onEvent("stage1_complete", []council.StageOneResult{
+						{Label: "Response A", Content: "draft a", Model: "openai/gpt-4o-mini"},
+						{Label: "Response B", Content: "draft b", Model: "anthropic/claude-haiku-4-5"},
+						{Label: "Response C", Content: "draft c", Model: "google/gemini-flash-1.5"},
+						{Label: "Response D", Content: "draft d", Model: "qwen/qwen3.6-plus"},
+					})
+					moa := &council.MoaAggregator{
+						Aggregators: []council.AggregatorOutput{
+							{Label: "Aggregator A", Model: "anthropic/claude-sonnet-4-5", Content: "improved 1", Sources: []string{"Response A", "Response B", "Response C", "Response D"}, DurationMs: 100},
+							{Label: "Aggregator B", Model: "openai/gpt-4o", Content: "improved 2", Sources: []string{"Response A", "Response B", "Response C", "Response D"}, DurationMs: 110},
+						},
+					}
+					onEvent("stage2_complete", council.Stage2CompleteData{
+						Kind:    "moa_aggregator",
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType: "moa",
+							LabelToModel: map[string]string{
+								"Response A":   "openai/gpt-4o-mini",
+								"Aggregator A": "anthropic/claude-sonnet-4-5",
+							},
+							AggregateRankings: []council.RankedModel{},
+							MoaAggregator:     moa,
+						},
+					})
+					onEvent("stage3_complete", council.StageThreeResult{Content: "final", Model: "anthropic/claude-opus-4-7", DurationMs: 120})
+					return nil
+				},
+			},
+			wantCode: http.StatusOK,
+			checkSSE: func(t *testing.T, body string) {
+				// 1. stage2_round_complete must NOT appear (MoA is single-pass per layer).
+				// 2. The terminal stage2_complete event MUST carry kind="moa_aggregator"
+				//    and metadata.moa_aggregator with per-aggregator sources populated.
+				var sawTerminalMoa bool
+				for _, line := range strings.Split(body, "\n") {
+					if !strings.HasPrefix(line, "data: ") {
+						continue
+					}
+					raw := []byte(line[6:])
+					var keys map[string]json.RawMessage
+					if err := json.Unmarshal(raw, &keys); err != nil {
+						continue
+					}
+					var typ string
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_round_complete" {
+						t.Errorf("MoA must NOT emit stage2_round_complete (single-pass per layer); raw: %s", string(raw))
+					}
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_complete" {
+						var env struct {
+							Kind     string           `json:"kind"`
+							Metadata council.Metadata `json:"metadata"`
+						}
+						if err := json.Unmarshal(raw, &env); err != nil {
+							continue
+						}
+						if env.Kind != "moa_aggregator" {
+							t.Errorf("kind: got %q, want %q", env.Kind, "moa_aggregator")
+						}
+						if env.Metadata.MoaAggregator == nil {
+							t.Fatalf("metadata.moa_aggregator: nil; expected populated")
+						}
+						if len(env.Metadata.MoaAggregator.Aggregators) != 2 {
+							t.Errorf("aggregators: got %d, want 2", len(env.Metadata.MoaAggregator.Aggregators))
+						}
+						for _, a := range env.Metadata.MoaAggregator.Aggregators {
+							if len(a.Sources) != 4 {
+								t.Errorf("aggregator %q sources: got %d, want 4 (all-to-all)", a.Label, len(a.Sources))
+							}
+						}
+						sawTerminalMoa = true
+					}
+				}
+				if !sawTerminalMoa {
+					t.Errorf("terminal stage2_complete with moa_aggregator not seen on the wire:\n%s", body)
+				}
+			},
+		},
+		{
 			name:   "QuorumError emits error event",
 			body:   `{"content":"test","council_type":"standard"}`,
 			storer: okStorer(),

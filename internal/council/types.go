@@ -42,6 +42,21 @@ type Role struct {
 
 // CouncilType describes a named council configuration.
 // QuorumMin of 0 means use the formula: max(2, ⌈N/2⌉+1).
+//
+// Field-usage matrix (which fields each strategy reads):
+//
+//	PeerReview         : Models, ChairmanModel, Temperature, QuorumMin
+//	RoleBased          : Models, Roles, ChairmanModel, Temperature, QuorumMin
+//	Majority           : Models, ChairmanModel (optional), Temperature, QuorumMin
+//	GenerateRankRefine : Models, ChairmanModel, Temperature, QuorumMin, RefineTopK
+//	MultiAgentDebate   : Models, ChairmanModel, Temperature, QuorumMin, MaxDebateRounds
+//	MixtureOfAgents    : ProposerModels, AggregatorModels, RefinerModel, Temperature, QuorumMin
+//	                     (Models and ChairmanModel are UNUSED for this strategy)
+//
+// MixtureOfAgents is the first strategy to skip both Models and ChairmanModel —
+// the runner reads the layer-specific ProposerModels / AggregatorModels /
+// RefinerModel fields directly. The Models/ChairmanModel fields stay zero-valued
+// for MoA registrations and are non-breaking for every other strategy.
 type CouncilType struct {
 	Name          string
 	Strategy      Strategy
@@ -52,6 +67,12 @@ type CouncilType struct {
 	QuorumMin       int // 0 = strategy-specific default formula
 	RefineTopK      int // GenerateRankRefine only: how many ranked candidates advance to refinement; 0 = default (3)
 	MaxDebateRounds int // MultiAgentDebate only: number of debate rounds after Stage 1; 0 = default (2)
+
+	// MixtureOfAgents-only model fields. The runner reads these directly;
+	// Models and ChairmanModel are UNUSED for MoA registrations.
+	ProposerModels   []string // MoA: Layer 1 model pool (parallel proposer drafts)
+	AggregatorModels []string // MoA: Layer 2 model pool (parallel aggregators, all-to-all over Layer 1)
+	RefinerModel     string   // MoA: Layer 3 single refiner that synthesises the final answer
 }
 
 // ChatMessage is a single turn in a conversation history.
@@ -202,11 +223,36 @@ type Debate struct {
 	Dropouts   []DebaterDropout `json:"dropouts,omitempty"`
 }
 
+// AggregatorOutput is a single Layer 2 aggregator's improved draft in the
+// MixtureOfAgents strategy. Sources lists the labels of the Layer 1 proposers
+// whose drafts were fed into this aggregator (today: all-to-all fan-out, so
+// every aggregator sees every proposer).
+type AggregatorOutput struct {
+	Label      string   `json:"label"`        // anonymised, e.g. "Aggregator A"
+	Model      string   `json:"model"`        // OpenRouter ID, for transparency
+	Content    string   `json:"content"`      // aggregator's improved draft
+	Sources    []string `json:"sources"`      // proposer labels fed in (e.g. ["Response A", "Response B"])
+	DurationMs int64    `json:"duration_ms"`
+	Error      error    `json:"-"`
+}
+
+// MoaAggregator is the Stage 2 payload for the MixtureOfAgents strategy.
+// Aggregators are sorted by Label ascending for stable output across runs.
+type MoaAggregator struct {
+	Aggregators []AggregatorOutput `json:"aggregators"`
+}
+
 // Metadata is persisted with every assistant message.
 //
 // VoteTally is populated only by the Majority strategy; RankRefine only by
-// GenerateRankRefine; Debate only by MultiAgentDebate. omitempty keeps each
-// absent on the wire and at rest for every other strategy.
+// GenerateRankRefine; Debate only by MultiAgentDebate; MoaAggregator only by
+// MixtureOfAgents. omitempty keeps each absent on the wire and at rest for
+// every other strategy.
+//
+// LabelToModel is a single flat map containing both proposer labels
+// ("Response A" → model-x) and aggregator labels ("Aggregator A" → model-y)
+// for MixtureOfAgents — key collisions are impossible because the prefixes
+// differ. The same field is reused; no parallel aggregator_label_to_model.
 type Metadata struct {
 	CouncilType       string            `json:"council_type"`
 	LabelToModel      map[string]string `json:"label_to_model"`
@@ -215,6 +261,7 @@ type Metadata struct {
 	VoteTally         *VoteTally        `json:"vote_tally,omitempty"`
 	RankRefine        *RankRefine       `json:"rank_refine,omitempty"`
 	Debate            *Debate           `json:"debate,omitempty"`
+	MoaAggregator     *MoaAggregator    `json:"moa_aggregator,omitempty"`
 }
 
 // Stage2CompleteData is the payload emitted by Runner for the "stage2_complete" event.

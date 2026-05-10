@@ -1,6 +1,6 @@
 # Deliberation Strategies
 
-The `Strategy` enum (`internal/council/types.go`) declares **7 constants**. Two are implemented today; five are reserved for planned strategies. The runner returns `"strategy %d not implemented"` for unimplemented constants.
+The `Strategy` enum (`internal/council/types.go`) declares **7 constants**. Six are implemented today; one is reserved for a planned strategy. The runner returns `"strategy %d not implemented"` for unimplemented constants.
 
 For architecture context (package layout, layer boundaries, dispatch switch) see [`architecture-v2.md`](./architecture-v2.md). For the academic background of each strategy see [`council-research-synthesis.md`](./council-research-synthesis.md).
 
@@ -17,7 +17,7 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | `Majority` | shipped | `majority.go:runMajority` | #205 |
 | `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
 | `MultiAgentDebate` | shipped | `debate.go:runMultiAgentDebate` | #212 |
-| `MixtureOfAgents` | planned | — | TBD |
+| `MixtureOfAgents` | shipped | `moa.go:runMixtureOfAgents` | #214 |
 | `Delphi` | planned | — | TBD |
 
 ### LLM-call cost (per request, ignoring Stage 0)
@@ -31,8 +31,9 @@ Operators pick strategies on cost as much as on output quality. For a council of
 | `Majority` | **N + (0 or 1)** | N generation; 0 chairman calls when there's a clear plurality and no chairman is configured; 1 for tiebreak or polish |
 | `GenerateRankRefine` | **N + 2** | N generation + 1 ranking + 1 refinement (both go to the chairman) |
 | `MultiAgentDebate` | **N + N×R + 1** | N generation + R rounds × N debaters revising + 1 chairman synthesis. With defaults N=4, R=2 → 13 calls. The most expensive shipped strategy; cost note in `.env.example`. |
+| `MixtureOfAgents` | **N + M + 1** | N proposers (Layer 1) + M aggregators (Layer 2, all-to-all over proposers) + 1 refiner (Layer 3). With defaults N=4, M=2 → 7 calls. |
 
-`MixtureOfAgents` and `Delphi` are still planned; their costs will be added when each ships.
+`Delphi` is still planned; its cost will be added when it ships.
 
 ---
 
@@ -47,10 +48,10 @@ Each registration in `cmd/server/main.go` and `cmd/eval/main.go` carries its own
 | `Majority` | Voters | Tiebreaker / polish (optional; `""` = no tiebreak, ties error) | `MAJORITY_MODELS` (required to register) / `MAJORITY_CHAIRMAN_MODEL` (optional) | none — registration is opt-in via `MAJORITY_MODELS`; chairman stays empty when unset (so the no-chairman path is reachable) |
 | `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
 | `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
-| `MixtureOfAgents` | (see below — 3 layers) | Refiner (or `""` to use `RefinerModel` field) | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` | `COUNCIL_MODELS` for proposers; `CHAIRMAN_MODEL` for refiner |
+| `MixtureOfAgents` | (UNUSED — MoA reads `ProposerModels`/`AggregatorModels`/`RefinerModel` directly) | (UNUSED — see above) | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` (ALL THREE required to register; partial config logs a warning and skips) | none — registration is opt-in via all three MoA env vars |
 | `Delphi` | Raters | Facilitator (optional) | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
 
-`MixtureOfAgents` is the only strategy that does not fit the `Models` + `ChairmanModel` shape. When MoA ships, `CouncilType` gains:
+`MixtureOfAgents` is the only shipped strategy that does not fit the `Models` + `ChairmanModel` shape. `CouncilType` carries three MoA-only fields:
 
 ```go
 ProposerModels   []string  // Layer 1
@@ -58,7 +59,7 @@ AggregatorModels []string  // Layer 2
 RefinerModel     string    // Layer 3 (final)
 ```
 
-These fields are zero-valued for every other strategy. Adding optional fields is non-breaking; defer the decision between explicit fields and a generic `Layers map[string][]string` until MoA's implementation PR.
+These fields are zero-valued for every other strategy. The `Models` and `ChairmanModel` fields are unused for MoA registrations — the runner reads the layer-specific fields directly. See the field-usage matrix in `CouncilType`'s doc-comment in `internal/council/types.go`.
 
 ---
 
@@ -116,7 +117,7 @@ PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's
 | `vote_tally` | `Majority` | **shipped** | `metadata.vote_tally` is a `VoteTally` (`{clusters: VoteCluster[], winner_label: string}`); `data` is `[]` (Majority does not produce per-reviewer Stage 2 results). `VoteCluster` is `{members: string[], representative: string, votes: int}`. Clusters are sorted by votes desc, then representative asc. | always `0` |
 | `rank_refine` | `GenerateRankRefine` | **shipped** | `metadata.rank_refine` is a `RankRefine` (`{rankings: RankedCandidate[], top_k: int, criteria: string[]}`); `data` is `[]` (the ranking lives in metadata, not per-reviewer). `RankedCandidate` is `{label: string, scores: map<string, float64>, total_score: float64, advancing: bool}`. Rankings are sorted by `total_score` desc, then `label` asc. Exactly `top_k` candidates have `advancing: true`. Per-criterion scores clamped to `[0.0, 1.0]`; `total_score` to `[0.0, len(criteria)]`. | always `0` |
 | `debate_round` | `MultiAgentDebate` | **shipped** | `metadata.debate` is a `Debate` (`{rounds: DebateRound[], final_round: int, dropouts?: DebaterDropout[]}`); `data` is `[]` (the transcript lives in metadata, not per-reviewer). Round events fire as `stage2_round_complete` per round (carrying just that round); the terminal `stage2_complete` carries the full transcript including dropouts. `DebaterDropout` is `{label, last_round, reason: "error"\|"json_parse"\|"empty_revision"}`. | `1..R`; one `stage2_round_complete` per round, then a terminal `stage2_complete` |
-| `moa_aggregator` | `MixtureOfAgents` | **reserved** | Layer-2 aggregator outputs; references to which Layer-1 proposers fed each aggregator | always `0` (single aggregator pass) |
+| `moa_aggregator` | `MixtureOfAgents` | **shipped** | `metadata.moa_aggregator` is a `MoaAggregator` (`{aggregators: AggregatorOutput[]}`); `data` is `[]` (the aggregator drafts live in metadata, not per-reviewer). `AggregatorOutput` is `{label, model, content, sources: string[], duration_ms}`. `sources` lists the Layer-1 proposer labels fed into that aggregator (today: all-to-all, so every aggregator's `sources` lists every successful proposer). Aggregators are sorted by `label` asc. `metadata.label_to_model` is a single flat map containing both proposer (`Response A → …`) and aggregator (`Aggregator A → …`) entries. | always `0` (single aggregator pass; no `stage2_round_complete` events) |
 | `delphi_round` | `Delphi` | **reserved** | per-rater rating list for the current round; running averages and convergence indicator | `1..N`; one event per round |
 
 Reserved kinds are not yet emitted by the runtime. The frontend `Stage2.jsx` dispatcher renders any unknown kind via a fallback view (`Stage 2 — kind: <X> (view not implemented yet)`) so a strategy in flight does not crash the UI.

@@ -137,6 +137,7 @@ export default function ChatInterface({
                     voteTally={msg.metadata?.vote_tally}
                     rankRefine={msg.metadata?.rank_refine}
                     debate={msg.metadata?.debate}
+                    moaAggregator={msg.metadata?.moa_aggregator}
                     isLoading={msg.loading?.stage2}
                   />
 

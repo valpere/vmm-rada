@@ -50,3 +50,19 @@ func assignLabels(models []string) (labelToModel, modelToLabel map[string]string
 	}
 	return
 }
+
+// assignAggregatorLabels mirrors assignLabels but uses the "Aggregator " prefix
+// so MixtureOfAgents Layer 2 labels stay visually distinct from Layer 1
+// proposer labels. Both label families end up flat in Metadata.LabelToModel —
+// key collisions are impossible because the prefixes differ.
+func assignAggregatorLabels(models []string) (labelToModel, modelToLabel map[string]string) {
+	perm := rand.Perm(len(models))
+	labelToModel = make(map[string]string, len(models))
+	modelToLabel = make(map[string]string, len(models))
+	for i, idx := range perm {
+		label := fmt.Sprintf("Aggregator %c", rune('A'+i))
+		labelToModel[label] = models[idx]
+		modelToLabel[models[idx]] = label
+	}
+	return
+}

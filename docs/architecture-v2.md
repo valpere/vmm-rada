@@ -101,7 +101,7 @@ This keeps all dependency injection in one place and makes each package independ
 
 ### Council pipeline (`internal/council`)
 
-The `Strategy` enum carries **7 constants** — 2 are implemented today, 5 are reserved for planned strategies. See [`strategies.md`](./strategies.md) for the full roadmap.
+The `Strategy` enum carries **7 constants** — 6 are implemented today, 1 is reserved for a planned strategy. See [`strategies.md`](./strategies.md) for the full roadmap.
 
 ```go
 type Strategy int
@@ -109,31 +109,44 @@ type Strategy int
 const (
     PeerReview         Strategy = iota // implemented (runner.go:runPeerReview)
     RoleBased                          // implemented (rolebased.go:runRoleBased)
-    Majority                           // not implemented
-    GenerateRankRefine                 // not implemented
-    MultiAgentDebate                   // not implemented
-    MixtureOfAgents                    // not implemented
+    Majority                           // implemented (majority.go:runMajority)
+    GenerateRankRefine                 // implemented (generaterankrefine.go:runGenerateRankRefine)
+    MultiAgentDebate                   // implemented (debate.go:runMultiAgentDebate)
+    MixtureOfAgents                    // implemented (moa.go:runMixtureOfAgents)
     Delphi                             // not implemented
 )
 
 type CouncilType struct {
     Name          string
     Strategy      Strategy
-    Models        []string    // Council members. RoleBased assigns by index mod len.
+    Models        []string    // Council members. RoleBased assigns by index mod len. UNUSED for MixtureOfAgents.
     Roles         []Role      // RoleBased only.
-    ChairmanModel string      // Synthesiser (PeerReview, RoleBased) / arbiter / facilitator.
+    ChairmanModel string      // Synthesiser / arbiter / facilitator. UNUSED for MixtureOfAgents.
     Temperature   float64
-    QuorumMin     int         // 0 = strategy-specific default formula.
+    QuorumMin       int       // 0 = strategy-specific default formula.
+    RefineTopK      int       // GenerateRankRefine only.
+    MaxDebateRounds int       // MultiAgentDebate only.
+
+    // MixtureOfAgents-only model fields. Models / ChairmanModel are UNUSED for MoA.
+    ProposerModels   []string // MoA Layer 1
+    AggregatorModels []string // MoA Layer 2 (parallel, all-to-all over Layer 1)
+    RefinerModel     string   // MoA Layer 3 (single refiner)
 }
 ```
 
-`RunFull()` is a strategy-dispatch switch:
+`MixtureOfAgents` is the first strategy to skip both `Models` and `ChairmanModel`. The runner reads the layer-specific fields directly. The full field-usage matrix (which fields each strategy reads) lives in `CouncilType`'s doc-comment in `internal/council/types.go`.
+
+`RunFull()` is a strategy-dispatch switch — every shipped strategy has its own `case`:
 
 ```go
 switch ct.Strategy {
-case PeerReview: return c.runPeerReview(...)
-case RoleBased:  return c.runRoleBased(...)
-default:         return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)
+case PeerReview:         return c.runPeerReview(...)
+case RoleBased:          return c.runRoleBased(...)
+case Majority:           return c.runMajority(...)
+case GenerateRankRefine: return c.runGenerateRankRefine(...)
+case MultiAgentDebate:   return c.runMultiAgentDebate(...)
+case MixtureOfAgents:    return c.runMixtureOfAgents(...)
+default:                 return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)
 }
 ```
 
@@ -210,6 +223,27 @@ Implemented in `internal/council/debate.go`. Best for reasoning, ethics, and str
 **Round 0 is not in `Debate.Rounds`.** It lives on `AssistantMessage.Stage1` (backend) and `msg.stage1` (frontend). Single source of truth per layer; the schema doesn't lie about what a "debate round" is.
 
 Registration is opt-in AND requires both `DEBATE_MODELS` and `DEBATE_CHAIRMAN_MODEL`. `DEBATE_MAX_ROUNDS` is optional (default 2; invalid values warn and fall back to default).
+
+#### `MixtureOfAgents` pipeline (3 layers)
+
+Implemented in `internal/council/moa.go`. Modelled on the Together AI MoA paper. Best for code generation and complex multi-aspect analysis — tasks where structured layered aggregation beats flat consensus. **First strategy to require new `CouncilType` fields beyond `Models`/`ChairmanModel`** — the field-usage matrix in `internal/council/types.go` documents which strategies read which fields.
+
+1. **Layer 1 (Stage 1)** — `runStage1` reused with `ct.ProposerModels`. Anonymous `Response A`/`B`/… labels assigned via `assignLabels`. Emits `stage1_complete`.
+2. **Layer 1 quorum** — `max(2, ⌈N_proposers/2⌉+1)` when `QuorumMin == 0`. Standard `*QuorumError` if Layer 1 fails.
+3. **Layer 2 (Stage 2)** — `runMoaLayer2`: parallel call per aggregator (`ct.AggregatorModels`), all-to-all fan-out (every aggregator sees every proposer). Aggregators get distinct labels via `assignAggregatorLabels` — `Aggregator A`/`B`/… — so they don't collide with proposer labels in `Metadata.LabelToModel` (a single flat map containing both prefix families). Output is free-form text — no JSON parsing required (the aggregator's job is to write a better draft, not to score).
+4. **Layer 2 quorum** — at least 1 successful aggregator. If all aggregators fail, `runMixtureOfAgents` returns `fmt.Errorf("mixture-of-agents: all aggregators failed (%d configured); refiner has no input", ...)` — loud failure, no `stage2_complete` emitted, no Layer 3 run. Matches the loud-error ethos from #204 / #206 / #212.
+5. **Stage 2 SSE event** — `stage2_complete` with `kind: "moa_aggregator"`, `Metadata.MoaAggregator` populated with `Aggregators[]` (sorted by `Label` asc). Each `AggregatorOutput` carries `{Label, Model, Content, Sources, DurationMs}`; `Sources` lists the Layer 1 proposer labels fed in (today: all-to-all, so every aggregator's `Sources` lists every successful proposer). **No `stage2_round_complete` events** — MoA is single-pass per layer.
+6. **Layer 3 (Stage 3)** — `runMoaRefine`: single LLM call to `ct.RefinerModel` via `BuildMoaRefinerPrompt`. The refiner sees aggregator outputs WITH model attribution (label + model name, mirroring how PeerReview/Debate chairmen receive `LabelToModel`) but does NOT see raw proposer outputs — the aggregators have already digested them. Failure path matches `runStage3` (returns `StageThreeResult{Model, DurationMs, Error}` even on error).
+
+**Cost:** `N + M + 1` LLM calls per request (N proposers + M aggregators + 1 refiner). With defaults N=4 M=2: **7 calls**. Sits between RoleBased (N+1) and the more expensive Debate / PeerReview strategies.
+
+**Anonymisation contract:** the aggregator prompt MUST NOT contain proposer model names — only labels (`Response A`/…). The refiner prompt does include aggregator labels with model attribution.
+
+**Single source of truth on the frontend:** `msg.metadata.moa_aggregator`. The terminal `stage2_complete` is authoritative; `MoaView` reads `msg.metadata?.moa_aggregator?.aggregators` for Layer 2 and `msg.stage1` for Layer 1.
+
+**Out of scope (future variants):** round-robin aggregator fan-out (today is all-to-all per the MoA paper), aggregator role specialisation, refiner-as-pass-through, iterative MoA depth ≥ 2 aggregator layers.
+
+Registration is opt-in AND requires **all three** `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` env vars. Partial config logs a warning and skips registration — there's no no-LLM path for MoA.
 
 #### Per-registration model configuration
 

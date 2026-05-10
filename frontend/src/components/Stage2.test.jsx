@@ -36,12 +36,11 @@ describe('Stage2 dispatcher', () => {
   });
 
   it('routes an unknown kind to the unknown-kind view, surfacing the kind name', () => {
-    // Use one of the still-unimplemented reserved kinds. moa_aggregator and
-    // delphi_round are reserved as of this PR; debate_round and vote_tally
-    // are shipped, so they'd route to their proper views.
-    render(<Stage2 kind="moa_aggregator" isLoading={false} />);
+    // Use the only still-reserved kind. moa_aggregator now routes to MoaView;
+    // delphi_round is reserved as of this PR (Delphi strategy not yet shipped).
+    render(<Stage2 kind="delphi_round" isLoading={false} />);
     expect(screen.getByText(/view not implemented yet/i)).toBeInTheDocument();
-    expect(screen.getByText('moa_aggregator')).toBeInTheDocument();
+    expect(screen.getByText('delphi_round')).toBeInTheDocument();
   });
 
   it('defaults to peer_ranking when kind is undefined (old-backend safety net)', () => {
@@ -313,6 +312,111 @@ describe('Stage2 dispatcher', () => {
         ],
       };
       render(<Stage2 kind="debate_round" debate={debate} isLoading={false} />);
+      expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('MoaView (kind="moa_aggregator")', () => {
+    const fourProposers = [
+      { label: 'Response A', content: 'proposer a draft' },
+      { label: 'Response B', content: 'proposer b draft' },
+      { label: 'Response C', content: 'proposer c draft' },
+      { label: 'Response D', content: 'proposer d draft' },
+    ];
+    const twoAggregators = {
+      aggregators: [
+        {
+          label: 'Aggregator A',
+          model: 'anthropic/claude-sonnet-4-5',
+          content: 'aggregator a improved draft',
+          sources: ['Response A', 'Response B', 'Response C', 'Response D'],
+        },
+        {
+          label: 'Aggregator B',
+          model: 'openai/gpt-4o',
+          content: 'aggregator b improved draft',
+          sources: ['Response A', 'Response B', 'Response C', 'Response D'],
+        },
+      ],
+    };
+
+    it('renders two layer panels with all proposer drafts and aggregator drafts plus source labels', () => {
+      render(
+        <Stage2
+          kind="moa_aggregator"
+          moaAggregator={twoAggregators}
+          stage1={fourProposers}
+          isLoading={false}
+        />,
+      );
+      // Header reports proposer + aggregator counts.
+      expect(screen.getByText(/Stage 2: Mixture of Agents/i)).toBeInTheDocument();
+      expect(screen.getByText(/4 proposers → 2 aggregators/i)).toBeInTheDocument();
+      // Both layer headers visible.
+      expect(screen.getByText(/Layer 1 — Proposers/i)).toBeInTheDocument();
+      expect(screen.getByText(/Layer 2 — Aggregators/i)).toBeInTheDocument();
+      // 4 proposer rows + 2 aggregator rows = 6 rows total. Verify by content.
+      for (const draft of [
+        'proposer a draft',
+        'proposer b draft',
+        'proposer c draft',
+        'proposer d draft',
+        'aggregator a improved draft',
+        'aggregator b improved draft',
+      ]) {
+        expect(screen.getByText(draft)).toBeInTheDocument();
+      }
+      // Source labels rendered per aggregator (twice — once per aggregator row).
+      const sourceLines = screen.getAllByText(/Sources: Response A, Response B, Response C, Response D/i);
+      expect(sourceLines).toHaveLength(2);
+    });
+
+    it('renders a single aggregator row when only one aggregator survived', () => {
+      const oneAggregator = {
+        aggregators: [
+          {
+            label: 'Aggregator A',
+            model: 'anthropic/claude-sonnet-4-5',
+            content: 'sole aggregator draft',
+            sources: ['Response A', 'Response B'],
+          },
+        ],
+      };
+      render(
+        <Stage2
+          kind="moa_aggregator"
+          moaAggregator={oneAggregator}
+          stage1={fourProposers.slice(0, 2)}
+          isLoading={false}
+        />,
+      );
+      expect(screen.getByText(/2 proposers → 1 aggregators/i)).toBeInTheDocument();
+      expect(screen.getByText('sole aggregator draft')).toBeInTheDocument();
+      expect(screen.getByText('Aggregator A')).toBeInTheDocument();
+      expect(screen.getByText(/Sources: Response A, Response B/i)).toBeInTheDocument();
+    });
+
+    it('truncates long aggregator content with a Show full answer button', () => {
+      const longText =
+        'A long aggregator draft that exceeds the truncation threshold so the dispatcher exposes a Show full answer button — '.repeat(2);
+      const aggregator = {
+        aggregators: [
+          {
+            label: 'Aggregator A',
+            model: 'anthropic/claude-sonnet-4-5',
+            content: longText,
+            sources: ['Response A'],
+          },
+        ],
+      };
+      render(
+        <Stage2
+          kind="moa_aggregator"
+          moaAggregator={aggregator}
+          stage1={[{ label: 'Response A', content: 'short' }]}
+          isLoading={false}
+        />,
+      );
       expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
     });
   });
