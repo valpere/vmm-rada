@@ -905,6 +905,132 @@ func TestSendMessageStream(t *testing.T) {
 			},
 		},
 		{
+			name:   "Delphi emits stage2_round_complete events with required round + terminal stage2_complete with metadata.delphi",
+			body:   `{"content":"q","council_type":"delphi"}`,
+			storer: okStorer(),
+			runner: &mockRunner{
+				runFull: func(ctx context.Context, query, ct string, onEvent council.EventFunc) error {
+					onEvent("stage1_complete", []council.StageOneResult{
+						{Label: "Response A", Content: "ans-a", Model: "openai/gpt-4o-mini"},
+						{Label: "Response B", Content: "ans-b", Model: "anthropic/claude-haiku-4-5"},
+						{Label: "Response C", Content: "ans-c", Model: "google/gemini-flash-1.5"},
+					})
+					// Round 1
+					onEvent("stage2_round_complete", council.Stage2CompleteData{
+						Kind:    "delphi_round",
+						Round:   1,
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType:       "delphi",
+							LabelToModel:      map[string]string{"Response A": "openai/gpt-4o-mini"},
+							AggregateRankings: []council.RankedModel{},
+							DelphiPanel: &council.DelphiPanel{
+								Rounds: []council.DelphiRound{{
+									Round: 1,
+									Ratings: []council.DelphiRating{{
+										Label:  "Response A",
+										Model:  "openai/gpt-4o-mini",
+										Scores: map[string]float64{"correctness": 0.5, "clarity": 0.5, "completeness": 0.5},
+									}},
+									Stats: council.DelphiStats{
+										Mean:   map[string]float64{"correctness": 0.5},
+										StdDev: map[string]float64{"correctness": 0.0},
+									},
+								}},
+								FinalRound: 1,
+								Criteria:   []string{"correctness", "clarity", "completeness"},
+							},
+						},
+					})
+					// Terminal event with full transcript.
+					onEvent("stage2_complete", council.Stage2CompleteData{
+						Kind:    "delphi_round",
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType:       "delphi",
+							LabelToModel:      map[string]string{"Response A": "openai/gpt-4o-mini"},
+							AggregateRankings: []council.RankedModel{},
+							DelphiPanel: &council.DelphiPanel{
+								Rounds: []council.DelphiRound{
+									{Round: 1, Ratings: []council.DelphiRating{{Label: "Response A", Model: "openai/gpt-4o-mini", Scores: map[string]float64{"correctness": 0.5}}}},
+									{Round: 2, Ratings: []council.DelphiRating{{Label: "Response A", Model: "openai/gpt-4o-mini", Scores: map[string]float64{"correctness": 0.55}}}},
+								},
+								FinalRound: 2,
+								Converged:  true,
+								Criteria:   []string{"correctness", "clarity", "completeness"},
+							},
+						},
+					})
+					onEvent("stage3_complete", council.StageThreeResult{Content: "synthesis", Model: "chairman-z", DurationMs: 100})
+					return nil
+				},
+			},
+			wantCode: http.StatusOK,
+			checkSSE: func(t *testing.T, body string) {
+				var sawRoundEvent bool
+				var sawTerminalDelphi bool
+				for _, line := range strings.Split(body, "\n") {
+					if !strings.HasPrefix(line, "data: ") {
+						continue
+					}
+					raw := []byte(line[6:])
+					var keys map[string]json.RawMessage
+					if err := json.Unmarshal(raw, &keys); err != nil {
+						continue
+					}
+					var typ string
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_round_complete" {
+						sawRoundEvent = true
+						roundRaw, present := keys["round"]
+						if !present {
+							t.Errorf("delphi stage2_round_complete: 'round' key missing on the wire (must be required, not omitempty)")
+						}
+						var roundVal int
+						if err := json.Unmarshal(roundRaw, &roundVal); err != nil || roundVal != 1 {
+							t.Errorf("delphi stage2_round_complete round: got %s, want 1", string(roundRaw))
+						}
+						var kind string
+						_ = json.Unmarshal(keys["kind"], &kind)
+						if kind != "delphi_round" {
+							t.Errorf("delphi stage2_round_complete kind: got %q, want %q", kind, "delphi_round")
+						}
+					}
+					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_complete" {
+						var env struct {
+							Kind     string           `json:"kind"`
+							Metadata council.Metadata `json:"metadata"`
+						}
+						if err := json.Unmarshal(raw, &env); err != nil {
+							continue
+						}
+						if env.Kind != "delphi_round" {
+							t.Errorf("terminal kind: got %q, want %q", env.Kind, "delphi_round")
+						}
+						if env.Metadata.DelphiPanel == nil {
+							t.Errorf("terminal stage2_complete: metadata.delphi is nil")
+							continue
+						}
+						if env.Metadata.DelphiPanel.FinalRound != 2 {
+							t.Errorf("FinalRound: got %d, want 2", env.Metadata.DelphiPanel.FinalRound)
+						}
+						if !env.Metadata.DelphiPanel.Converged {
+							t.Error("Converged: got false, want true")
+						}
+						if len(env.Metadata.DelphiPanel.Rounds) != 2 {
+							t.Errorf("transcript rounds: got %d, want 2", len(env.Metadata.DelphiPanel.Rounds))
+						}
+						sawTerminalDelphi = true
+					}
+				}
+				if !sawRoundEvent {
+					t.Error("delphi stage2_round_complete event not seen on the wire")
+				}
+				if !sawTerminalDelphi {
+					t.Error("terminal stage2_complete with delphi panel not seen on the wire")
+				}
+			},
+		},
+		{
 			name:   "MixtureOfAgents emits kind=moa_aggregator with sources, no stage2_round_complete",
 			body:   `{"content":"q","council_type":"moa"}`,
 			storer: okStorer(),

@@ -523,6 +523,110 @@ function MoaView({ moaAggregator, stage1, isLoading }) {
   );
 }
 
+// DelphiView renders the Delphi strategy's Stage 2 payload as a per-round
+// timeline. Each round section shows per-criterion mean ± stddev rows, and
+// from round 2 onwards a Δ chip per criterion (success-coloured below
+// threshold, muted above). The converged round carries a `(converged ✓)`
+// badge in the section header.
+function DelphiCriterionRow({ name, mean, stdDev, delta, converged }) {
+  const widthPct = Math.max(2, Math.round((mean ?? 0) * 100));
+  const hasDelta = typeof delta === 'number';
+  return (
+    <div className="delphi-criterion-row">
+      <span className="delphi-criterion-name">{name}</span>
+      <div className="delphi-criterion-track" aria-hidden="true">
+        <div className="delphi-criterion-fill" style={{ width: `${widthPct}%` }} />
+      </div>
+      <span className="delphi-criterion-stat">
+        {mean.toFixed(2)} ± {stdDev.toFixed(2)}
+      </span>
+      {hasDelta && (
+        <span className={`delphi-delta-chip${converged ? ' converged' : ''}`}>
+          Δ {delta.toFixed(2)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DelphiRoundSection({ round, criteria, isConvergedRound }) {
+  const stats = round.stats ?? {};
+  const meanMap = stats.mean ?? {};
+  const stdDevMap = stats.std_dev ?? {};
+  const deltaMap = stats.delta_mean; // may be undefined on round 1
+  return (
+    <div className="delphi-round">
+      <div className="delphi-round-header">
+        <span>Round {round.round}</span>
+        {isConvergedRound && (
+          <span className="delphi-converged-badge" aria-label="converged">✓ converged</span>
+        )}
+      </div>
+      <div className="delphi-criteria-list">
+        {criteria.map((name) => {
+          const mean = meanMap[name];
+          if (typeof mean !== 'number') return null; // criterion absent this round
+          return (
+            <DelphiCriterionRow
+              key={name}
+              name={name}
+              mean={mean}
+              stdDev={stdDevMap[name] ?? 0}
+              delta={deltaMap?.[name]}
+              converged={isConvergedRound}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DelphiView({ delphi, isLoading }) {
+  if (isLoading && (!delphi || !delphi.rounds || delphi.rounds.length === 0)) {
+    return (
+      <div className="stage stage2">
+        <div className="stage-accordion" aria-disabled="true">
+          <span className="stage-accordion-label">
+            <span className="spinner-sm" />
+            Rating panel in progress…
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!delphi || !delphi.rounds || delphi.rounds.length === 0) {
+    return null;
+  }
+
+  const criteria = Array.isArray(delphi.criteria) ? delphi.criteria : [];
+  const finalRound = delphi.final_round ?? delphi.rounds.length;
+  const converged = !!delphi.converged;
+
+  return (
+    <div className="stage stage2">
+      <div className="stage-accordion" aria-disabled="true">
+        <span className="stage-accordion-label">
+          Stage 2: Delphi Panel ({finalRound} {finalRound === 1 ? 'round' : 'rounds'}
+          {converged ? ', converged' : ''})
+        </span>
+      </div>
+      <div className="stage-body">
+        <div className="delphi-timeline">
+          {delphi.rounds.map((round) => (
+            <DelphiRoundSection
+              key={round.round}
+              round={round}
+              criteria={criteria}
+              isConvergedRound={converged && round.round === finalRound}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // RoleStubView renders a minimal placeholder for the RoleBased strategy,
 // where Stage 2 has no peer-ranking content (roles are complementary).
 function RoleStubView({ isLoading }) {
@@ -582,6 +686,7 @@ export default function Stage2({
   rankRefine,
   debate,
   moaAggregator,
+  delphi,
   stage1,
   isLoading,
 }) {
@@ -609,6 +714,8 @@ export default function Stage2({
       return <DebateView debate={debate} isLoading={isLoading} />;
     case 'moa_aggregator':
       return <MoaView moaAggregator={moaAggregator} stage1={stage1} isLoading={isLoading} />;
+    case 'delphi_round':
+      return <DelphiView delphi={delphi} isLoading={isLoading} />;
     default:
       return <UnknownKindView kind={effectiveKind} />;
   }

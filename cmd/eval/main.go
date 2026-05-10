@@ -171,6 +171,22 @@ func run() error {
 			}
 		}
 	}
+	// Mirror cmd/server's opt-in Delphi registration.
+	if len(cfg.DelphiModels) > 0 {
+		if cfg.DelphiChairmanModel == "" {
+			logger.Warn("DELPHI_MODELS set but DELPHI_CHAIRMAN_MODEL is empty; skipping registration of \"delphi\" council type")
+		} else {
+			registry["delphi"] = council.CouncilType{
+				Name:                       "delphi",
+				Strategy:                   council.Delphi,
+				Models:                     cfg.DelphiModels,
+				ChairmanModel:              cfg.DelphiChairmanModel,
+				Temperature:                cfg.DefaultCouncilTemperature,
+				MaxDelphiRounds:            cfg.DelphiMaxRounds,
+				DelphiConvergenceThreshold: cfg.DelphiConvergenceThreshold,
+			}
+		}
+	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}

@@ -126,6 +126,26 @@ func main() {
 		}
 	}
 
+	// Delphi registration is opt-in AND requires both env vars. Stage 3
+	// chairman always runs; no no-LLM path. DelphiMaxRounds=0 and
+	// DelphiConvergenceThreshold=0 are sentinels for "use runner defaults"
+	// (3 rounds, 0.1 threshold).
+	if len(cfg.DelphiModels) > 0 {
+		if cfg.DelphiChairmanModel == "" {
+			logger.Warn("DELPHI_MODELS set but DELPHI_CHAIRMAN_MODEL is empty; skipping registration of \"delphi\" council type")
+		} else {
+			registry["delphi"] = council.CouncilType{
+				Name:                       "delphi",
+				Strategy:                   council.Delphi,
+				Models:                     cfg.DelphiModels,
+				ChairmanModel:              cfg.DelphiChairmanModel,
+				Temperature:                cfg.DefaultCouncilTemperature,
+				MaxDelphiRounds:            cfg.DelphiMaxRounds,
+				DelphiConvergenceThreshold: cfg.DelphiConvergenceThreshold,
+			}
+		}
+	}
+
 	client := openrouter.NewClient(cfg.OpenRouterAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
 	runner := council.NewCouncil(client, registry, logger)
 

@@ -74,6 +74,8 @@ func (c *Council) RunFull(ctx context.Context, query string, councilTypeName str
 		return c.runMultiAgentDebate(ctx, query, ct, onEvent)
 	case MixtureOfAgents:
 		return c.runMixtureOfAgents(ctx, query, ct, onEvent)
+	case Delphi:
+		return c.runDelphi(ctx, query, ct, onEvent)
 	default:
 		return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)
 	}

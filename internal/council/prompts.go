@@ -489,6 +489,177 @@ func BuildDebateChairmanPrompt(query string, stage1 []StageOneResult, debate *De
 	}
 }
 
+// BuildDelphiRoundPrompt asks a single Delphi rater to score every Stage 1
+// candidate against a fixed set of criteria and produce a 1–2 sentence
+// summary of its current view.
+//
+// Anonymisation contract:
+//   - Stage 1 candidates are shown with labels only — no model names.
+//   - From round 2 onwards, the prompt shows AGGREGATE stats from every
+//     prior round (mean ± stddev per criterion) — never other raters' raw
+//     ratings. The aggregate is the entire feedback signal; raw cross-rater
+//     leakage would defeat the anonymous-blind property of the method.
+//   - From round 2 onwards, the prompt also shows the rater's OWN
+//     previous-round ratings + summary so it can revise rather than start
+//     from scratch.
+//
+// Discriminator prefix: "You rate council answers." — used by tests to
+// classify the call as a Delphi rating call.
+func BuildDelphiRoundPrompt(query string, candidates []StageOneResult, criteria []string, round, totalRounds int, priorStats []DelphiStats, selfPrev *DelphiRating) []ChatMessage {
+	sortedCandidates := make([]StageOneResult, len(candidates))
+	copy(sortedCandidates, candidates)
+	sort.SliceStable(sortedCandidates, func(i, j int) bool { return sortedCandidates[i].Label < sortedCandidates[j].Label })
+
+	var sb strings.Builder
+	sb.WriteString("You rate council answers. ")
+	fmt.Fprintf(&sb, "This is round %d of %d in a Delphi rating panel.\n\n", round, totalRounds)
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nCriteria (each scored 0.0–1.0):\n")
+	for _, c := range criteria {
+		fmt.Fprintf(&sb, "- %s\n", c)
+	}
+
+	sb.WriteString("\nCandidate answers (anonymous; you do not know which model wrote which):\n")
+	for _, cand := range sortedCandidates {
+		fmt.Fprintf(&sb, "\n[%s]\n%s\n", cand.Label, cand.Content)
+	}
+
+	if len(priorStats) > 0 {
+		sb.WriteString("\nPrior-round aggregate statistics across the rating panel (you cannot see other raters' raw ratings — only these aggregates):\n")
+		for i, stats := range priorStats {
+			fmt.Fprintf(&sb, "\nRound %d:\n", i+1)
+			// Sort criteria for deterministic output.
+			critNames := make([]string, 0, len(stats.Mean))
+			for k := range stats.Mean {
+				critNames = append(critNames, k)
+			}
+			sort.Strings(critNames)
+			for _, name := range critNames {
+				fmt.Fprintf(&sb, "  %s: mean=%.2f stddev=%.2f", name, stats.Mean[name], stats.StdDev[name])
+				if d, ok := stats.DeltaMean[name]; ok {
+					fmt.Fprintf(&sb, " Δ=%.2f", d)
+				}
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	if selfPrev != nil {
+		sb.WriteString("\nYour own previous-round ratings (revise them, don't start from scratch):\n")
+		critNames := make([]string, 0, len(selfPrev.Scores))
+		for k := range selfPrev.Scores {
+			critNames = append(critNames, k)
+		}
+		sort.Strings(critNames)
+		for _, name := range critNames {
+			fmt.Fprintf(&sb, "  %s: %.2f\n", name, selfPrev.Scores[name])
+		}
+		if selfPrev.Summary != "" {
+			fmt.Fprintf(&sb, "Your previous summary: %s\n", selfPrev.Summary)
+		}
+	}
+
+	sb.WriteString("\nProduce a JSON object with this shape:\n")
+	sb.WriteString("```json\n")
+	sb.WriteString("{\n  \"ratings\": { ")
+	for i, c := range criteria {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		fmt.Fprintf(&sb, "\"%s\": <0.0..1.0>", c)
+	}
+	sb.WriteString(" },\n  \"summary\": \"<1–2 sentence summary of your current view>\"\n}\n```\n")
+	sb.WriteString("Score every criterion. Be discriminating — spread scores across the range so consensus is informative. ")
+	sb.WriteString("If you change your mind from the previous round, the summary should briefly explain why; if you don't, the summary should still acknowledge the prior-round aggregate.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
+// BuildDelphiChairmanPrompt asks the Delphi chairman to synthesise a final
+// answer from the rating panel. The chairman receives the Stage 1 candidates,
+// the final-round per-rater ratings + summaries, the converged stats, and a
+// Converged flag. Synthesis guidance scales with consensus — analog to
+// PeerReview's Kendall's W guidance.
+//
+// The chairman receives LabelToModel for candidate provenance attribution
+// (mirrors how PeerReview/Debate chairmen attribute provenance).
+//
+// Discriminator prefix: "You synthesise the final answer from a Delphi
+// rating panel." — used by tests to classify the call as the Delphi
+// chairman call.
+func BuildDelphiChairmanPrompt(query string, candidates []StageOneResult, finalRatings []DelphiRating, finalStats DelphiStats, converged bool, criteria []string, labelToModel map[string]string) []ChatMessage {
+	sortedCandidates := make([]StageOneResult, len(candidates))
+	copy(sortedCandidates, candidates)
+	sort.SliceStable(sortedCandidates, func(i, j int) bool { return sortedCandidates[i].Label < sortedCandidates[j].Label })
+
+	sortedRatings := make([]DelphiRating, len(finalRatings))
+	copy(sortedRatings, finalRatings)
+	sort.SliceStable(sortedRatings, func(i, j int) bool { return sortedRatings[i].Label < sortedRatings[j].Label })
+
+	// Synthesis guidance keyed off the converged flag + the spread in the
+	// final-round mean ratings. High consensus + high mean → confident
+	// synthesis from the highest-rated candidate. Low consensus → balanced
+	// presentation of perspectives.
+	var guidance string
+	switch {
+	case converged:
+		guidance = "The rating panel converged — your synthesis can confidently weight the highest-rated candidate(s) heavily."
+	default:
+		guidance = "The rating panel did NOT converge within the round budget — present the strongest perspectives fairly and acknowledge where ratings diverged."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("You synthesise the final answer from a Delphi rating panel. ")
+	fmt.Fprintf(&sb, "%d raters scored %d candidate answers across %d rounds.\n\n", len(sortedRatings), len(sortedCandidates), len(criteria))
+	sb.WriteString("Question: ")
+	sb.WriteString(query)
+	sb.WriteString("\n\nCandidate answers (with model attribution):\n")
+	for _, cand := range sortedCandidates {
+		modelName := labelToModel[cand.Label]
+		if modelName == "" {
+			modelName = cand.Model
+		}
+		fmt.Fprintf(&sb, "\n[%s — %s]\n%s\n", cand.Label, modelName, cand.Content)
+	}
+
+	sb.WriteString("\nFinal-round aggregate statistics across the panel:\n")
+	for _, name := range criteria {
+		mean, ok := finalStats.Mean[name]
+		if !ok {
+			fmt.Fprintf(&sb, "  %s: (no ratings — every rater omitted this criterion)\n", name)
+			continue
+		}
+		fmt.Fprintf(&sb, "  %s: mean=%.2f stddev=%.2f\n", name, mean, finalStats.StdDev[name])
+	}
+
+	sb.WriteString("\nFinal-round per-rater summaries:\n")
+	for _, r := range sortedRatings {
+		modelName := labelToModel[r.Label]
+		if modelName == "" {
+			modelName = r.Model
+		}
+		fmt.Fprintf(&sb, "\n[%s — %s] ", r.Label, modelName)
+		if r.Summary != "" {
+			sb.WriteString(r.Summary)
+		} else {
+			sb.WriteString("(no summary)")
+		}
+		sb.WriteString("\n")
+	}
+
+	fmt.Fprintf(&sb, "\nConverged: %t\n", converged)
+	sb.WriteString("\n")
+	sb.WriteString(guidance)
+	sb.WriteString("\n\nProduce the final answer. Reply with the answer only — no preamble, no commentary on the rating process.")
+
+	return []ChatMessage{
+		{Role: "user", Content: sb.String()},
+	}
+}
+
 // BuildMoaAggregatorPrompt asks a single MixtureOfAgents Layer 2 aggregator to
 // digest the Layer 1 proposer drafts and produce one improved draft.
 //

@@ -101,7 +101,7 @@ This keeps all dependency injection in one place and makes each package independ
 
 ### Council pipeline (`internal/council`)
 
-The `Strategy` enum carries **7 constants** — 6 are implemented today, 1 is reserved for a planned strategy. See [`strategies.md`](./strategies.md) for the full roadmap.
+The `Strategy` enum carries **7 constants — all implemented**. The strategy roadmap is complete. See [`strategies.md`](./strategies.md) for the full per-strategy reference.
 
 ```go
 type Strategy int
@@ -113,7 +113,7 @@ const (
     GenerateRankRefine                 // implemented (generaterankrefine.go:runGenerateRankRefine)
     MultiAgentDebate                   // implemented (debate.go:runMultiAgentDebate)
     MixtureOfAgents                    // implemented (moa.go:runMixtureOfAgents)
-    Delphi                             // not implemented
+    Delphi                             // implemented (delphi.go:runDelphi)
 )
 
 type CouncilType struct {
@@ -134,7 +134,7 @@ type CouncilType struct {
 }
 ```
 
-`MixtureOfAgents` is the first strategy to skip both `Models` and `ChairmanModel`. The runner reads the layer-specific fields directly. The full field-usage matrix (which fields each strategy reads) lives in `CouncilType`'s doc-comment in `internal/council/types.go`.
+`CouncilType` carries strategy-specific scalars too — `RefineTopK` for GenerateRankRefine, `MaxDebateRounds` for MultiAgentDebate, `MaxDelphiRounds` and `DelphiConvergenceThreshold` for Delphi. `MixtureOfAgents` is the only strategy to skip both `Models` and `ChairmanModel` — the runner reads the layer-specific fields directly. The full field-usage matrix (which fields each strategy reads) lives in `CouncilType`'s doc-comment in `internal/council/types.go`.
 
 `RunFull()` is a strategy-dispatch switch — every shipped strategy has its own `case`:
 
@@ -146,9 +146,12 @@ case Majority:           return c.runMajority(...)
 case GenerateRankRefine: return c.runGenerateRankRefine(...)
 case MultiAgentDebate:   return c.runMultiAgentDebate(...)
 case MixtureOfAgents:    return c.runMixtureOfAgents(...)
+case Delphi:             return c.runDelphi(...)
 default:                 return fmt.Errorf("council: strategy %d not implemented", ct.Strategy)
 }
 ```
+
+The `default` arm is unreachable today (every strategy has a case), but is retained for forward compatibility — adding a new `Strategy` constant without a corresponding case fails loudly at runtime.
 
 #### `PeerReview` pipeline (3 stages)
 
@@ -244,6 +247,26 @@ Implemented in `internal/council/moa.go`. Modelled on the Together AI MoA paper.
 **Out of scope (future variants):** round-robin aggregator fan-out (today is all-to-all per the MoA paper), aggregator role specialisation, refiner-as-pass-through, iterative MoA depth ≥ 2 aggregator layers.
 
 Registration is opt-in AND requires **all three** `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` env vars. Partial config logs a warning and skips registration — there's no no-LLM path for MoA.
+
+#### `Delphi` pipeline (multi-round, second to use `stage2_round_complete`)
+
+Implemented in `internal/council/delphi.go`. Modelled on the Delphi method. Best for evaluation tasks, expert consensus problems, and forecasting — domains where rating-based feedback drives convergence faster than free-form critique. **Last unimplemented strategy in the roadmap;** post-merge no `Strategy` constants are reserved.
+
+1. **Stage 1** — `runStage1` reused with `ct.Models`. Anonymous `Response A`/`B`/… labels via `assignLabels`. Quorum: `max(3, ⌈N/2⌉+1)` when `QuorumMin == 0` — higher floor than PeerReview/Debate (3 vs 2) because statistical averaging needs ≥3 raters.
+2. **Rounds 1..R** — for each round, all surviving raters concurrently rate ALL Stage 1 candidates against `defaultDelphiCriteria` (`correctness`, `clarity`, `completeness`) via `runDelphiRound`. Output is JSON `{ratings: {<criterion>: <0.0..1.0>, ...}, summary: "<1–2 sentences>"}`. Per-rater LLM/parse/empty-scores failure drops that rater for the rest of the run; per-round event: `stage2_round_complete` with `kind: "delphi_round"` and `round: r`.
+3. **Round-1 vs round R≥2 prompt asymmetry.** Round 1 prompts contain only the question + criteria + Stage 1 candidates (with anonymous labels). Round R≥2 prompts add (a) the full prior-round aggregate stats history (mean/stddev per criterion, and DeltaMean from round 2 onwards) and (b) the rater's OWN previous-round ratings + summary so it can revise rather than start from scratch. **Other raters' raw ratings are NEVER exposed to a rater** — the aggregate is the entire feedback signal. Cross-rater leakage would defeat the anonymous-blind property of the method.
+4. **Per-round quorum re-check.** After every round, if `len(survivors) < need`, `runDelphi` returns `fmt.Errorf("delphi: quorum failed after round %d (%d survivors, need %d)")` — loud failure, no `stage2_complete` emitted, no Stage 3 run. Mirror Debate's pattern (#213).
+5. **Convergence detection** (`computeDelphiStats`): pure function. Mean/StdDev populated only for criteria with ≥1 rating in the round; DeltaMean populated only for criteria present in BOTH the current and prior round (and absent on round 1). After round R≥2, if `max(DeltaMean) < ct.DelphiConvergenceThreshold` for ALL criteria in DeltaMean, exit early with `Converged: true`. Conservative — every criterion must converge; `mean` would let one stable criterion paper over a divergent one.
+6. **Stage 2 terminal event** — `stage2_complete` with `kind: "delphi_round"`, `Metadata.DelphiPanel` populated with `Rounds[]`, `FinalRound`, `Converged`, and `Criteria`.
+7. **Stage 3** — `runDelphiStage3`: chairman synthesises across the final-round per-rater ratings + summaries + converged stats via `BuildDelphiChairmanPrompt`. The chairman receives the LabelToModel map for candidate provenance attribution. Synthesis guidance scales with the `Converged` flag — converged → confident synthesis from the highest-rated candidate; not-converged → balanced presentation. Failure path matches `runStage3` (returns `StageThreeResult{Model, DurationMs, Error}` even on error).
+
+**Cost:** `N + N×R + 1` worst case (no convergence). With defaults N=4 R=3: **17 calls**. Convergence at round 2 → 9 calls; at round 1 the strategy can't yet detect convergence.
+
+**No `DelphiDropout` type.** Dropped raters are simply absent from subsequent rounds' `Ratings` slices; chairman and frontend infer dropout by label-set diff between rounds. Delphi's transcript is a sample (smaller `n`), not a narrative — typed dropout markers would invite the chairman prompt to over-explain.
+
+**Single source of truth on the frontend:** `msg.metadata.delphi`. The `stage2_round_complete` handler (factored into `mergeRoundIntoMessage` in `App.jsx`) appends to `metadata.delphi.rounds` for `kind: "delphi_round"` events, mirroring how it handles `kind: "debate_round"` for Debate.
+
+Registration is opt-in AND requires both `DELPHI_MODELS` and `DELPHI_CHAIRMAN_MODEL`. `DELPHI_MAX_ROUNDS` (default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (default 0.1; valid range `(0.0, 1.0)`) are optional; invalid values warn and fall back to defaults.
 
 #### Per-registration model configuration
 

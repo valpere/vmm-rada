@@ -138,6 +138,7 @@ export default function ChatInterface({
                     rankRefine={msg.metadata?.rank_refine}
                     debate={msg.metadata?.debate}
                     moaAggregator={msg.metadata?.moa_aggregator}
+                    delphi={msg.metadata?.delphi}
                     isLoading={msg.loading?.stage2}
                   />
 

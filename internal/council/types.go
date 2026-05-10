@@ -14,23 +14,25 @@ const (
 	RoleBased
 
 	// Majority runs independent generation followed by a vote (exact match,
-	// cluster, or weighted). Selects rather than synthesises. Not implemented.
+	// cluster, or weighted). Selects rather than synthesises. Implemented in
+	// majority.go.
 	Majority
 
 	// GenerateRankRefine runs parallel generation, ranks candidates against
-	// structured criteria, then refines the top-K. Not implemented.
+	// structured criteria, then refines the top-K. Implemented in
+	// generaterankrefine.go.
 	GenerateRankRefine
 
 	// MultiAgentDebate runs initial answers followed by N rounds of mutual
-	// critique and revision, then synthesises. Not implemented.
+	// critique and revision, then synthesises. Implemented in debate.go.
 	MultiAgentDebate
 
 	// MixtureOfAgents runs a layered architecture: proposers → aggregators →
-	// refiner. Not implemented.
+	// refiner. Implemented in moa.go.
 	MixtureOfAgents
 
-	// Delphi runs multiple anonymous blind rating rounds with averaged ratings.
-	// Not implemented.
+	// Delphi runs multiple anonymous blind rating rounds with averaged ratings
+	// and convergence detection. Implemented in delphi.go.
 	Delphi
 )
 
@@ -52,6 +54,8 @@ type Role struct {
 //	MultiAgentDebate   : Models, ChairmanModel, Temperature, QuorumMin, MaxDebateRounds
 //	MixtureOfAgents    : ProposerModels, AggregatorModels, RefinerModel, Temperature, QuorumMin
 //	                     (Models and ChairmanModel are UNUSED for this strategy)
+//	Delphi             : Models, ChairmanModel, Temperature, QuorumMin,
+//	                     MaxDelphiRounds, DelphiConvergenceThreshold
 //
 // MixtureOfAgents is the first strategy to skip both Models and ChairmanModel —
 // the runner reads the layer-specific ProposerModels / AggregatorModels /
@@ -73,6 +77,11 @@ type CouncilType struct {
 	ProposerModels   []string // MoA: Layer 1 model pool (parallel proposer drafts)
 	AggregatorModels []string // MoA: Layer 2 model pool (parallel aggregators, all-to-all over Layer 1)
 	RefinerModel     string   // MoA: Layer 3 single refiner that synthesises the final answer
+
+	// Delphi-only scalars. Models and ChairmanModel are reused (Delphi has no
+	// layer-specific model pools), so only the rating-loop knobs live here.
+	MaxDelphiRounds            int     // Delphi: max rating rounds before forced exit; 0 = default (3)
+	DelphiConvergenceThreshold float64 // Delphi: max DeltaMean to declare convergence; 0 = default (0.1)
 }
 
 // ChatMessage is a single turn in a conversation history.
@@ -242,12 +251,65 @@ type MoaAggregator struct {
 	Aggregators []AggregatorOutput `json:"aggregators"`
 }
 
+// DelphiRating is one rater's per-criterion ratings + free-form summary in a
+// single Delphi round. Scores are clamped to [0.0, 1.0] per criterion;
+// missing criterion values default to 0.0 with a warn log (same recovery
+// shape as GenerateRankRefine's BuildRankPrompt parser). Ratings carry the
+// SAME label as the rater's Stage 1 output (raters and proposers are the
+// same model pool in Delphi today; the label persists across rounds).
+type DelphiRating struct {
+	Label      string             `json:"label"`        // anonymised, e.g. "Response A"
+	Model      string             `json:"model"`        // OpenRouter ID
+	Scores     map[string]float64 `json:"scores"`       // criterion → 0.0–1.0
+	Summary    string             `json:"summary,omitempty"`
+	DurationMs int64              `json:"duration_ms"`
+	Error      error              `json:"-"`
+}
+
+// DelphiStats is the aggregate per-criterion statistics across all successful
+// raters × candidates in a single round. Mean and StdDev contain only
+// criteria with ≥1 successful rating in this round; criteria absent in
+// either current or prior round are excluded from DeltaMean (and from the
+// convergence check). DeltaMean is omitempty so it's absent on round 1.
+type DelphiStats struct {
+	Mean      map[string]float64 `json:"mean"`
+	StdDev    map[string]float64 `json:"std_dev"`
+	DeltaMean map[string]float64 `json:"delta_mean,omitempty"`
+}
+
+// DelphiRound holds all surviving raters' ratings for a single round plus
+// the round's aggregate stats. Ratings are sorted by Label ascending for
+// stable output across runs.
+type DelphiRound struct {
+	Round   int            `json:"round"`
+	Ratings []DelphiRating `json:"ratings"`
+	Stats   DelphiStats    `json:"stats"`
+}
+
+// DelphiPanel is the Stage 2 payload for the Delphi strategy. Rounds holds
+// the per-round transcript (rounds 1..FinalRound). Converged is true when
+// the strategy exited early because max(DeltaMean) fell below the configured
+// threshold across all criteria. Named "DelphiPanel" — not "Delphi" —
+// because the strategy enum constant already owns the bare name.
+//
+// NO DelphiDropout type. Dropped raters are simply absent from subsequent
+// rounds' Ratings slices; chairman and frontend infer dropout by label-set
+// diff between rounds. Delphi's transcript is a sample (smaller n on
+// dropout), not a narrative — typed dropout markers would invite the
+// chairman prompt to over-explain.
+type DelphiPanel struct {
+	Rounds     []DelphiRound `json:"rounds"`
+	FinalRound int           `json:"final_round"`
+	Converged  bool          `json:"converged"`
+	Criteria   []string      `json:"criteria"`
+}
+
 // Metadata is persisted with every assistant message.
 //
 // VoteTally is populated only by the Majority strategy; RankRefine only by
 // GenerateRankRefine; Debate only by MultiAgentDebate; MoaAggregator only by
-// MixtureOfAgents. omitempty keeps each absent on the wire and at rest for
-// every other strategy.
+// MixtureOfAgents; DelphiPanel only by Delphi. omitempty keeps each absent
+// on the wire and at rest for every other strategy.
 //
 // LabelToModel is a single flat map containing both proposer labels
 // ("Response A" → model-x) and aggregator labels ("Aggregator A" → model-y)
@@ -262,18 +324,19 @@ type Metadata struct {
 	RankRefine        *RankRefine       `json:"rank_refine,omitempty"`
 	Debate            *Debate           `json:"debate,omitempty"`
 	MoaAggregator     *MoaAggregator    `json:"moa_aggregator,omitempty"`
+	DelphiPanel       *DelphiPanel      `json:"delphi,omitempty"`
 }
 
 // Stage2CompleteData is the payload emitted by Runner for the "stage2_complete" event.
 // It bundles peer-review results with the computed aggregate metadata so callers
 // (e.g. the SSE handler) can surface both in one event.
 //
-// Kind discriminates the strategy-specific payload shape. Today's two implemented
-// values are "peer_ranking" (PeerReview) and "role_stub" (RoleBased). Five more
-// are reserved for planned strategies; see docs/strategies.md for their schemas.
+// Kind discriminates the strategy-specific payload shape. All seven kinds are now
+// implemented; see docs/strategies.md for the per-strategy schemas.
 //
-// Round is reserved for future multi-round strategies (MultiAgentDebate, Delphi).
-// Today both implemented strategies emit a single stage2_complete with Round=0.
+// Round is set on per-round events for MultiAgentDebate and Delphi (the
+// stage2_round_complete event family); absent (zero) on terminal
+// stage2_complete events. omitempty keeps it off the wire when unused.
 type Stage2CompleteData struct {
 	Kind     string           `json:"kind"`
 	Round    int              `json:"round,omitempty"`

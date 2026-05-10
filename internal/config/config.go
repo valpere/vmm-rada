@@ -68,6 +68,19 @@ type Config struct {
 	MoaAggregatorModels []string
 	MoaRefinerModel     string
 
+	// Delphi strategy registration. BOTH DelphiModels AND DelphiChairmanModel
+	// must be set for the council type to be registered (Stage 3 chairman
+	// always runs; no no-LLM path). DelphiMaxRounds and
+	// DelphiConvergenceThreshold are optional; 0 = use the runner's defaults
+	// (3 rounds, 0.1 threshold).
+	// Cost note: this strategy fires N + N×R + 1 LLM calls in the worst
+	// case (no convergence); with the default 4 raters × 3 rounds + chairman
+	// that's 17 calls. Convergence at round 2 → 9 calls.
+	DelphiModels               []string
+	DelphiChairmanModel        string
+	DelphiMaxRounds            int
+	DelphiConvergenceThreshold float64
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -272,6 +285,44 @@ func Load() (*Config, error) {
 	// accidentally-spaced value doesn't bypass the registration gate.
 	moaRefinerModel := strings.TrimSpace(os.Getenv("MOA_REFINER_MODEL"))
 
+	// Delphi rater pool. Empty when unset — registration requires both this
+	// AND the chairman var (Stage 3 chairman always runs).
+	var delphiModels []string
+	if raw := os.Getenv("DELPHI_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				delphiModels = append(delphiModels, m)
+			}
+		}
+	}
+
+	// Delphi chairman (required when models are set; whitespace-trim).
+	delphiChairmanModel := strings.TrimSpace(os.Getenv("DELPHI_CHAIRMAN_MODEL"))
+
+	// Delphi round budget. 0 = let the runner use its default of 3.
+	// Invalid values warn + use 0 sentinel. Must be ≥1 to be valid.
+	delphiMaxRounds := 0
+	if raw := os.Getenv("DELPHI_MAX_ROUNDS"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			delphiMaxRounds = v
+		} else {
+			slog.Warn("DELPHI_MAX_ROUNDS is invalid; using runner default",
+				"value", raw, "error", err)
+		}
+	}
+
+	// Delphi convergence threshold. 0 = let the runner use its default of 0.1.
+	// Valid range is (0.0, 1.0). Outside that range or non-numeric → warn + 0.
+	delphiConvergenceThreshold := 0.0
+	if raw := strings.TrimSpace(os.Getenv("DELPHI_CONVERGENCE_THRESHOLD")); raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0.0 && v < 1.0 {
+			delphiConvergenceThreshold = v
+		} else {
+			slog.Warn("DELPHI_CONVERGENCE_THRESHOLD is invalid (must be in (0.0, 1.0)); using runner default",
+				"value", raw, "error", err)
+		}
+	}
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -311,6 +362,11 @@ func Load() (*Config, error) {
 		MoaProposerModels:   moaProposerModels,
 		MoaAggregatorModels: moaAggregatorModels,
 		MoaRefinerModel:     moaRefinerModel,
+
+		DelphiModels:               delphiModels,
+		DelphiChairmanModel:        delphiChairmanModel,
+		DelphiMaxRounds:            delphiMaxRounds,
+		DelphiConvergenceThreshold: delphiConvergenceThreshold,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 	}, nil

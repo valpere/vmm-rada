@@ -505,3 +505,102 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Delphi view (Delphi strategy) — per-round rating timeline */
+
+.delphi-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.delphi-round {
+  padding: 12px;
+  background: var(--bg-stage);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.delphi-round-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delphi-converged-badge {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.delphi-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delphi-criterion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delphi-criterion-name {
+  flex: 0 0 100px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.delphi-criterion-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.delphi-criterion-fill {
+  height: 100%;
+  background: var(--text-muted);
+  transition: width 200ms ease-out;
+}
+
+.delphi-criterion-stat {
+  flex: 0 0 80px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.delphi-delta-chip {
+  flex: 0 0 56px;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+  font-size: 10px;
+  font-family: monospace;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  text-align: center;
+}
+
+.delphi-delta-chip.converged {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}

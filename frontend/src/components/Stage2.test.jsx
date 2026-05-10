@@ -36,11 +36,13 @@ describe('Stage2 dispatcher', () => {
   });
 
   it('routes an unknown kind to the unknown-kind view, surfacing the kind name', () => {
-    // Use the only still-reserved kind. moa_aggregator now routes to MoaView;
-    // delphi_round is reserved as of this PR (Delphi strategy not yet shipped).
-    render(<Stage2 kind="delphi_round" isLoading={false} />);
+    // Synthetic sentinel: starts with "__", contains "kind", and never collides
+    // with any real kind value. Delphi was the last reserved kind (it ships in
+    // this PR), so no real reserved kind remains — using a synthetic value
+    // guarantees this test stays valid as future kind-table changes happen.
+    render(<Stage2 kind="__bogus_kind__" isLoading={false} />);
     expect(screen.getByText(/view not implemented yet/i)).toBeInTheDocument();
-    expect(screen.getByText('delphi_round')).toBeInTheDocument();
+    expect(screen.getByText('__bogus_kind__')).toBeInTheDocument();
   });
 
   it('defaults to peer_ranking when kind is undefined (old-backend safety net)', () => {
@@ -418,6 +420,109 @@ describe('Stage2 dispatcher', () => {
         />,
       );
       expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('DelphiView (kind="delphi_round")', () => {
+    const threeRoundDelphi = {
+      final_round: 3,
+      converged: true,
+      criteria: ['correctness', 'clarity', 'completeness'],
+      rounds: [
+        {
+          round: 1,
+          ratings: [],
+          stats: {
+            mean: { correctness: 0.5, clarity: 0.5, completeness: 0.5 },
+            std_dev: { correctness: 0.1, clarity: 0.1, completeness: 0.1 },
+            // round 1 has no delta_mean
+          },
+        },
+        {
+          round: 2,
+          ratings: [],
+          stats: {
+            mean: { correctness: 0.55, clarity: 0.55, completeness: 0.55 },
+            std_dev: { correctness: 0.08, clarity: 0.08, completeness: 0.08 },
+            delta_mean: { correctness: 0.05, clarity: 0.05, completeness: 0.05 },
+          },
+        },
+        {
+          round: 3,
+          ratings: [],
+          stats: {
+            mean: { correctness: 0.57, clarity: 0.57, completeness: 0.57 },
+            std_dev: { correctness: 0.06, clarity: 0.06, completeness: 0.06 },
+            delta_mean: { correctness: 0.02, clarity: 0.02, completeness: 0.02 },
+          },
+        },
+      ],
+    };
+
+    it('renders 3 round sections with per-criterion mean ± stddev rows and Δ chips on rounds 2+', () => {
+      render(<Stage2 kind="delphi_round" delphi={threeRoundDelphi} isLoading={false} />);
+      // Header.
+      expect(screen.getByText(/Stage 2: Delphi Panel/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 rounds/i)).toBeInTheDocument();
+      // Round headers.
+      expect(screen.getByText(/Round 1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Round 2/i)).toBeInTheDocument();
+      expect(screen.getByText(/Round 3/i)).toBeInTheDocument();
+      // 3 rounds × 3 criteria = 9 criterion names visible.
+      expect(screen.getAllByText('correctness').length).toBe(3);
+      expect(screen.getAllByText('clarity').length).toBe(3);
+      expect(screen.getAllByText('completeness').length).toBe(3);
+      // Δ chips: 2 rounds × 3 criteria = 6 chips (round 1 has none).
+      const deltaChips = screen.getAllByText(/^Δ /);
+      expect(deltaChips).toHaveLength(6);
+    });
+
+    it('renders the converged badge ONLY on the converged round', () => {
+      render(<Stage2 kind="delphi_round" delphi={threeRoundDelphi} isLoading={false} />);
+      // Exactly one converged badge — on the final round (round 3).
+      const badges = screen.getAllByLabelText(/converged/i);
+      expect(badges).toHaveLength(1);
+    });
+
+    it('appends a new round when state updates (live progressive UI)', () => {
+      const oneRound = {
+        final_round: 1,
+        converged: false,
+        criteria: ['correctness'],
+        rounds: [
+          {
+            round: 1,
+            ratings: [],
+            stats: {
+              mean: { correctness: 0.5 },
+              std_dev: { correctness: 0.1 },
+            },
+          },
+        ],
+      };
+      const { rerender } = render(<Stage2 kind="delphi_round" delphi={oneRound} isLoading={false} />);
+      expect(screen.getByText(/Round 1/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Round 2/i)).not.toBeInTheDocument();
+
+      const twoRounds = {
+        ...oneRound,
+        final_round: 2,
+        rounds: [
+          ...oneRound.rounds,
+          {
+            round: 2,
+            ratings: [],
+            stats: {
+              mean: { correctness: 0.55 },
+              std_dev: { correctness: 0.08 },
+              delta_mean: { correctness: 0.05 },
+            },
+          },
+        ],
+      };
+      rerender(<Stage2 kind="delphi_round" delphi={twoRounds} isLoading={false} />);
+      expect(screen.getByText(/Round 1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Round 2/i)).toBeInTheDocument();
     });
   });
 });

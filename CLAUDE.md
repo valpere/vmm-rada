@@ -12,13 +12,14 @@ codebase; the rewrite is well past the research phase.
 
 See `docs/` for the current source of truth:
 - `docs/architecture-v2.md` — package layout, layer boundaries, composition root, pipeline behaviour
-- `docs/strategies.md` — the 7 deliberation strategies (2 implemented, 5 planned), per-registration model config, quorum defaults, SSE protocol
+- `docs/strategies.md` — the 7 deliberation strategies (all implemented), per-registration model config, quorum defaults, SSE protocol
 - `docs/api.md` — REST + SSE event reference
 - `docs/pipeline.md` — Stage 0/1/2/3 internals
 - `docs/council-research-synthesis.md` — aggregated design research
 
-Two strategies (`PeerReview`, `RoleBased`) are implemented; five are reserved for planned
-work. Stage 0 (clarification) runs before strategy dispatch and is strategy-independent.
+All seven strategies are implemented (`PeerReview`, `RoleBased`, `Majority`,
+`GenerateRankRefine`, `MultiAgentDebate`, `MixtureOfAgents`, `Delphi`). Stage 0
+(clarification) runs before strategy dispatch and is strategy-independent.
 See [`docs/strategies.md`](docs/strategies.md) for the full enum, status, and per-strategy
 configuration.
 

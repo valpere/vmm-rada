@@ -1,6 +1,6 @@
 # Deliberation Strategies
 
-The `Strategy` enum (`internal/council/types.go`) declares **7 constants**. Six are implemented today; one is reserved for a planned strategy. The runner returns `"strategy %d not implemented"` for unimplemented constants.
+The `Strategy` enum (`internal/council/types.go`) declares **7 constants — all implemented**. The strategy roadmap is complete.
 
 For architecture context (package layout, layer boundaries, dispatch switch) see [`architecture-v2.md`](./architecture-v2.md). For the academic background of each strategy see [`council-research-synthesis.md`](./council-research-synthesis.md).
 
@@ -18,7 +18,7 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
 | `MultiAgentDebate` | shipped | `debate.go:runMultiAgentDebate` | #212 |
 | `MixtureOfAgents` | shipped | `moa.go:runMixtureOfAgents` | #214 |
-| `Delphi` | planned | — | TBD |
+| `Delphi` | shipped | `delphi.go:runDelphi` | #216 |
 
 ### LLM-call cost (per request, ignoring Stage 0)
 
@@ -32,8 +32,7 @@ Operators pick strategies on cost as much as on output quality. For a council of
 | `GenerateRankRefine` | **N + 2** | N generation + 1 ranking + 1 refinement (both go to the chairman) |
 | `MultiAgentDebate` | **N + N×R + 1** | N generation + R rounds × N debaters revising + 1 chairman synthesis. With defaults N=4, R=2 → 13 calls. The most expensive shipped strategy; cost note in `.env.example`. |
 | `MixtureOfAgents` | **N + M + 1** | N proposers (Layer 1) + M aggregators (Layer 2, all-to-all over proposers) + 1 refiner (Layer 3). With defaults N=4, M=2 → 7 calls. |
-
-`Delphi` is still planned; its cost will be added when it ships.
+| `Delphi` | **N + N×R + 1** (worst case) | N generation (Stage 1) + R rounds × N raters + 1 chairman synthesis. Strategy may exit early on convergence (max(DeltaMean) < threshold across all criteria after any round R≥2), so effective cost = N + N×R_eff + 1 where R_eff = FinalRound. With defaults N=4, R=3: **17 calls** worst case (no convergence); **9 calls** on early convergence at round 2. |
 
 ---
 
@@ -49,7 +48,7 @@ Each registration in `cmd/server/main.go` and `cmd/eval/main.go` carries its own
 | `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
 | `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
 | `MixtureOfAgents` | (UNUSED — MoA reads `ProposerModels`/`AggregatorModels`/`RefinerModel` directly) | (UNUSED — see above) | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` (ALL THREE required to register; partial config logs a warning and skips) | none — registration is opt-in via all three MoA env vars |
-| `Delphi` | Raters | Facilitator (optional) | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
+| `Delphi` | Raters (also Stage 1 proposers — same pool serves both roles) | Synthesiser (required) | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` (both required); `DELPHI_MAX_ROUNDS` (optional, default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (optional, default 0.1) tune the rating loop | none — registration is opt-in via both DELPHI_* env vars |
 
 `MixtureOfAgents` is the only shipped strategy that does not fit the `Models` + `ChairmanModel` shape. `CouncilType` carries three MoA-only fields:
 
@@ -118,9 +117,9 @@ PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's
 | `rank_refine` | `GenerateRankRefine` | **shipped** | `metadata.rank_refine` is a `RankRefine` (`{rankings: RankedCandidate[], top_k: int, criteria: string[]}`); `data` is `[]` (the ranking lives in metadata, not per-reviewer). `RankedCandidate` is `{label: string, scores: map<string, float64>, total_score: float64, advancing: bool}`. Rankings are sorted by `total_score` desc, then `label` asc. Exactly `top_k` candidates have `advancing: true`. Per-criterion scores clamped to `[0.0, 1.0]`; `total_score` to `[0.0, len(criteria)]`. | always `0` |
 | `debate_round` | `MultiAgentDebate` | **shipped** | `metadata.debate` is a `Debate` (`{rounds: DebateRound[], final_round: int, dropouts?: DebaterDropout[]}`); `data` is `[]` (the transcript lives in metadata, not per-reviewer). Round events fire as `stage2_round_complete` per round (carrying just that round); the terminal `stage2_complete` carries the full transcript including dropouts. `DebaterDropout` is `{label, last_round, reason: "error"\|"json_parse"\|"empty_revision"}`. | `1..R`; one `stage2_round_complete` per round, then a terminal `stage2_complete` |
 | `moa_aggregator` | `MixtureOfAgents` | **shipped** | `metadata.moa_aggregator` is a `MoaAggregator` (`{aggregators: AggregatorOutput[]}`); `data` is `[]` (the aggregator drafts live in metadata, not per-reviewer). `AggregatorOutput` is `{label, model, content, sources: string[], duration_ms}`. `sources` lists the Layer-1 proposer labels fed into that aggregator (today: all-to-all, so every aggregator's `sources` lists every successful proposer). Aggregators are sorted by `label` asc. `metadata.label_to_model` is a single flat map containing both proposer (`Response A → …`) and aggregator (`Aggregator A → …`) entries. | always `0` (single aggregator pass; no `stage2_round_complete` events) |
-| `delphi_round` | `Delphi` | **reserved** | per-rater rating list for the current round; running averages and convergence indicator | `1..N`; one event per round |
+| `delphi_round` | `Delphi` | **shipped** | `metadata.delphi` is a `DelphiPanel` (`{rounds: DelphiRound[], final_round: int, converged: bool, criteria: string[]}`); `data` is `[]` (the rating transcript lives in metadata, not per-reviewer). `DelphiRound` is `{round, ratings: DelphiRating[], stats: DelphiStats}`. `DelphiRating` is `{label, model, scores: map<string, float64>, summary, duration_ms}` — scores clamped to `[0.0, 1.0]` per criterion. `DelphiStats` is `{mean, std_dev, delta_mean (omitempty)}` — `delta_mean` absent on round 1; on round R≥2, present only for criteria in BOTH the current and prior round. Round events fire as `stage2_round_complete` per round (carrying just that round's `DelphiRound`); the terminal `stage2_complete` carries the full transcript. NO `DelphiDropout` type — dropped raters are simply absent from subsequent `ratings` slices. | `1..R`; one `stage2_round_complete` per round, then a terminal `stage2_complete`. Strategy may exit early when `max(delta_mean) < threshold` across all criteria. |
 
-Reserved kinds are not yet emitted by the runtime. The frontend `Stage2.jsx` dispatcher renders any unknown kind via a fallback view (`Stage 2 — kind: <X> (view not implemented yet)`) so a strategy in flight does not crash the UI.
+All seven kinds are now shipped. The frontend `Stage2.jsx` dispatcher renders any unknown kind via a fallback view (`Stage 2 — kind: <X> (view not implemented yet)`) so a future strategy in flight does not crash the UI; the dispatcher's unknown-kind test uses a synthetic sentinel (`__bogus_kind__`) since no real reserved kind remains.
 
 ---
 

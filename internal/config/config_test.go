@@ -565,3 +565,141 @@ func TestLoad_MoaRefiner_Whitespace_TreatedAsUnset(t *testing.T) {
 		t.Errorf("MoaRefinerModel: got %q, want empty (whitespace trim)", cfg.MoaRefinerModel)
 	}
 }
+
+// ── TestLoad_DelphiModels ─────────────────────────────────────────────────
+//
+// Both DELPHI_MODELS and DELPHI_CHAIRMAN_MODEL must be set for the council
+// type to register (Stage 3 chairman always runs; no no-LLM path).
+// DELPHI_MAX_ROUNDS and DELPHI_CONVERGENCE_THRESHOLD are optional; 0 = use
+// the runner's defaults (3 rounds, 0.1 threshold).
+
+func TestLoad_DelphiModels_AllSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "DELPHI_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5, google/gemini-flash-1.5, qwen/qwen3.6-plus")
+	setenv(t, "DELPHI_CHAIRMAN_MODEL", "anthropic/claude-sonnet-4-5")
+	setenv(t, "DELPHI_MAX_ROUNDS", "5")
+	setenv(t, "DELPHI_CONVERGENCE_THRESHOLD", "0.05")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5", "google/gemini-flash-1.5", "qwen/qwen3.6-plus"}
+	if len(cfg.DelphiModels) != len(want) {
+		t.Fatalf("DelphiModels: got %v, want %v", cfg.DelphiModels, want)
+	}
+	for i, m := range want {
+		if cfg.DelphiModels[i] != m {
+			t.Errorf("DelphiModels[%d]: got %q, want %q", i, cfg.DelphiModels[i], m)
+		}
+	}
+	if cfg.DelphiChairmanModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("DelphiChairmanModel: got %q, want %q", cfg.DelphiChairmanModel, "anthropic/claude-sonnet-4-5")
+	}
+	if cfg.DelphiMaxRounds != 5 {
+		t.Errorf("DelphiMaxRounds: got %d, want 5", cfg.DelphiMaxRounds)
+	}
+	if cfg.DelphiConvergenceThreshold != 0.05 {
+		t.Errorf("DelphiConvergenceThreshold: got %f, want 0.05", cfg.DelphiConvergenceThreshold)
+	}
+}
+
+func TestLoad_DelphiModels_OptionalsUnset(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "DELPHI_MODELS", "openai/gpt-4o-mini")
+	setenv(t, "DELPHI_CHAIRMAN_MODEL", "anthropic/claude-sonnet-4-5")
+	unsetenv(t, "DELPHI_MAX_ROUNDS")
+	unsetenv(t, "DELPHI_CONVERGENCE_THRESHOLD")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DelphiModels) != 1 || cfg.DelphiModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("DelphiModels: got %v, want [openai/gpt-4o-mini]", cfg.DelphiModels)
+	}
+	if cfg.DelphiChairmanModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("DelphiChairmanModel: got %q", cfg.DelphiChairmanModel)
+	}
+	if cfg.DelphiMaxRounds != 0 {
+		t.Errorf("DelphiMaxRounds: got %d, want 0 (sentinel for runner default)", cfg.DelphiMaxRounds)
+	}
+	if cfg.DelphiConvergenceThreshold != 0.0 {
+		t.Errorf("DelphiConvergenceThreshold: got %f, want 0.0 (sentinel for runner default)", cfg.DelphiConvergenceThreshold)
+	}
+}
+
+func TestLoad_DelphiModels_ModelsOnly_ChairmanEmpty(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "DELPHI_MODELS", "openai/gpt-4o-mini")
+	unsetenv(t, "DELPHI_CHAIRMAN_MODEL")
+	// Loader does NOT pre-fill from CHAIRMAN_MODEL — registration site decides.
+	setenv(t, "CHAIRMAN_MODEL", "global-chairman")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DelphiModels) != 1 {
+		t.Errorf("DelphiModels: got %v", cfg.DelphiModels)
+	}
+	if cfg.DelphiChairmanModel != "" {
+		t.Errorf("DelphiChairmanModel: got %q, want empty (loader does not pre-fill from CHAIRMAN_MODEL)", cfg.DelphiChairmanModel)
+	}
+}
+
+func TestLoad_DelphiModels_AllUnset(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "DELPHI_MODELS")
+	unsetenv(t, "DELPHI_CHAIRMAN_MODEL")
+	unsetenv(t, "DELPHI_MAX_ROUNDS")
+	unsetenv(t, "DELPHI_CONVERGENCE_THRESHOLD")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DelphiModels) != 0 {
+		t.Errorf("DelphiModels: got %v, want empty", cfg.DelphiModels)
+	}
+	if cfg.DelphiChairmanModel != "" {
+		t.Errorf("DelphiChairmanModel: got %q, want empty", cfg.DelphiChairmanModel)
+	}
+	if cfg.DelphiMaxRounds != 0 {
+		t.Errorf("DelphiMaxRounds: got %d, want 0", cfg.DelphiMaxRounds)
+	}
+	if cfg.DelphiConvergenceThreshold != 0.0 {
+		t.Errorf("DelphiConvergenceThreshold: got %f, want 0.0", cfg.DelphiConvergenceThreshold)
+	}
+}
+
+func TestLoad_DelphiConvergenceThreshold_Invalid(t *testing.T) {
+	// Negative, ≥ 1.0, and non-numeric all fall back to 0 sentinel (= runner
+	// default). Test each via a sub-table.
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{"negative", "-0.1"},
+		{"zero", "0"},
+		{"one", "1.0"},
+		{"greater than one", "1.5"},
+		{"non-numeric", "convergent"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			baseEnv(t)
+			setenv(t, "DELPHI_MODELS", "m-a")
+			setenv(t, "DELPHI_CHAIRMAN_MODEL", "chairman-z")
+			setenv(t, "DELPHI_CONVERGENCE_THRESHOLD", tc.raw)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.DelphiConvergenceThreshold != 0.0 {
+				t.Errorf("invalid input %q: got %f, want 0.0 (runner default sentinel)", tc.raw, cfg.DelphiConvergenceThreshold)
+			}
+		})
+	}
+}
