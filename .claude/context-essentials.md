@@ -4,7 +4,7 @@
 > with matcher='compact') and emphasized to the compactor (via PreCompact
 > hook). Source of truth for rules that MUST survive context summarization.
 >
-> Keep this file under ~50 lines — every line costs tokens on each
+> Keep this file under ~60 lines — every line costs tokens on each
 > re-injection.
 
 ## Frontend architecture (immutable)
