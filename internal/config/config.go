@@ -59,6 +59,15 @@ type Config struct {
 	DebateChairmanModel string
 	DebateMaxRounds     int
 
+	// MixtureOfAgents strategy registration. ALL THREE fields must be set for
+	// the council type to be registered — no no-LLM path. Each layer needs at
+	// least one model. Cost: N_proposers + N_aggregators + 1 LLM calls per
+	// request (default 4 + 2 + 1 = 7 calls). Layer-specific fields, not the
+	// generic Models / ChairmanModel — see CouncilType's field-usage matrix.
+	MoaProposerModels   []string
+	MoaAggregatorModels []string
+	MoaRefinerModel     string
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -238,6 +247,31 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// MixtureOfAgents proposer pool. Empty slice when unset — registration
+	// requires all three MoA env vars (no no-LLM path; every layer needs models).
+	var moaProposerModels []string
+	if raw := os.Getenv("MOA_PROPOSER_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				moaProposerModels = append(moaProposerModels, m)
+			}
+		}
+	}
+
+	// MixtureOfAgents aggregator pool. Same opt-in semantics as proposers.
+	var moaAggregatorModels []string
+	if raw := os.Getenv("MOA_AGGREGATOR_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				moaAggregatorModels = append(moaAggregatorModels, m)
+			}
+		}
+	}
+
+	// MixtureOfAgents refiner (Layer 3, single model). Whitespace-trimmed so an
+	// accidentally-spaced value doesn't bypass the registration gate.
+	moaRefinerModel := strings.TrimSpace(os.Getenv("MOA_REFINER_MODEL"))
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -273,6 +307,10 @@ func Load() (*Config, error) {
 		DebateModels:        debateModels,
 		DebateChairmanModel: debateChairmanModel,
 		DebateMaxRounds:     debateMaxRounds,
+
+		MoaProposerModels:   moaProposerModels,
+		MoaAggregatorModels: moaAggregatorModels,
+		MoaRefinerModel:     moaRefinerModel,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 	}, nil

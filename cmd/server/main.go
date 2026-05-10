@@ -101,6 +101,31 @@ func main() {
 		}
 	}
 
+	// MixtureOfAgents registration is opt-in AND requires ALL THREE env vars.
+	// MoA has no no-LLM path: every layer needs models. Models / ChairmanModel
+	// are NOT used — the runner reads ProposerModels / AggregatorModels /
+	// RefinerModel directly. Partial config is logged and skipped (not failed
+	// at request time).
+	if len(cfg.MoaProposerModels) > 0 || len(cfg.MoaAggregatorModels) > 0 || cfg.MoaRefinerModel != "" {
+		switch {
+		case len(cfg.MoaProposerModels) == 0:
+			logger.Warn("MOA_AGGREGATOR_MODELS or MOA_REFINER_MODEL set but MOA_PROPOSER_MODELS is empty; skipping registration of \"moa\" council type")
+		case len(cfg.MoaAggregatorModels) == 0:
+			logger.Warn("MOA_PROPOSER_MODELS set but MOA_AGGREGATOR_MODELS is empty; skipping registration of \"moa\" council type")
+		case cfg.MoaRefinerModel == "":
+			logger.Warn("MOA_PROPOSER_MODELS / MOA_AGGREGATOR_MODELS set but MOA_REFINER_MODEL is empty; skipping registration of \"moa\" council type")
+		default:
+			registry["moa"] = council.CouncilType{
+				Name:             "moa",
+				Strategy:         council.MixtureOfAgents,
+				ProposerModels:   cfg.MoaProposerModels,
+				AggregatorModels: cfg.MoaAggregatorModels,
+				RefinerModel:     cfg.MoaRefinerModel,
+				Temperature:      cfg.DefaultCouncilTemperature,
+			}
+		}
+	}
+
 	client := openrouter.NewClient(cfg.OpenRouterAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
 	runner := council.NewCouncil(client, registry, logger)
 

@@ -462,3 +462,106 @@ func TestLoad_DebateMaxRounds_Invalid_DefaultsToZero(t *testing.T) {
 		t.Errorf("DebateMaxRounds: got %d, want 0 (invalid input → runner default)", cfg.DebateMaxRounds)
 	}
 }
+
+// ── TestLoad_MoaModels ────────────────────────────────────────────────────
+//
+// All three MOA_* env vars must be set for the council type to register
+// (no no-LLM path; every layer requires at least one model). Loader leaves
+// fields empty when unset — the wiring in cmd/server/main.go decides whether
+// to register.
+
+func TestLoad_MoaModels_AllSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "MOA_PROPOSER_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5, google/gemini-flash-1.5, qwen/qwen3.6-plus")
+	setenv(t, "MOA_AGGREGATOR_MODELS", "anthropic/claude-sonnet-4-5, openai/gpt-4o")
+	setenv(t, "MOA_REFINER_MODEL", "anthropic/claude-opus-4-7")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantProposers := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5", "google/gemini-flash-1.5", "qwen/qwen3.6-plus"}
+	if len(cfg.MoaProposerModels) != len(wantProposers) {
+		t.Fatalf("MoaProposerModels: got %v, want %v", cfg.MoaProposerModels, wantProposers)
+	}
+	for i, m := range wantProposers {
+		if cfg.MoaProposerModels[i] != m {
+			t.Errorf("MoaProposerModels[%d]: got %q, want %q", i, cfg.MoaProposerModels[i], m)
+		}
+	}
+	wantAggregators := []string{"anthropic/claude-sonnet-4-5", "openai/gpt-4o"}
+	if len(cfg.MoaAggregatorModels) != len(wantAggregators) {
+		t.Fatalf("MoaAggregatorModels: got %v, want %v", cfg.MoaAggregatorModels, wantAggregators)
+	}
+	for i, m := range wantAggregators {
+		if cfg.MoaAggregatorModels[i] != m {
+			t.Errorf("MoaAggregatorModels[%d]: got %q, want %q", i, cfg.MoaAggregatorModels[i], m)
+		}
+	}
+	if cfg.MoaRefinerModel != "anthropic/claude-opus-4-7" {
+		t.Errorf("MoaRefinerModel: got %q, want %q", cfg.MoaRefinerModel, "anthropic/claude-opus-4-7")
+	}
+}
+
+func TestLoad_MoaModels_PartialConfig_FieldsPopulatedAsParsed(t *testing.T) {
+	// Loader must NOT enforce all-or-nothing; the registration site at
+	// cmd/server/main.go decides whether the partial config is enough.
+	// Loader returns whatever was set, with empty fields for the unset vars.
+	baseEnv(t)
+	setenv(t, "MOA_PROPOSER_MODELS", "openai/gpt-4o-mini")
+	setenv(t, "MOA_AGGREGATOR_MODELS", "anthropic/claude-sonnet-4-5")
+	unsetenv(t, "MOA_REFINER_MODEL")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.MoaProposerModels) != 1 || cfg.MoaProposerModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("MoaProposerModels: got %v, want [openai/gpt-4o-mini]", cfg.MoaProposerModels)
+	}
+	if len(cfg.MoaAggregatorModels) != 1 || cfg.MoaAggregatorModels[0] != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("MoaAggregatorModels: got %v, want [anthropic/claude-sonnet-4-5]", cfg.MoaAggregatorModels)
+	}
+	if cfg.MoaRefinerModel != "" {
+		t.Errorf("MoaRefinerModel: got %q, want empty", cfg.MoaRefinerModel)
+	}
+}
+
+func TestLoad_MoaModels_AllUnset(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "MOA_PROPOSER_MODELS")
+	unsetenv(t, "MOA_AGGREGATOR_MODELS")
+	unsetenv(t, "MOA_REFINER_MODEL")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.MoaProposerModels) != 0 {
+		t.Errorf("MoaProposerModels: got %v, want empty", cfg.MoaProposerModels)
+	}
+	if len(cfg.MoaAggregatorModels) != 0 {
+		t.Errorf("MoaAggregatorModels: got %v, want empty", cfg.MoaAggregatorModels)
+	}
+	if cfg.MoaRefinerModel != "" {
+		t.Errorf("MoaRefinerModel: got %q, want empty", cfg.MoaRefinerModel)
+	}
+}
+
+func TestLoad_MoaRefiner_Whitespace_TreatedAsUnset(t *testing.T) {
+	// Mirror the trim-to-empty pattern shared with CLARIFICATION_ARBITER_MODEL,
+	// MAJORITY_CHAIRMAN_MODEL, GENERATE_RANK_REFINE_CHAIRMAN_MODEL,
+	// DEBATE_CHAIRMAN_MODEL — so the registration gate fires correctly.
+	baseEnv(t)
+	setenv(t, "MOA_PROPOSER_MODELS", "m-a")
+	setenv(t, "MOA_AGGREGATOR_MODELS", "m-b")
+	setenv(t, "MOA_REFINER_MODEL", "   ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MoaRefinerModel != "" {
+		t.Errorf("MoaRefinerModel: got %q, want empty (whitespace trim)", cfg.MoaRefinerModel)
+	}
+}

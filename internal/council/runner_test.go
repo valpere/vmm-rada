@@ -555,7 +555,7 @@ func TestRunFull_Stage2CompletePayload_IsStage2CompleteData(t *testing.T) {
 
 func TestRunFull_UnimplementedStrategy_ReturnsError(t *testing.T) {
 	unimplemented := []Strategy{
-		MixtureOfAgents, Delphi,
+		Delphi,
 	}
 	for _, s := range unimplemented {
 		s := s

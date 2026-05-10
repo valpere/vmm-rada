@@ -409,6 +409,120 @@ function DebateView({ debate, isLoading }) {
   );
 }
 
+// MoaView renders the MixtureOfAgents strategy's Stage 2 payload as two
+// stacked layer panels: Layer 1 (proposer drafts from msg.stage1) and
+// Layer 2 (aggregator outputs from metadata.moa_aggregator.aggregators with
+// the source-proposer labels visible per aggregator). Long content is
+// truncated with click-to-expand (same pattern as the other Stage 2 views).
+function MoaProposerRow({ result }) {
+  const [expanded, setExpanded] = useState(false);
+  const longText = (result?.content ?? '').length > REPRESENTATIVE_TRUNCATE_THRESHOLD;
+  return (
+    <div className="moa-row">
+      <div className="moa-row-header">
+        <span className="moa-row-label">{result.label}</span>
+      </div>
+      <div className={`moa-row-content${longText && !expanded ? ' collapsed' : ''}`}>
+        {result.content}
+      </div>
+      {longText && (
+        <button
+          type="button"
+          className="vote-expand-btn"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+        >
+          {expanded ? 'Show less' : 'Show full answer'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MoaAggregatorRow({ aggregator }) {
+  const [expanded, setExpanded] = useState(false);
+  const longText = (aggregator?.content ?? '').length > REPRESENTATIVE_TRUNCATE_THRESHOLD;
+  const sources = Array.isArray(aggregator.sources) ? aggregator.sources : [];
+  return (
+    <div className="moa-row">
+      <div className="moa-row-header">
+        <span className="moa-row-label">{aggregator.label}</span>
+        {sources.length > 0 && (
+          <span className="moa-sources">Sources: {sources.join(', ')}</span>
+        )}
+      </div>
+      <div className={`moa-row-content${longText && !expanded ? ' collapsed' : ''}`}>
+        {aggregator.content}
+      </div>
+      {longText && (
+        <button
+          type="button"
+          className="vote-expand-btn"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+        >
+          {expanded ? 'Show less' : 'Show full answer'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MoaView({ moaAggregator, stage1, isLoading }) {
+  if (isLoading && (!moaAggregator || !moaAggregator.aggregators || moaAggregator.aggregators.length === 0)) {
+    return (
+      <div className="stage stage2">
+        <div className="stage-accordion" aria-disabled="true">
+          <span className="stage-accordion-label">
+            <span className="spinner-sm" />
+            Aggregating proposer drafts…
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!moaAggregator || !moaAggregator.aggregators || moaAggregator.aggregators.length === 0) {
+    return null;
+  }
+
+  // Filter aggregators that have content (skip failed ones — they are surfaced
+  // by the partial-failure shape but renderable rows need content).
+  const successfulAggregators = moaAggregator.aggregators.filter(
+    (a) => a && (a.content ?? '').length > 0,
+  );
+  const proposerDrafts = Array.isArray(stage1) ? stage1 : [];
+
+  return (
+    <div className="stage stage2">
+      <div className="stage-accordion" aria-disabled="true">
+        <span className="stage-accordion-label">
+          Stage 2: Mixture of Agents ({proposerDrafts.length} proposers → {successfulAggregators.length} aggregators)
+        </span>
+      </div>
+      <div className="stage-body">
+        {proposerDrafts.length > 0 && (
+          <div className="moa-layer">
+            <div className="moa-layer-header">Layer 1 — Proposers</div>
+            <div className="moa-layer-list">
+              {proposerDrafts.map((p, i) => (
+                <MoaProposerRow key={`prop-${p?.label ?? i}-${i}`} result={p} />
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="moa-layer">
+          <div className="moa-layer-header">Layer 2 — Aggregators</div>
+          <div className="moa-layer-list">
+            {successfulAggregators.map((a, i) => (
+              <MoaAggregatorRow key={`agg-${a?.label ?? i}-${i}`} aggregator={a} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // RoleStubView renders a minimal placeholder for the RoleBased strategy,
 // where Stage 2 has no peer-ranking content (roles are complementary).
 function RoleStubView({ isLoading }) {
@@ -467,6 +581,7 @@ export default function Stage2({
   voteTally,
   rankRefine,
   debate,
+  moaAggregator,
   stage1,
   isLoading,
 }) {
@@ -492,6 +607,8 @@ export default function Stage2({
       return <RankRefineView rankRefine={rankRefine} rankings={stage1} isLoading={isLoading} />;
     case 'debate_round':
       return <DebateView debate={debate} isLoading={isLoading} />;
+    case 'moa_aggregator':
+      return <MoaView moaAggregator={moaAggregator} stage1={stage1} isLoading={isLoading} />;
     default:
       return <UnknownKindView kind={effectiveKind} />;
   }
