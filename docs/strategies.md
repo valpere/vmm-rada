@@ -15,10 +15,23 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | `PeerReview` | shipped | `runner.go:runPeerReview` | initial |
 | `RoleBased` | shipped | `rolebased.go:runRoleBased` | #177 |
 | `Majority` | shipped | `majority.go:runMajority` | #205 |
-| `GenerateRankRefine` | planned | — | TBD |
+| `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
 | `MultiAgentDebate` | planned | — | TBD |
 | `MixtureOfAgents` | planned | — | TBD |
 | `Delphi` | planned | — | TBD |
+
+### LLM-call cost (per request, ignoring Stage 0)
+
+Operators pick strategies on cost as much as on output quality. For a council of N members:
+
+| Strategy | LLM calls | Notes |
+|----------|-----------|-------|
+| `PeerReview` | **2N + 1** | N generation + N peer review + 1 chairman synthesis |
+| `RoleBased` | **N + 1** | N role outputs + 1 chairman synthesis |
+| `Majority` | **N + (0 or 1)** | N generation; 0 chairman calls when there's a clear plurality and no chairman is configured; 1 for tiebreak or polish |
+| `GenerateRankRefine` | **N + 2** | N generation + 1 ranking + 1 refinement (both go to the chairman) |
+
+`MultiAgentDebate`, `MixtureOfAgents`, and `Delphi` are still planned; their costs will be added when each ships.
 
 ---
 
@@ -100,7 +113,7 @@ PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's
 | `peer_ranking` | `PeerReview` | **shipped** | `[]StageTwoResult` — each reviewer's ranked label list | always `0` |
 | `role_stub` | `RoleBased` | **shipped** | `[]` — empty; metadata carries `aggregate_rankings: []`, `consensus_w: 1.0` | always `0` |
 | `vote_tally` | `Majority` | **shipped** | `metadata.vote_tally` is a `VoteTally` (`{clusters: VoteCluster[], winner_label: string}`); `data` is `[]` (Majority does not produce per-reviewer Stage 2 results). `VoteCluster` is `{members: string[], representative: string, votes: int}`. Clusters are sorted by votes desc, then representative asc. | always `0` |
-| `rank_refine` | `GenerateRankRefine` | **reserved** | ranked candidate list with criterion scores; top-K subset that proceeds to refinement | always `0` |
+| `rank_refine` | `GenerateRankRefine` | **shipped** | `metadata.rank_refine` is a `RankRefine` (`{rankings: RankedCandidate[], top_k: int, criteria: string[]}`); `data` is `[]` (the ranking lives in metadata, not per-reviewer). `RankedCandidate` is `{label: string, scores: map<string, float64>, total_score: float64, advancing: bool}`. Rankings are sorted by `total_score` desc, then `label` asc. Exactly `top_k` candidates have `advancing: true`. Per-criterion scores clamped to `[0.0, 1.0]`; `total_score` to `[0.0, len(criteria)]`. | always `0` |
 | `debate_round` | `MultiAgentDebate` | **reserved** | per-debater critique-and-revise output for the current round; references to the round's targets | `1..N`; one event per round, then a final `stage2_complete` with summary |
 | `moa_aggregator` | `MixtureOfAgents` | **reserved** | Layer-2 aggregator outputs; references to which Layer-1 proposers fed each aggregator | always `0` (single aggregator pass) |
 | `delphi_round` | `Delphi` | **reserved** | per-rater rating list for the current round; running averages and convergence indicator | `1..N`; one event per round |

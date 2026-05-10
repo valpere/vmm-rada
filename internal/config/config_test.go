@@ -287,3 +287,87 @@ func TestLoad_MajorityModels_BothUnset(t *testing.T) {
 		t.Errorf("MajorityChairmanModel: got %q, want empty", cfg.MajorityChairmanModel)
 	}
 }
+
+// ── TestLoad_GenerateRankRefineModels ─────────────────────────────────────
+//
+// Both GENERATE_RANK_REFINE_MODELS and GENERATE_RANK_REFINE_CHAIRMAN_MODEL
+// must be set for the council type to register (no no-LLM path). Loader
+// leaves both fields empty when env vars unset (no pre-fill); the wiring
+// in cmd/server/main.go decides whether to register based on both fields.
+
+func TestLoad_GenerateRankRefineModels_BothSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "GENERATE_RANK_REFINE_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5, google/gemini-flash-1.5, qwen/qwen3.6-plus")
+	setenv(t, "GENERATE_RANK_REFINE_CHAIRMAN_MODEL", "anthropic/claude-sonnet-4-5")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5", "google/gemini-flash-1.5", "qwen/qwen3.6-plus"}
+	if len(cfg.GenerateRankRefineModels) != len(want) {
+		t.Fatalf("GenerateRankRefineModels: got %v, want %v", cfg.GenerateRankRefineModels, want)
+	}
+	for i, m := range want {
+		if cfg.GenerateRankRefineModels[i] != m {
+			t.Errorf("GenerateRankRefineModels[%d]: got %q, want %q", i, cfg.GenerateRankRefineModels[i], m)
+		}
+	}
+	if cfg.GenerateRankRefineChairmanModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("GenerateRankRefineChairmanModel: got %q, want %q", cfg.GenerateRankRefineChairmanModel, "anthropic/claude-sonnet-4-5")
+	}
+}
+
+func TestLoad_GenerateRankRefineModels_ModelsOnly_ChairmanEmpty(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "GENERATE_RANK_REFINE_MODELS", "openai/gpt-4o-mini")
+	unsetenv(t, "GENERATE_RANK_REFINE_CHAIRMAN_MODEL")
+	// Loader does NOT pre-fill from CHAIRMAN_MODEL — registration site decides
+	// whether the partial config is enough (it isn't, for this strategy).
+	setenv(t, "CHAIRMAN_MODEL", "global-chairman")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.GenerateRankRefineModels) != 1 || cfg.GenerateRankRefineModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("GenerateRankRefineModels: got %v, want [openai/gpt-4o-mini]", cfg.GenerateRankRefineModels)
+	}
+	if cfg.GenerateRankRefineChairmanModel != "" {
+		t.Errorf("GenerateRankRefineChairmanModel: got %q, want empty (loader does not pre-fill from CHAIRMAN_MODEL)", cfg.GenerateRankRefineChairmanModel)
+	}
+}
+
+func TestLoad_GenerateRankRefineModels_BothUnset(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "GENERATE_RANK_REFINE_MODELS")
+	unsetenv(t, "GENERATE_RANK_REFINE_CHAIRMAN_MODEL")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.GenerateRankRefineModels) != 0 {
+		t.Errorf("GenerateRankRefineModels: got %v, want empty", cfg.GenerateRankRefineModels)
+	}
+	if cfg.GenerateRankRefineChairmanModel != "" {
+		t.Errorf("GenerateRankRefineChairmanModel: got %q, want empty", cfg.GenerateRankRefineChairmanModel)
+	}
+}
+
+func TestLoad_GenerateRankRefineModels_ChairmanWhitespace_TreatedAsUnset(t *testing.T) {
+	// Match CLARIFICATION_ARBITER_MODEL / MAJORITY_CHAIRMAN_MODEL behaviour:
+	// whitespace-only chairman is trimmed to empty so the registration
+	// gate fires correctly.
+	baseEnv(t)
+	setenv(t, "GENERATE_RANK_REFINE_MODELS", "m-a")
+	setenv(t, "GENERATE_RANK_REFINE_CHAIRMAN_MODEL", "   ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GenerateRankRefineChairmanModel != "" {
+		t.Errorf("GenerateRankRefineChairmanModel: got %q, want empty (whitespace trim)", cfg.GenerateRankRefineChairmanModel)
+	}
+}

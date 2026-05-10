@@ -64,6 +64,25 @@ func main() {
 		}
 	}
 
+	// GenerateRankRefine registration is opt-in AND requires both env vars.
+	// Unlike Majority, this strategy has no no-LLM path — Stage 2 ranking is
+	// always an arbiter call and Stage 3 refinement is always a chairman call.
+	// If models are set but the chairman is missing, log a warning and skip
+	// registration rather than fail at request time.
+	if len(cfg.GenerateRankRefineModels) > 0 {
+		if cfg.GenerateRankRefineChairmanModel == "" {
+			logger.Warn("GENERATE_RANK_REFINE_MODELS set but GENERATE_RANK_REFINE_CHAIRMAN_MODEL is empty; skipping registration of \"generate-rank-refine\" council type")
+		} else {
+			registry["generate-rank-refine"] = council.CouncilType{
+				Name:          "generate-rank-refine",
+				Strategy:      council.GenerateRankRefine,
+				Models:        cfg.GenerateRankRefineModels,
+				ChairmanModel: cfg.GenerateRankRefineChairmanModel,
+				Temperature:   cfg.DefaultCouncilTemperature,
+			}
+		}
+	}
+
 	client := openrouter.NewClient(cfg.OpenRouterAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
 	runner := council.NewCouncil(client, registry, logger)
 

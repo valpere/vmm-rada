@@ -130,10 +130,12 @@ export default function ChatInterface({
                   <Stage2
                     kind={msg.stage2Kind}
                     rankings={msg.stage2}
+                    stage1={msg.stage1}
                     labelToModel={msg.metadata?.label_to_model}
                     aggregateRankings={msg.metadata?.aggregate_rankings}
                     consensusW={msg.metadata?.consensus_w}
                     voteTally={msg.metadata?.vote_tally}
+                    rankRefine={msg.metadata?.rank_refine}
                     isLoading={msg.loading?.stage2}
                   />
 

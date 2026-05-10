@@ -195,6 +195,112 @@ function VoteTallyView({ voteTally, isLoading }) {
   );
 }
 
+// RankRefineView renders the GenerateRankRefine strategy's Stage 2 payload:
+// a vertical list of ranked candidates, each row showing the label, total
+// score, and a horizontal bar per criterion (4 mini-bars per row, each
+// 0.0–1.0). Top-K rows have an "Advancing to refinement" badge + accent
+// border. Long candidate content is truncated with click-to-expand, same
+// pattern as VoteTallyView.
+function RankRefineCandidate({ candidate, criteria, candidateContent }) {
+  const [expanded, setExpanded] = useState(false);
+  const longText = (candidateContent ?? '').length > REPRESENTATIVE_TRUNCATE_THRESHOLD;
+  const total = candidate.total_score?.toFixed?.(2) ?? '0.00';
+
+  return (
+    <div className={`rank-candidate${candidate.advancing ? ' advancing' : ''}`}>
+      <div className="rank-candidate-header">
+        <span className="rank-candidate-label">{candidate.label}</span>
+        {candidate.advancing && (
+          <span className="rank-advancing-badge" aria-label="advancing to refinement">
+            ↑ advancing
+          </span>
+        )}
+        <span className="rank-total-score">total {total}</span>
+      </div>
+      <div className="rank-criteria-bars">
+        {criteria.map((name) => {
+          const score = candidate.scores?.[name] ?? 0;
+          const widthPct = Math.max(2, Math.round(score * 100));
+          return (
+            <div className="rank-criterion-row" key={name}>
+              <span className="rank-criterion-name">{name}</span>
+              <div className="rank-criterion-track" aria-hidden="true">
+                <div className="rank-criterion-fill" style={{ width: `${widthPct}%` }} />
+              </div>
+              <span className="rank-criterion-score">{score.toFixed(2)}</span>
+            </div>
+          );
+        })}
+      </div>
+      {candidateContent && (
+        <>
+          <div className={`rank-candidate-content${longText && !expanded ? ' collapsed' : ''}`}>
+            {candidateContent}
+          </div>
+          {longText && (
+            <button
+              type="button"
+              className="vote-expand-btn"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+            >
+              {expanded ? 'Show less' : 'Show full answer'}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function RankRefineView({ rankRefine, rankings: stage1Rankings, isLoading }) {
+  if (isLoading) {
+    return (
+      <div className="stage stage2">
+        <div className="stage-accordion" aria-disabled="true">
+          <span className="stage-accordion-label">
+            <span className="spinner-sm" />
+            Ranking candidates…
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!rankRefine || !rankRefine.rankings || rankRefine.rankings.length === 0) {
+    return null;
+  }
+  // Stage 1 results are passed through `rankings` for content lookup by label.
+  const contentByLabel = {};
+  if (Array.isArray(stage1Rankings)) {
+    for (const r of stage1Rankings) {
+      if (r?.label) contentByLabel[r.label] = r.content ?? '';
+    }
+  }
+  const criteria = Array.isArray(rankRefine.criteria) ? rankRefine.criteria : [];
+
+  return (
+    <div className="stage stage2">
+      <div className="stage-accordion" aria-disabled="true">
+        <span className="stage-accordion-label">
+          Stage 2: Rank &amp; Refine ({rankRefine.top_k ?? 0} advancing of {rankRefine.rankings.length})
+        </span>
+      </div>
+      <div className="stage-body">
+        <div className="rank-refine-list">
+          {rankRefine.rankings.map((c, i) => (
+            <RankRefineCandidate
+              key={`${c.label}-${i}`}
+              candidate={c}
+              criteria={criteria}
+              candidateContent={contentByLabel[c.label]}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // RoleStubView renders a minimal placeholder for the RoleBased strategy,
 // where Stage 2 has no peer-ranking content (roles are complementary).
 function RoleStubView({ isLoading }) {
@@ -244,7 +350,17 @@ function UnknownKindView({ kind }) {
 // undefined / empty / whitespace-only (e.g. an older backend that doesn't
 // emit kind, or a malformed event), we default to peer_ranking because that
 // was the only persisted Stage 2 shape before this PR.
-export default function Stage2({ kind, rankings, labelToModel, aggregateRankings, consensusW, voteTally, isLoading }) {
+export default function Stage2({
+  kind,
+  rankings,
+  labelToModel,
+  aggregateRankings,
+  consensusW,
+  voteTally,
+  rankRefine,
+  stage1,
+  isLoading,
+}) {
   const trimmed = typeof kind === 'string' ? kind.trim() : '';
   const effectiveKind = trimmed || 'peer_ranking';
 
@@ -263,6 +379,8 @@ export default function Stage2({ kind, rankings, labelToModel, aggregateRankings
       return <RoleStubView isLoading={isLoading} />;
     case 'vote_tally':
       return <VoteTallyView voteTally={voteTally} isLoading={isLoading} />;
+    case 'rank_refine':
+      return <RankRefineView rankRefine={rankRefine} rankings={stage1} isLoading={isLoading} />;
     default:
       return <UnknownKindView kind={effectiveKind} />;
   }

@@ -171,6 +171,24 @@ Implemented in `internal/council/majority.go`. Best for factual QA, classificati
 
 Voting variants beyond exact-match (cluster-by-embedding, Borda count, Tournament/Elo, weighted voting) are explicit follow-ups. Registration is opt-in: the `"majority"` council type is added to the registry only when `MAJORITY_MODELS` is set in the environment.
 
+#### `GenerateRankRefine` pipeline (3 stages, arbiter + refiner)
+
+Implemented in `internal/council/generaterankrefine.go`. Best for creative writing, analysis, and code generation — tasks where diverse generation matters and per-criterion ranking gives more leverage than peer-review consensus.
+
+1. **Stage 1** — `runStage1` (reused): all council models run concurrently. Anonymous `Response A`/`B`/… labels assigned via `assignLabels`.
+2. **Quorum check** — `runGenerateRankRefine` resolves `need` inline before calling `checkQuorum`:
+   - `k = max(ct.RefineTopK, 3)` (default `3`)
+   - `need = max(k+1, 3)` when `QuorumMin == 0`
+   - The `k+1` floor enforces "at least one rejection" — refining all candidates defeats the rank-to-filter point.
+3. **Stage 2** — `runRankStage`: single LLM call to `ct.ChairmanModel` with `BuildRankPrompt`. The arbiter scores each candidate against four hardcoded criteria (`correctness`, `clarity`, `completeness`, `originality`) on `[0.0, 1.0]` per criterion, then computes a `total_score`. Per-criterion scores are clamped to `[0.0, 1.0]`; `total_score` is recomputed from clamped values and clamped to `[0.0, len(criteria)]` (defends against arbiter responses with internally-inconsistent or out-of-range numbers). Unknown labels are dropped with a warn log; missing criterion values default to `0.0` with a warn log. **Parse failures are loud errors** — Stage 2 IS the entire ranking; silent fall-through would leak unranked candidates into refinement.
+4. **Sorting + advancing.** Rankings are sorted by `total_score` descending, then by `Label` ascending for stable output. Exactly `k` candidates are marked `Advancing: true`. Tie at the `k` boundary is resolved deterministically by the secondary `Label` sort — no rebalancing, no chairman tiebreak.
+5. **Stage 2 SSE event:** emits `Stage2CompleteData{Kind: "rank_refine", Results: [], Metadata: {..., RankRefine: ...}}`. The `RankRefine` payload carries the full `Rankings`, `TopK`, and `Criteria`.
+6. **Stage 3** — `runRefineStage`: single LLM call to `ct.ChairmanModel` with `BuildRankRefinePrompt`. The chairman receives the top-K candidates and is instructed to **refine, not blend** — pick strong threads, don't average. Failure path matches `runStage3` and `runRoleBasedStage3` (returns `StageThreeResult{Model, DurationMs, Error}` with the wrapped error).
+
+Cost: **N + 2** LLM calls per request (N generation + 1 rank + 1 refine). Both the rank and refine calls go to `ct.ChairmanModel`. Splitting into separate `RankerModel`/`RefinerModel` fields is a future variant.
+
+Registration is opt-in AND requires both `GENERATE_RANK_REFINE_MODELS` and `GENERATE_RANK_REFINE_CHAIRMAN_MODEL`. If models alone are set, the server logs a warning at startup and skips registration so requests fail-fast at startup rather than silently at request time.
+
 #### Per-registration model configuration
 
 Every `CouncilType` registration is independent. Two registrations with the same `Strategy` but different `Models` / `ChairmanModel` are valid — e.g. `"factual-majority"` and `"creative-majority"` both use `Strategy: Majority` with different voter pools. Each strategy has its own namespaced env var family (`MAJORITY_MODELS`, `MAJORITY_CHAIRMAN_MODEL`, `DEBATE_MODELS`, etc.) with fall-through to `COUNCIL_MODELS` / `CHAIRMAN_MODEL` when unset; see [`strategies.md`](./strategies.md) for the full table. Plumbing lands with each strategy's implementation PR.

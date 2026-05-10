@@ -706,6 +706,86 @@ func TestSendMessageStream(t *testing.T) {
 			},
 		},
 		{
+			name:   "GenerateRankRefine strategy emits kind=rank_refine on the wire",
+			body:   `{"content":"q","council_type":"generate-rank-refine"}`,
+			storer: okStorer(),
+			runner: &mockRunner{
+				runFull: func(ctx context.Context, query, ct string, onEvent council.EventFunc) error {
+					onEvent("stage1_complete", []council.StageOneResult{
+						{Label: "Response A", Content: "answer a", Model: "openai/gpt-4o-mini"},
+						{Label: "Response B", Content: "answer b", Model: "anthropic/claude-haiku-4-5"},
+						{Label: "Response C", Content: "answer c", Model: "google/gemini-flash-1.5"},
+						{Label: "Response D", Content: "answer d", Model: "qwen/qwen3.6-plus"},
+					})
+					tally := &council.RankRefine{
+						TopK:     3,
+						Criteria: []string{"correctness", "clarity", "completeness", "originality"},
+						Rankings: []council.RankedCandidate{
+							{Label: "Response A", Scores: map[string]float64{"correctness": 0.9, "clarity": 0.9, "completeness": 0.9, "originality": 0.9}, TotalScore: 3.6, Advancing: true},
+							{Label: "Response B", Scores: map[string]float64{"correctness": 0.7, "clarity": 0.7, "completeness": 0.7, "originality": 0.7}, TotalScore: 2.8, Advancing: true},
+							{Label: "Response C", Scores: map[string]float64{"correctness": 0.5, "clarity": 0.5, "completeness": 0.5, "originality": 0.5}, TotalScore: 2.0, Advancing: true},
+							{Label: "Response D", Scores: map[string]float64{"correctness": 0.3, "clarity": 0.3, "completeness": 0.3, "originality": 0.3}, TotalScore: 1.2, Advancing: false},
+						},
+					}
+					onEvent("stage2_complete", council.Stage2CompleteData{
+						Kind:    "rank_refine",
+						Results: []council.StageTwoResult{},
+						Metadata: council.Metadata{
+							CouncilType:       "generate-rank-refine",
+							LabelToModel:      map[string]string{"Response A": "openai/gpt-4o-mini"},
+							AggregateRankings: []council.RankedModel{},
+							ConsensusW:        0.625, // 2.5 / 4
+							RankRefine:        tally,
+						},
+					})
+					onEvent("stage3_complete", council.StageThreeResult{Content: "refined", Model: "chairman-z", DurationMs: 100})
+					return nil
+				},
+			},
+			wantCode: http.StatusOK,
+			checkSSE: func(t *testing.T, body string) {
+				for _, line := range strings.Split(body, "\n") {
+					if !strings.HasPrefix(line, "data: ") {
+						continue
+					}
+					var env struct {
+						Type     string           `json:"type"`
+						Kind     string           `json:"kind"`
+						Metadata council.Metadata `json:"metadata"`
+					}
+					if err := json.Unmarshal([]byte(line[6:]), &env); err != nil || env.Type != "stage2_complete" {
+						continue
+					}
+					if env.Kind != "rank_refine" {
+						t.Errorf("kind: got %q, want %q", env.Kind, "rank_refine")
+					}
+					if env.Metadata.RankRefine == nil {
+						t.Fatalf("metadata.rank_refine: nil; expected populated")
+					}
+					if env.Metadata.RankRefine.TopK != 3 {
+						t.Errorf("top_k: got %d, want 3", env.Metadata.RankRefine.TopK)
+					}
+					if len(env.Metadata.RankRefine.Rankings) != 4 {
+						t.Errorf("rankings: got %d, want 4", len(env.Metadata.RankRefine.Rankings))
+					}
+					if len(env.Metadata.RankRefine.Criteria) != 4 {
+						t.Errorf("criteria: got %d, want 4", len(env.Metadata.RankRefine.Criteria))
+					}
+					advancing := 0
+					for _, r := range env.Metadata.RankRefine.Rankings {
+						if r.Advancing {
+							advancing++
+						}
+					}
+					if advancing != 3 {
+						t.Errorf("advancing count: got %d, want 3", advancing)
+					}
+					return
+				}
+				t.Errorf("no stage2_complete event found in body: %s", body)
+			},
+		},
+		{
 			name:   "QuorumError emits error event",
 			body:   `{"content":"test","council_type":"standard"}`,
 			storer: okStorer(),

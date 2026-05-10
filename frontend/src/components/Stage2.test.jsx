@@ -125,4 +125,104 @@ describe('Stage2 dispatcher', () => {
       expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
     });
   });
+
+  describe('RankRefineView (kind="rank_refine")', () => {
+    const fullRankRefine = {
+      top_k: 3,
+      criteria: ['correctness', 'clarity', 'completeness', 'originality'],
+      rankings: [
+        {
+          label: 'Response A',
+          scores: { correctness: 0.9, clarity: 0.9, completeness: 0.9, originality: 0.9 },
+          total_score: 3.6,
+          advancing: true,
+        },
+        {
+          label: 'Response B',
+          scores: { correctness: 0.7, clarity: 0.7, completeness: 0.7, originality: 0.7 },
+          total_score: 2.8,
+          advancing: true,
+        },
+        {
+          label: 'Response C',
+          scores: { correctness: 0.5, clarity: 0.5, completeness: 0.5, originality: 0.5 },
+          total_score: 2.0,
+          advancing: true,
+        },
+        {
+          label: 'Response D',
+          scores: { correctness: 0.3, clarity: 0.3, completeness: 0.3, originality: 0.3 },
+          total_score: 1.2,
+          advancing: false,
+        },
+        {
+          label: 'Response E',
+          scores: { correctness: 0.2, clarity: 0.2, completeness: 0.2, originality: 0.2 },
+          total_score: 0.8,
+          advancing: false,
+        },
+      ],
+    };
+
+    it('renders all candidates with the top-K marked advancing', () => {
+      render(<Stage2 kind="rank_refine" rankRefine={fullRankRefine} isLoading={false} />);
+      expect(screen.getByText(/Stage 2: Rank & Refine/i)).toBeInTheDocument();
+      // 3 advancing badges (top-K).
+      expect(screen.getAllByLabelText(/advancing/i)).toHaveLength(3);
+      // All five labels rendered.
+      for (const label of ['Response A', 'Response B', 'Response C', 'Response D', 'Response E']) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+      // Criterion names appear (capitalized in CSS but plain text in DOM).
+      expect(screen.getAllByText('correctness').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('clarity').length).toBeGreaterThan(0);
+    });
+
+    it('renders a single advancing candidate when top-K is 1', () => {
+      const oneOf = {
+        top_k: 1,
+        criteria: ['correctness', 'clarity', 'completeness', 'originality'],
+        rankings: [
+          {
+            label: 'Response A',
+            scores: { correctness: 1, clarity: 1, completeness: 1, originality: 1 },
+            total_score: 4,
+            advancing: true,
+          },
+          {
+            label: 'Response B',
+            scores: { correctness: 0.5, clarity: 0.5, completeness: 0.5, originality: 0.5 },
+            total_score: 2,
+            advancing: false,
+          },
+        ],
+      };
+      render(<Stage2 kind="rank_refine" rankRefine={oneOf} isLoading={false} />);
+      expect(screen.getAllByLabelText(/advancing/i)).toHaveLength(1);
+      // Header reports "1 advancing of 2".
+      expect(screen.getByText(/1 advancing of 2/i)).toBeInTheDocument();
+    });
+
+    it('truncates long candidate content with a Show full answer button', () => {
+      const longText =
+        'A long candidate answer that exceeds the truncation threshold so the dispatcher exposes a Show full answer button — '.repeat(2);
+      const stage1 = [
+        { label: 'Response A', content: longText },
+      ];
+      const tally = {
+        top_k: 1,
+        criteria: ['correctness', 'clarity', 'completeness', 'originality'],
+        rankings: [
+          {
+            label: 'Response A',
+            scores: { correctness: 0.9, clarity: 0.9, completeness: 0.9, originality: 0.9 },
+            total_score: 3.6,
+            advancing: true,
+          },
+        ],
+      };
+      render(<Stage2 kind="rank_refine" rankRefine={tally} stage1={stage1} isLoading={false} />);
+      expect(screen.getByRole('button', { name: /Show full answer/i })).toBeInTheDocument();
+    });
+  });
 });
