@@ -17,8 +17,11 @@ Scheduled — **systemd user timer** (recommended, catches up missed runs):
 [Service]
 Type=oneshot
 ExecStart=/home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
-StandardOutput=append:/tmp/dreaming-cron.log
-StandardError=append:/tmp/dreaming-cron.log
+# Use the script's own log directory (~/.cache/llm-council/, mode 0700)
+# rather than /tmp — /tmp is world-readable and could leak secrets if the
+# pass ever logs prompt content, env values, or stack traces.
+StandardOutput=append:%h/.cache/llm-council/dreaming-systemd.log
+StandardError=append:%h/.cache/llm-council/dreaming-systemd.log
 
 # ~/.config/systemd/user/dreaming-llm-council.timer
 [Timer]
