@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -568,5 +569,194 @@ func TestRunFull_UnimplementedStrategy_ReturnsError(t *testing.T) {
 				t.Fatalf("expected 'not implemented' error, got %v", err)
 			}
 		})
+	}
+}
+
+// ── Stage 0 model resolution chain ────────────────────────────────────────
+
+// stage0Recorder is a thread-safe collector that classifies each completion
+// request as a generator or chairman call by inspecting the prompt prefix.
+// Generator prompts start with "You are helping clarify..." and chairman
+// prompts start with "You are deciding whether to ask...".
+type stage0Recorder struct {
+	mu             sync.Mutex
+	generatorCalls []string // models seen on generator-shaped prompts
+	chairmanCalls  []string // models seen on chairman-shaped prompts
+}
+
+func (r *stage0Recorder) record(req CompletionRequest) (CompletionResponse, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	body := ""
+	if len(req.Messages) > 0 {
+		body = req.Messages[0].Content
+	}
+	if strings.Contains(body, "You are helping clarify") {
+		r.generatorCalls = append(r.generatorCalls, req.Model)
+		return makeResponse(`{"questions":[{"text":"q?"}]}`), nil
+	}
+	if strings.Contains(body, "You are deciding whether to ask") {
+		r.chairmanCalls = append(r.chairmanCalls, req.Model)
+		// Return enough=true so the round terminates without emitting questions.
+		return makeResponse(`{"questions":[],"enough":true}`), nil
+	}
+	return makeResponse("{}"), nil
+}
+
+// stage0Fixture returns a Council whose registry's "test" entry has the given
+// generator pool and chairman model. The mock client uses the recorder.
+func stage0Fixture(t *testing.T, ctModels []string, ctChairman string, rec *stage0Recorder) *Council {
+	t.Helper()
+	registry := map[string]CouncilType{
+		"test": {
+			Name:          "test",
+			Strategy:      PeerReview,
+			Models:        ctModels,
+			ChairmanModel: ctChairman,
+			Temperature:   0.7,
+		},
+	}
+	client := &mockLLMClient{
+		complete: func(_ context.Context, req CompletionRequest) (CompletionResponse, error) {
+			return rec.record(req)
+		},
+	}
+	return NewCouncil(client, registry, nil)
+}
+
+func TestRunClarificationRound_Resolution_BothCfgFieldsSet(t *testing.T) {
+	rec := &stage0Recorder{}
+	c := stage0Fixture(t, []string{"ct-gen-1", "ct-gen-2"}, "ct-chair", rec)
+
+	cfg := ClarificationConfig{
+		MaxRounds:            2,
+		MaxTotalQuestions:    5,
+		MaxQuestionsPerRound: 3,
+		Models:               []string{"cfg-gen-1", "cfg-gen-2"},
+		ArbiterModel:         "cfg-arbiter",
+	}
+
+	if err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	gotGens := append([]string(nil), rec.generatorCalls...)
+	wantGens := map[string]bool{"cfg-gen-1": true, "cfg-gen-2": true}
+	if len(gotGens) != 2 {
+		t.Fatalf("generator calls: got %d, want 2 (%v)", len(gotGens), gotGens)
+	}
+	for _, m := range gotGens {
+		if !wantGens[m] {
+			t.Errorf("generator model %q not in expected cfg pool", m)
+		}
+	}
+	if len(rec.chairmanCalls) != 1 || rec.chairmanCalls[0] != "cfg-arbiter" {
+		t.Errorf("chairman calls: got %v, want [cfg-arbiter]", rec.chairmanCalls)
+	}
+}
+
+func TestRunClarificationRound_Resolution_MixedCfg(t *testing.T) {
+	// cfg.Models set, cfg.ArbiterModel empty → generators use cfg.Models;
+	// arbiter falls back to ct.ChairmanModel.
+	rec := &stage0Recorder{}
+	c := stage0Fixture(t, []string{"ct-gen-1", "ct-gen-2"}, "ct-chair", rec)
+
+	cfg := ClarificationConfig{
+		MaxRounds:            2,
+		MaxTotalQuestions:    5,
+		MaxQuestionsPerRound: 3,
+		Models:               []string{"cfg-gen-only"},
+		ArbiterModel:         "",
+	}
+
+	if err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(rec.generatorCalls) != 1 || rec.generatorCalls[0] != "cfg-gen-only" {
+		t.Errorf("generator calls: got %v, want [cfg-gen-only]", rec.generatorCalls)
+	}
+	if len(rec.chairmanCalls) != 1 || rec.chairmanCalls[0] != "ct-chair" {
+		t.Errorf("chairman calls: got %v, want [ct-chair] (per-council-type fall-back)", rec.chairmanCalls)
+	}
+}
+
+func TestRunClarificationRound_Resolution_BothCfgFieldsEmpty_LegacyFallthrough(t *testing.T) {
+	rec := &stage0Recorder{}
+	c := stage0Fixture(t, []string{"ct-gen-1", "ct-gen-2"}, "ct-chair", rec)
+
+	cfg := ClarificationConfig{
+		MaxRounds:            2,
+		MaxTotalQuestions:    5,
+		MaxQuestionsPerRound: 3,
+		// Models / ArbiterModel intentionally zero-valued.
+	}
+
+	if err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	gotGens := append([]string(nil), rec.generatorCalls...)
+	wantGens := map[string]bool{"ct-gen-1": true, "ct-gen-2": true}
+	if len(gotGens) != 2 {
+		t.Fatalf("generator calls: got %d, want 2 (%v)", len(gotGens), gotGens)
+	}
+	for _, m := range gotGens {
+		if !wantGens[m] {
+			t.Errorf("generator model %q not in expected ct pool", m)
+		}
+	}
+	if len(rec.chairmanCalls) != 1 || rec.chairmanCalls[0] != "ct-chair" {
+		t.Errorf("chairman calls: got %v, want [ct-chair]", rec.chairmanCalls)
+	}
+}
+
+func TestRunClarificationRound_Resolution_NoArbiter_ReturnsLoudError(t *testing.T) {
+	// Both cfg.ArbiterModel and ct.ChairmanModel empty → loud error,
+	// not silent stage0_done.
+	rec := &stage0Recorder{}
+	c := stage0Fixture(t, []string{"ct-gen-1"}, "" /* no chairman */, rec)
+
+	cfg := ClarificationConfig{
+		MaxRounds:            2,
+		MaxTotalQuestions:    5,
+		MaxQuestionsPerRound: 3,
+		// Models / ArbiterModel intentionally zero-valued.
+	}
+
+	var emitted []string
+	err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", func(eventType string, _ any) {
+		emitted = append(emitted, eventType)
+	})
+	if err == nil {
+		t.Fatal("expected error when both cfg.ArbiterModel and ct.ChairmanModel are empty")
+	}
+	if !strings.Contains(err.Error(), "arbiter model") {
+		t.Errorf("error message: got %q, want it to mention 'arbiter model'", err.Error())
+	}
+	for _, e := range emitted {
+		if e == "stage0_done" {
+			t.Error("must NOT emit stage0_done on the no-arbiter error path — must surface the error loudly")
+		}
+	}
+}
+
+func TestRunClarificationRound_Resolution_NoGenerators_ReturnsLoudError(t *testing.T) {
+	// Both cfg.Models and ct.Models empty → loud error.
+	rec := &stage0Recorder{}
+	c := stage0Fixture(t, nil /* no ct.Models */, "ct-chair", rec)
+
+	cfg := ClarificationConfig{
+		MaxRounds:            2,
+		MaxTotalQuestions:    5,
+		MaxQuestionsPerRound: 3,
+	}
+
+	err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", nil)
+	if err == nil {
+		t.Fatal("expected error when both cfg.Models and ct.Models are empty")
+	}
+	if !strings.Contains(err.Error(), "generator models") {
+		t.Errorf("error message: got %q, want it to mention 'generator models'", err.Error())
 	}
 }

@@ -58,6 +58,8 @@ func main() {
 		MaxRounds:            cfg.ClarificationMaxRounds,
 		MaxTotalQuestions:    cfg.ClarificationMaxTotalQuestions,
 		MaxQuestionsPerRound: cfg.ClarificationMaxQuestionsPerRound,
+		Models:               cfg.ClarificationModels,
+		ArbiterModel:         cfg.ClarificationArbiterModel,
 	}
 	handler := api.NewHandler(runner, runner, store, logger, cfg.DefaultCouncilType, clarificationCfg)
 	mux := http.NewServeMux()

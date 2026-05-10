@@ -166,9 +166,16 @@ type ClarificationRound struct {
 	CouncilType string                  `json:"council_type,omitempty"` // persisted on round-1
 }
 
-// ClarificationConfig holds Stage 0 operational limits.
+// ClarificationConfig holds Stage 0 operational limits and model overrides.
+//
+// Models and ArbiterModel are optional. When non-empty they override the
+// council type's models for Stage 0; when empty the runner falls back to the
+// council type's Models / ChairmanModel respectively. See RunClarificationRound
+// for the resolution chain (env override → per-council-type → error).
 type ClarificationConfig struct {
 	MaxRounds            int
 	MaxTotalQuestions    int
 	MaxQuestionsPerRound int
+	Models               []string // optional; empty = use ct.Models
+	ArbiterModel         string   // optional; empty = use ct.ChairmanModel
 }

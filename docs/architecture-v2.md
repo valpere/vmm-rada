@@ -159,7 +159,21 @@ Every `CouncilType` registration is independent. Two registrations with the same
 
 #### Stage 0 (clarification) — strategy-independent
 
-Stage 0 runs before any strategy dispatch. It is independent of the `Strategy` value and will gain its own dedicated model configuration in a future refactor (`CLARIFICATION_MODEL`, `CLARIFICATION_ARBITER_MODEL`). Today it reuses the council type's `Models` (generators) and `ChairmanModel` (arbiter) — that coupling will be removed.
+Stage 0 runs before any strategy dispatch. It is independent of the `Strategy` value and has its own dedicated model configuration:
+
+- `CLARIFICATION_MODELS` (env) — comma-separated generator pool. Single-model `CLARIFICATION_MODELS=foo/bar` is the common case (a cheap fast model usually suffices for clarifying-question generation).
+- `CLARIFICATION_ARBITER_MODEL` (env) — single model that dedupes generator candidates, prioritises, and decides whether to actually ask.
+
+Both env vars are optional. The runner resolves a two-step fall-through chain at request time:
+
+```
+generator models : cfg.Models     → ct.Models        → error
+arbiter model    : cfg.ArbiterModel → ct.ChairmanModel → error
+```
+
+The error is loud — `RunClarificationRound` returns explicitly rather than emitting `stage0_done`. This catches misconfiguration (e.g. a future strategy with no `ChairmanModel`, registered without setting `CLARIFICATION_ARBITER_MODEL`).
+
+The config loader does **not** pre-fill the Stage 0 fields from `COUNCIL_MODELS` / `CHAIRMAN_MODEL`; it leaves them empty and lets the runner do the resolution. This preserves the per-council-type fall-back hop, which is what "no existing deployments break" actually means.
 
 ### Storage (`internal/storage`)
 

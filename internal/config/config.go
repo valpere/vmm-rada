@@ -27,6 +27,14 @@ type Config struct {
 	ClarificationMaxTotalQuestions    int
 	ClarificationMaxQuestionsPerRound int
 
+	// Stage 0 model overrides. Both fields are intentionally left empty when
+	// their env vars are unset; the runner resolves the fall-through chain
+	// (env → council type's models → error) at request time so the per-
+	// council-type hop survives. Do NOT pre-fill from DefaultCouncilModels /
+	// DefaultCouncilChairmanModel here.
+	ClarificationModels       []string
+	ClarificationArbiterModel string
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -128,6 +136,23 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Stage 0 generator pool. Empty slice when unset — runner resolves the
+	// fall-through to the council type's Models. Comma-separated list with
+	// whitespace trim; single-model `CLARIFICATION_MODELS=foo/bar` is the
+	// common case (yields a 1-element slice).
+	var clarificationModels []string
+	if raw := os.Getenv("CLARIFICATION_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				clarificationModels = append(clarificationModels, m)
+			}
+		}
+	}
+
+	// Stage 0 arbiter. Empty string when unset — runner resolves the
+	// fall-through to the council type's ChairmanModel.
+	clarificationArbiterModel := os.Getenv("CLARIFICATION_ARBITER_MODEL")
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -151,6 +176,8 @@ func Load() (*Config, error) {
 		ClarificationMaxRounds:            clarificationMaxRounds,
 		ClarificationMaxTotalQuestions:    clarificationMaxTotalQuestions,
 		ClarificationMaxQuestionsPerRound: clarificationMaxQuestionsPerRound,
+		ClarificationModels:               clarificationModels,
+		ClarificationArbiterModel:         clarificationArbiterModel,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 	}, nil

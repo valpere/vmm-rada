@@ -297,9 +297,27 @@ func (c *Council) RunClarificationRound(
 		return fmt.Errorf("council: unknown council type %q", councilType)
 	}
 
+	// Resolve the Stage 0 model chain: env override → per-council-type → error.
+	// Both fields on cfg are optional. The runner does the resolution (not the
+	// config loader) so the per-council-type fall-back hop survives.
+	generatorModels := cfg.Models
+	if len(generatorModels) == 0 {
+		generatorModels = ct.Models
+	}
+	if len(generatorModels) == 0 {
+		return fmt.Errorf("council: stage 0 has no generator models — set CLARIFICATION_MODELS or configure the council type's Models")
+	}
+	arbiterModel := cfg.ArbiterModel
+	if arbiterModel == "" {
+		arbiterModel = ct.ChairmanModel
+	}
+	if arbiterModel == "" {
+		return fmt.Errorf("council: stage 0 has no arbiter model — set CLARIFICATION_ARBITER_MODEL or configure the council type's ChairmanModel")
+	}
+
 	// Run generators in parallel.
 	prompt := BuildStage0GeneratorPrompt(query, history)
-	candidates := c.runStage0Generators(ctx, prompt, ct.Models, ct.Temperature)
+	candidates := c.runStage0Generators(ctx, prompt, generatorModels, ct.Temperature)
 
 	// Collect all candidate question texts.
 	var allCandidates []string
@@ -310,7 +328,7 @@ func (c *Council) RunClarificationRound(
 	}
 
 	// Chairman decision.
-	questions, enough, err := c.runStage0Chairman(ctx, query, allCandidates, round, cfg, accumulated, ct.ChairmanModel, ct.Temperature)
+	questions, enough, err := c.runStage0Chairman(ctx, query, allCandidates, round, cfg, accumulated, arbiterModel, ct.Temperature)
 	if err != nil {
 		// Log and fail-open.
 		if c.logger != nil {

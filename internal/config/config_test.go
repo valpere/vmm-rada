@@ -138,3 +138,71 @@ func TestLoad_LLMAPIMaxRetries(t *testing.T) {
 		})
 	}
 }
+
+// ── TestLoad_ClarificationModels ──────────────────────────────────────────
+//
+// The config loader must NOT pre-fill the Stage 0 model fields from
+// COUNCIL_MODELS / CHAIRMAN_MODEL when the dedicated env vars are unset.
+// Resolution is the runner's job; the config is just transport.
+
+func TestLoad_ClarificationModels_BothSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "CLARIFICATION_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5")
+	setenv(t, "CLARIFICATION_ARBITER_MODEL", "anthropic/claude-sonnet-4-5")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantModels := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5"}
+	if len(cfg.ClarificationModels) != len(wantModels) {
+		t.Fatalf("ClarificationModels: got %v, want %v", cfg.ClarificationModels, wantModels)
+	}
+	for i, m := range wantModels {
+		if cfg.ClarificationModels[i] != m {
+			t.Errorf("ClarificationModels[%d]: got %q, want %q", i, cfg.ClarificationModels[i], m)
+		}
+	}
+	if cfg.ClarificationArbiterModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("ClarificationArbiterModel: got %q, want %q", cfg.ClarificationArbiterModel, "anthropic/claude-sonnet-4-5")
+	}
+}
+
+func TestLoad_ClarificationModels_GeneratorsSet_ArbiterUnset_LeavesArbiterEmpty(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "CLARIFICATION_MODELS", "openai/gpt-4o-mini")
+	unsetenv(t, "CLARIFICATION_ARBITER_MODEL")
+	// Pre-fill CHAIRMAN_MODEL to prove the loader does NOT pre-fill from it.
+	setenv(t, "CHAIRMAN_MODEL", "google/gemini-3.1-pro-preview")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.ClarificationModels) != 1 || cfg.ClarificationModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("ClarificationModels: got %v, want [openai/gpt-4o-mini]", cfg.ClarificationModels)
+	}
+	if cfg.ClarificationArbiterModel != "" {
+		t.Errorf("ClarificationArbiterModel: got %q, want empty (resolution is the runner's job)", cfg.ClarificationArbiterModel)
+	}
+}
+
+func TestLoad_ClarificationModels_BothUnset_FieldsEmpty(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "CLARIFICATION_MODELS")
+	unsetenv(t, "CLARIFICATION_ARBITER_MODEL")
+	// Pre-fill council defaults to prove the loader does NOT pre-fill from them.
+	setenv(t, "COUNCIL_MODELS", "model-a,model-b")
+	setenv(t, "CHAIRMAN_MODEL", "chairman-z")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.ClarificationModels) != 0 {
+		t.Errorf("ClarificationModels: got %v, want empty (legacy fall-through path)", cfg.ClarificationModels)
+	}
+	if cfg.ClarificationArbiterModel != "" {
+		t.Errorf("ClarificationArbiterModel: got %q, want empty (legacy fall-through path)", cfg.ClarificationArbiterModel)
+	}
+}
