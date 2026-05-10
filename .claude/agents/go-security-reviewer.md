@@ -188,27 +188,6 @@ Apply these Go-specific checks always:
 
 ---
 
-## JavaScript / React Security Rules
-
-Apply these checks whenever files under `frontend/` are in scope:
-
-### 1. XSS via unsafe HTML rendering
-All LLM output MUST be rendered through `react-markdown`. Passing LLM-generated strings directly into raw HTML injection is a critical XSS risk — flag any such usage at CRITICAL severity.
-
-### 2. Hardcoded secrets in JS source
-Scan for API keys, tokens, or credentials embedded in `.js` / `.jsx` files using the same patterns as Go secret detection. Flag at CRITICAL. Note: `VITE_*` env vars are expected and safe — only flag literals that look like real credentials.
-
-### 3. eval() and equivalent dynamic execution
-Flag any use of `eval()`, `new Function(...)`, or `setTimeout`/`setInterval` with a string argument. These are HIGH severity when any part of the string is user- or LLM-supplied.
-
-### 4. Unvalidated redirects
-Flag any `window.location` assignment or `<a href={...}>` where the href value comes from external data (API response, URL params) without validation. Severity: MEDIUM.
-
-### 5. LLM output must go through react-markdown
-This is a rendering contract, not just a style choice. LLM responses can contain arbitrary markdown, code blocks, and link syntax. Any component that renders `stage1_responses`, `stage2_reviews`, or `stage3_synthesis` content must use `react-markdown`. Bypassing this is HIGH severity.
-
----
-
 ## Limitations — Be Transparent
 
 Always note at the end of your report:
