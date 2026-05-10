@@ -150,8 +150,10 @@ func Load() (*Config, error) {
 	}
 
 	// Stage 0 arbiter. Empty string when unset — runner resolves the
-	// fall-through to the council type's ChairmanModel.
-	clarificationArbiterModel := os.Getenv("CLARIFICATION_ARBITER_MODEL")
+	// fall-through to the council type's ChairmanModel. Trim whitespace so
+	// an accidentally-spaced value (e.g. "   ") is treated as unset rather
+	// than as a non-empty model ID that would skip the fall-back.
+	clarificationArbiterModel := strings.TrimSpace(os.Getenv("CLARIFICATION_ARBITER_MODEL"))
 
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {

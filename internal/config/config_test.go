@@ -187,6 +187,21 @@ func TestLoad_ClarificationModels_GeneratorsSet_ArbiterUnset_LeavesArbiterEmpty(
 	}
 }
 
+func TestLoad_ClarificationModels_ArbiterWhitespace_TreatedAsUnset(t *testing.T) {
+	// Accidental whitespace-only value must not bypass the runner's fall-back
+	// to ct.ChairmanModel. Loader trims and treats as empty.
+	baseEnv(t)
+	setenv(t, "CLARIFICATION_ARBITER_MODEL", "   ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ClarificationArbiterModel != "" {
+		t.Errorf("ClarificationArbiterModel: got %q, want empty (whitespace must be trimmed to unset)", cfg.ClarificationArbiterModel)
+	}
+}
+
 func TestLoad_ClarificationModels_BothUnset_FieldsEmpty(t *testing.T) {
 	baseEnv(t)
 	unsetenv(t, "CLARIFICATION_MODELS")
