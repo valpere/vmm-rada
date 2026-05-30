@@ -93,7 +93,7 @@ func (r *delphiRecorder) record(req CompletionRequest) (CompletionResponse, erro
 	}
 }
 
-func delphiCouncil(t *testing.T, models []string, chairman string, maxRounds int, threshold float64, rec *delphiRecorder) *Council {
+func delphiCouncil(t *testing.T, models []string, chairman string, maxRounds int, threshold float64, rec *delphiRecorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {

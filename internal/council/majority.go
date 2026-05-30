@@ -14,7 +14,7 @@ import (
 // Voting is exact-match after normalisation. The plurality winner — the cluster
 // with the most votes — is the final answer. Ties require a chairman model;
 // without one the runner returns a loud error rather than picking arbitrarily.
-func (c *Council) runMajority(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runMajority(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.Models) == 0 {
 		return fmt.Errorf("council type %q has no models configured", ct.Name)
 	}
@@ -162,7 +162,7 @@ func buildVoteTally(stage1 []StageOneResult) *VoteTally {
 //     chairman ID, DurationMs is the call duration.
 //   - Tie    + chairman    → chairman picks among tied candidates.
 //   - Tie    + no chairman → loud error.
-func (c *Council) runMajorityStage3(ctx context.Context, query string, tally *VoteTally, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runMajorityStage3(ctx context.Context, query string, tally *VoteTally, chairmanModel string, temperature float64) (StageThreeResult, error) {
 	if tally == nil || len(tally.Clusters) == 0 {
 		return StageThreeResult{}, fmt.Errorf("council: majority stage 3 received empty tally")
 	}
@@ -196,7 +196,7 @@ func (c *Council) runMajorityStage3(ctx context.Context, query string, tally *Vo
 // callMajorityChairman is the shared LLM-call shape for both the polish and
 // tiebreak paths. The caller supplies the messages built from the appropriate
 // prompt builder.
-func (c *Council) callMajorityChairman(ctx context.Context, msgs []ChatMessage, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) callMajorityChairman(ctx context.Context, msgs []ChatMessage, chairmanModel string, temperature float64) (StageThreeResult, error) {
 	start := time.Now()
 	resp, err := c.client.Complete(ctx, CompletionRequest{
 		Model:       chairmanModel,

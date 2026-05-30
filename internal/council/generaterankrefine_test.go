@@ -61,7 +61,7 @@ func (r *rankRefineRecorder) record(req CompletionRequest) (CompletionResponse, 
 	}
 }
 
-func rankRefineCouncil(t *testing.T, models []string, chairman string, refineTopK int, rec *rankRefineRecorder) *Council {
+func rankRefineCouncil(t *testing.T, models []string, chairman string, refineTopK int, rec *rankRefineRecorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {
