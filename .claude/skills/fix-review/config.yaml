@@ -15,12 +15,6 @@ reviewers:
     round_2: { model: deepseek-v4-flash:cloud }   # strong reasoning, different arch
     round_3: { model: glm-5.1:cloud }             # third perspective
 
-# Ollama OpenAI-compat endpoint — used instead of openrouter_api_url.
-# chat_payload_system and chat_content in rest.sh both handle this correctly
-# (openrouter_payload_system + openrouter_content, since the /v1 endpoint
-# returns .choices[0].message.content, not Ollama's native .message.content).
-openrouter_api_url: http://localhost:11434/v1/chat/completions
-
   # Local failover tier — tools-capable models, no network dependency.
   # Engages automatically when the Ollama cloud endpoint probe fails.
   # ollama-review.sh reads the prompt from stdin, calls the OpenAI-compat
@@ -32,6 +26,11 @@ openrouter_api_url: http://localhost:11434/v1/chat/completions
       cmd: "bash .claude/skills/fix-review/ollama-review.sh qwen2.5-coder:7b"
     - name: granite3.3-8b
       cmd: "bash .claude/skills/fix-review/ollama-review.sh granite3.3:8b"
+
+# Ollama OpenAI-compat endpoint — used instead of the OpenRouter default.
+# chat_payload_system + chat_content in rest.sh both work here since the
+# /v1 endpoint returns .choices[0].message.content (OpenAI format).
+openrouter_api_url: http://localhost:11434/v1/chat/completions
 
 post_summary_to_pr: true
 telemetry_enabled: true
