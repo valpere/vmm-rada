@@ -12,7 +12,7 @@ api_key_env: AI_PROVIDER_API_KEY
 reviewers:
   openrouter:
     round_1: { model: qwen3-coder-next:cloud }    # coding-focused, cloud quality
-    round_2: { model: minimax-m2.7:cloud           # MiniMax, non-thinking, long-ctx
+    round_2: { model: minimax-m2.7:cloud }          # MiniMax, non-thinking, long-ctx
     round_3: { model: devstral-small-2:24b-cloud } # Mistral code model, non-thinking
 
   # Local failover tier — tools-capable models, no network dependency.
