@@ -13,8 +13,9 @@ import (
 // Config holds all server configuration sourced from environment variables.
 // It contains raw primitive fields only — no domain types.
 type Config struct {
-	OpenRouterAPIKey            string
-	LLMBaseURL                  string
+	ProviderName    string
+	ProviderAPIKey  string
+	LLMBaseURL      string
 	DataDir                     string
 	DefaultCouncilType          string
 	Port                        string
@@ -90,9 +91,14 @@ type Config struct {
 // Load reads configuration from environment variables and returns an error if
 // any required variable is missing. It never panics.
 func Load() (*Config, error) {
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	providerName := strings.TrimSpace(os.Getenv("AI_PROVIDER_NAME"))
+	if providerName == "" {
+		providerName = "openrouter"
+	}
+
+	apiKey := os.Getenv("AI_PROVIDER_API_KEY")
 	if apiKey == "" {
-		return nil, errors.New("OPENROUTER_API_KEY is required but not set")
+		return nil, errors.New("AI_PROVIDER_API_KEY is required but not set")
 	}
 
 	dataDir := os.Getenv("DATA_DIR")
@@ -100,7 +106,7 @@ func Load() (*Config, error) {
 		dataDir = "data/conversations"
 	}
 
-	councilType := os.Getenv("DEFAULT_COUNCIL_TYPE")
+	councilType := os.Getenv("DEFAULT_RADA_TYPE")
 	if councilType == "" {
 		councilType = "default"
 	}
@@ -111,7 +117,7 @@ func Load() (*Config, error) {
 	}
 
 	var models []string
-	if raw := os.Getenv("COUNCIL_MODELS"); raw != "" {
+	if raw := os.Getenv("RADA_MODELS"); raw != "" {
 		for _, m := range strings.Split(raw, ",") {
 			if m = strings.TrimSpace(m); m != "" {
 				models = append(models, m)
@@ -119,7 +125,7 @@ func Load() (*Config, error) {
 		}
 	}
 	if len(models) == 0 {
-		slog.Warn("COUNCIL_MODELS not set; using local-dev fallback models")
+		slog.Warn("RADA_MODELS not set; using local-dev fallback models")
 		models = []string{
 			"openai/gpt-4o-mini",
 			"anthropic/claude-haiku-4-5",
@@ -134,11 +140,11 @@ func Load() (*Config, error) {
 	}
 
 	temperature := 0.7
-	if raw := os.Getenv("DEFAULT_COUNCIL_TEMPERATURE"); raw != "" {
+	if raw := os.Getenv("DEFAULT_RADA_TEMPERATURE"); raw != "" {
 		if t, err := strconv.ParseFloat(raw, 64); err == nil {
 			temperature = t
 		} else {
-			slog.Warn("DEFAULT_COUNCIL_TEMPERATURE is invalid; using fallback value",
+			slog.Warn("DEFAULT_RADA_TEMPERATURE is invalid; using fallback value",
 				"value", raw, "error", err, "fallback", temperature)
 		}
 	}
@@ -334,7 +340,8 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		OpenRouterAPIKey:            apiKey,
+		ProviderName:                providerName,
+		ProviderAPIKey:              apiKey,
 		LLMBaseURL:                  llmBaseURL,
 		DataDir:                     dataDir,
 		DefaultCouncilType:          councilType,

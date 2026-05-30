@@ -55,7 +55,7 @@ func run() error {
 		return fmt.Errorf("-baseline-model is required")
 	}
 
-	// Load .env so OPENROUTER_API_KEY etc. resolve in dev. Production
+	// Load .env so AI_PROVIDER_API_KEY etc. resolve in dev. Production
 	// environments without a .env file are expected.
 	_ = godotenv.Load()
 
@@ -191,7 +191,7 @@ func run() error {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}
 
-	client := openrouter.NewClient(cfg.OpenRouterAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
+	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
 	runner := council.NewCouncil(client, registry, logger)
 
 	// Honour SIGINT / SIGTERM mid-run — the harness is sequential, so

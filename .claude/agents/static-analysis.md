@@ -196,7 +196,7 @@ For cost-intensive analysis (large diffs, bulk file scans, structured output gen
 
 ```bash
 source .claude/skills/lib/env.sh && source .claude/skills/lib/rest.sh
-load_env_key OPENROUTER_API_KEY
+load_env_key AI_PROVIDER_API_KEY
 CONTENT=$(openrouter_ask "google/gemini-2.5-flash-lite" "$PROMPT")
 ```
 

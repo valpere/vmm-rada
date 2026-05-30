@@ -57,7 +57,7 @@ Say: "This is new design — want me to run /improve on it before we build?"
 ### Step 3: Structured critique
 
 #### 3A. Architecture alignment
-- Does this respect the layer boundaries: handler → Runner interface → Council → LLMClient?
+- Does this respect the layer boundaries: handler → Runner interface → Rada → LLMClient?
 - Does it keep storage behind the Storer interface?
 - Does it introduce package cycles?
 - Does it follow Dependency Inversion (consumers define interfaces, not implementors)?

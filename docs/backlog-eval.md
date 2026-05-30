@@ -36,7 +36,7 @@ evaluation and optimization loop.
 
 Currently the only entry point is the HTTP server (`cmd/server/main.go`). To run
 benchmarks programmatically and iterate on council configurations, we need a CLI that
-calls `Council.RunFull` directly.
+calls `Rada.RunFull` directly.
 
 **Acceptance criteria**
 
@@ -53,7 +53,7 @@ calls `Council.RunFull` directly.
 
 **Existing code to reuse**
 
-- `internal/council/runner.go` — `Council.RunFull(ctx, query, councilTypeName, onEvent)`
+- `internal/council/runner.go` — `Rada.RunFull(ctx, query, councilTypeName, onEvent)`
 - `internal/council/types.go` — `Metadata` struct (`ConsensusW`, `AggregateRankings`)
 - `internal/openrouter/client.go` — concrete `LLMClient`
 - `cmd/server/main.go` — `CouncilType` registry pattern to replicate
@@ -123,7 +123,7 @@ Ship 3 example configs: `default`, `quality`, `fast`.
 - [ ] Server and eval binary both read `configs/*.yaml` on startup
 - [ ] `eval --council-type quality` uses the roster from `configs/quality.yaml`
 - [ ] Invalid YAML files produce a clear startup error
-- [ ] Existing `.env`-based `COUNCIL_MODELS` / `CHAIRMAN_MODEL` still work as fallback
+- [ ] Existing `.env`-based `RADA_MODELS` / `CHAIRMAN_MODEL` still work as fallback
 
 **Files**
 
@@ -430,7 +430,7 @@ free OpenRouter models, then posts the results as a PR comment showing delta vs 
 
 **Models used (free tier)**
 
-- Council: `meta-llama/llama-3.3-8b-instruct:free`, `google/gemma-4-31b-it:free`
+- Rada: `meta-llama/llama-3.3-8b-instruct:free`, `google/gemma-4-31b-it:free`
 - Judge: `google/gemini-2.5-flash-lite` (~$0.002 for 5 questions)
 
 **`eval/benchmarks/smoke.yaml`** — 5 questions (1 per category + 1 cross-domain).
@@ -451,7 +451,7 @@ free OpenRouter models, then posts the results as a PR comment showing delta vs 
 
 - [ ] Workflow runs on `pull_request` event
 - [ ] Posts a PR comment with the comparison table
-- [ ] Uses `OPENROUTER_API_KEY` from repo secrets
+- [ ] Uses `AI_PROVIDER_API_KEY` from repo secrets
 - [ ] Fails the check if `mean_score` drops by more than 1.0 vs main
 - [ ] Skips on PRs that only change `docs/` or `*.md` files
 

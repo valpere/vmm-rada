@@ -311,7 +311,7 @@ In `internal/council/council.go`, rename the body of the current `RunFull` to a 
 
 ```go
 // RunFull dispatches to the pipeline implementation for the council type's strategy.
-func (c *Council) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error {
+func (c *Rada) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error {
  ct, ok := c.registry[councilTypeName]
  if !ok {
   return fmt.Errorf("unknown council type %q", councilTypeName)
@@ -325,7 +325,7 @@ func (c *Council) RunFull(ctx context.Context, query string, councilTypeName str
 }
 
 // runPeerReview runs the Karpathy-style 3-stage peer review pipeline.
-func (c *Council) runPeerReview(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runPeerReview(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
  // ... PASTE HERE the exact current body of RunFull, starting from line 67
  // (everything after the registry lookup, which is now in RunFull above)
 }
@@ -370,8 +370,8 @@ import (
  "testing"
 )
 
-// roleCouncilFixture returns a Council wired for RoleBased strategy with 2 roles.
-func roleCouncilFixture(complete func(ctx context.Context, req CompletionRequest) (CompletionResponse, error)) *Council {
+// roleCouncilFixture returns a Rada wired for RoleBased strategy with 2 roles.
+func roleCouncilFixture(complete func(ctx context.Context, req CompletionRequest) (CompletionResponse, error)) *Rada {
  registry := map[string]CouncilType{
   "roles": {
    Name:          "roles",
@@ -609,7 +609,7 @@ import (
 
 // runRoleBased executes the role-based 2-stage pipeline (Stage 1 + Stage 3).
 // Stage 2 is skipped; a minimal Stage2CompleteData event is emitted for SSE compatibility.
-func (c *Council) runRoleBased(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runRoleBased(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
  if len(ct.Roles) == 0 {
   return fmt.Errorf("council type %q has no roles configured", ct.Name)
  }
@@ -653,7 +653,7 @@ func (c *Council) runRoleBased(ctx context.Context, query string, ct CouncilType
 
 // runRoleBasedStage1 executes all roles concurrently.
 // Model assignment: ct.Models[i % len(ct.Models)].
-func (c *Council) runRoleBasedStage1(ctx context.Context, query string, ct CouncilType) []StageOneResult {
+func (c *Rada) runRoleBasedStage1(ctx context.Context, query string, ct CouncilType) []StageOneResult {
  results := make([]StageOneResult, len(ct.Roles))
  var wg sync.WaitGroup
 
@@ -691,7 +691,7 @@ func (c *Council) runRoleBasedStage1(ctx context.Context, query string, ct Counc
 }
 
 // runRoleBasedStage3 asks the chairman to synthesise all role findings.
-func (c *Council) runRoleBasedStage3(ctx context.Context, query string, roleResults []StageOneResult, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runRoleBasedStage3(ctx context.Context, query string, roleResults []StageOneResult, chairmanModel string, temperature float64) (StageThreeResult, error) {
  start := time.Now()
  msgs := BuildRoleChairmanPrompt(query, roleResults)
 
@@ -957,7 +957,7 @@ if v := os.Getenv("CODE_REVIEW_CHAIRMAN_MODEL"); v != "" {
 }
 ```
 
-Where `splitTrimmed` is the existing helper that splits and trims comma-separated strings. If it doesn't exist by that name, look at how `COUNCIL_MODELS` is parsed and replicate the pattern.
+Where `splitTrimmed` is the existing helper that splits and trims comma-separated strings. If it doesn't exist by that name, look at how `RADA_MODELS` is parsed and replicate the pattern.
 
 - [ ] **Step 2: Register code-review council type in main.go**
 
@@ -1004,7 +1004,7 @@ In `.env.example`, add after the existing council variables:
 ```
 # Code-review council (RoleBasedReview strategy)
 # Comma-separated models assigned to roles: security, logic, simplicity, architecture
-# Defaults to COUNCIL_MODELS if not set.
+# Defaults to RADA_MODELS if not set.
 # CODE_REVIEW_MODELS=openai/gpt-4o-mini,anthropic/claude-haiku-4-5,google/gemini-flash-1.5,openai/gpt-4o-mini
 
 # Model for code-review synthesis (chairman). Defaults to CHAIRMAN_MODEL if not set.
@@ -1484,7 +1484,7 @@ grep -n "review" internal/api/handler.go | grep HandleFunc
 
 Expected: two lines — `/review` and `/review/stream`.
 
-**4. Smoke test via curl (requires server running with valid `OPENROUTER_API_KEY`):**
+**4. Smoke test via curl (requires server running with valid `AI_PROVIDER_API_KEY`):**
 
 ```bash
 go run ./cmd/server/ &

@@ -84,7 +84,7 @@ cd vmm-rada
 
 # 2. Configure the backend
 cp .env.example .env
-# Edit .env — set OPENROUTER_API_KEY and choose your council models
+# Edit .env — set AI_PROVIDER_API_KEY and choose your council models
 
 # 3. Run the backend
 make dev
@@ -114,15 +114,16 @@ All configuration is done via environment variables. Copy `.env.example` to
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | **Yes** | — | Your OpenRouter API key. |
-| `COUNCIL_MODELS` | No | 3 small dev fallbacks¹ | Comma-separated list of OpenRouter model IDs for council members. |
+| `AI_PROVIDER_NAME` | No | `openrouter` | Provider name (`openrouter`, `ollama`, `vllm`, …). Used for logging. |
+| `AI_PROVIDER_API_KEY` | **Yes** | — | API key for the configured provider. Use any non-empty placeholder for keyless local providers (e.g. `ollama`). |
+| `RADA_MODELS` | No | 3 small dev fallbacks¹ | Comma-separated list of model IDs for council members. |
 | `CHAIRMAN_MODEL` | No | `openai/gpt-4o-mini`¹ | Model used for Stage 3 synthesis. |
-| `DEFAULT_COUNCIL_TYPE` | No | `default` | Council pipeline variant (`default` = PeerReview). |
-| `DEFAULT_COUNCIL_TEMPERATURE` | No | `0.7` | Sampling temperature for all LLM calls (0.0–2.0). |
+| `DEFAULT_RADA_TYPE` | No | `default` | Rada pipeline variant (`default` = PeerReview). |
+| `DEFAULT_RADA_TEMPERATURE` | No | `0.7` | Sampling temperature for all LLM calls (0.0–2.0). |
 | `DATA_DIR` | No | `data/conversations` | Directory where conversation JSON files are stored. |
 | `PORT` | No | `8001` | TCP port the server listens on. |
 
-¹ When `COUNCIL_MODELS` or `CHAIRMAN_MODEL` are unset the server logs a warning
+¹ When `RADA_MODELS` or `CHAIRMAN_MODEL` are unset the server logs a warning
 and falls back to small, inexpensive models suitable for local development only.
 See `.env.example` for recommended production values.
 

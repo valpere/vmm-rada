@@ -42,11 +42,11 @@ Each registration in `cmd/server/main.go` and `cmd/eval/main.go` carries its own
 
 | Strategy | What `Models` represents | What `ChairmanModel` represents | Env var family | Fall-through |
 |----------|--------------------------|---------------------------------|----------------|--------------|
-| `PeerReview` | Council members (generators + reviewers) | Stage 3 synthesiser | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` | — (these are the defaults) |
+| `PeerReview` | Rada members (generators + reviewers) | Stage 3 synthesiser | `RADA_MODELS` / `CHAIRMAN_MODEL` | — (these are the defaults) |
 | `RoleBased` | Pool assigned to roles by `i % len(Models)` | Synthesiser across role findings | (none today; roles config is in code) | — |
 | `Majority` | Voters | Tiebreaker / polish (optional; `""` = no tiebreak, ties error) | `MAJORITY_MODELS` (required to register) / `MAJORITY_CHAIRMAN_MODEL` (optional) | none — registration is opt-in via `MAJORITY_MODELS`; chairman stays empty when unset (so the no-chairman path is reachable) |
-| `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
-| `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `COUNCIL_MODELS` / `CHAIRMAN_MODEL` |
+| `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
+| `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
 | `MixtureOfAgents` | (UNUSED — MoA reads `ProposerModels`/`AggregatorModels`/`RefinerModel` directly) | (UNUSED — see above) | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` (ALL THREE required to register; partial config logs a warning and skips) | none — registration is opt-in via all three MoA env vars |
 | `Delphi` | Raters (also Stage 1 proposers — same pool serves both roles) | Synthesiser (required) | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` (both required); `DELPHI_MAX_ROUNDS` (optional, default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (optional, default 0.1) tune the rating loop | none — registration is opt-in via both DELPHI_* env vars |
 

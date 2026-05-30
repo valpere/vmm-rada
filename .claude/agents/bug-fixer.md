@@ -42,7 +42,7 @@ Never guess a fix. Always follow this sequence:
 | **Storage race** | Conversation file corrupt or truncated | Is `sync.Mutex` held for the full atomic write sequence? | Check `Store` mutex scope in `storage.go` |
 | **JSON encode failure** | Client receives partial response body | Is `writeJSON` discarding encoder errors? | Check `json.NewEncoder(w).Encode(v)` error handling |
 | **SSE headers** | Client doesn't stream; receives full response | Was `w.Header()` set before `w.WriteHeader`? Was `Flush` called? | Check header order and Flusher assertion |
-| **Interface mismatch** | Compile error after refactor | Does `var _ Runner = (*Council)(nil)` pass? | Check `interfaces.go` compile-time assertions |
+| **Interface mismatch** | Compile error after refactor | Does `var _ Runner = (*Rada)(nil)` pass? | Check `interfaces.go` compile-time assertions |
 
 ## DO_NOT_TOUCH Patterns
 

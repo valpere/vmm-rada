@@ -37,11 +37,12 @@ Always run from the **project root**. The binary resolves `data/conversations/` 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | — | Required. API key for OpenRouter (or compatible provider). |
-| `COUNCIL_MODELS` | 3 local-dev fallback models (`gpt-4o-mini`, `claude-haiku-4-5`, `gemini-flash-1.5`) | Comma-separated OpenRouter model IDs. `.env.example` has 4-model presets. |
+| `AI_PROVIDER_NAME` | `openrouter` | Provider name. Examples: `openrouter`, `ollama`, `vllm`. Used for logging. |
+| `AI_PROVIDER_API_KEY` | — | Required. API key for the configured provider (use any non-empty placeholder for keyless local providers). |
+| `RADA_MODELS` | 3 local-dev fallback models (`gpt-4o-mini`, `claude-haiku-4-5`, `gemini-flash-1.5`) | Comma-separated model IDs. `.env.example` has 4-model presets. |
 | `CHAIRMAN_MODEL` | `openai/gpt-4o-mini` | Model for Stage 3 synthesis |
-| `DEFAULT_COUNCIL_TYPE` | `default` | Council strategy |
-| `DEFAULT_COUNCIL_TEMPERATURE` | `0.7` | LLM temperature |
+| `DEFAULT_RADA_TYPE` | `default` | Rada strategy |
+| `DEFAULT_RADA_TEMPERATURE` | `0.7` | LLM temperature |
 | `DATA_DIR` | `data/conversations` | Directory for JSON conversation files |
 | `PORT` | `8001` | TCP port |
 | `LLM_API_BASE_URL` | `https://openrouter.ai/api/v1/chat/completions` | Override for Ollama or any OpenAI-compatible endpoint |

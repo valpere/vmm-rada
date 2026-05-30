@@ -37,7 +37,7 @@ api.Handler.sendMessage / sendMessageStream      [internal/api/handler.go]
     │   4. call council.RunFullWithClarifications(ctx, query, history, councilType, onEvent)
     │      (builds augmented prompt internally; delegates to RunFull)
     ▼
-council.Council.RunFull                          [internal/council/runner.go]
+council.Rada.RunFull                          [internal/council/runner.go]
     │
     ├── Stage 1: runStage1   (parallel fan-out, N goroutines)
     │     │
@@ -140,7 +140,7 @@ For both endpoints (`POST /api/conversations/{id}/message` and
    { "content": "...", "council_type": "default" }
    ```
    Planned (issue #154): XOR — `content` for round-1, `answers:[{id,text}]` for round-N.
-   `council_type` defaults to the `DEFAULT_COUNCIL_TYPE` env var if missing/empty.
+   `council_type` defaults to the `DEFAULT_RADA_TYPE` env var if missing/empty.
 6. **Content non-empty check** — empty `content` → `400`.
 7. **Conversation lookup** — `store.Get(id)` returns `*Conversation` or `ErrNotFound`
    (→ `404`).
@@ -168,12 +168,12 @@ return.
 
 ---
 
-## 3. Council.RunFull — orchestration
+## 3. Rada.RunFull — orchestration
 
 **File:** `internal/council/runner.go`
 
 ```go
-func (c *Council) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error
+func (c *Rada) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error
 ```
 
 1. **Resolve council type** — `c.registry[councilTypeName]` → `CouncilType{Models, ChairmanModel, Temperature, QuorumMin}`. Unknown name → return error (handler maps to `500`).
@@ -525,7 +525,7 @@ SSE events emitted by the pipeline above.
 |-------|-------------|
 | `idle` | No message in flight; input enabled |
 | `sending` | User message added to UI; assistant placeholder created; SSE connection open |
-| `stage1_running` | Council models generating answers in parallel |
+| `stage1_running` | Rada models generating answers in parallel |
 | `stage1_done` | All Stage 1 results received; peer-review beginning |
 | `stage2_running` | All models peer-reviewing concurrently |
 | `stage2_done` | Rankings and Kendall's W computed |
@@ -644,7 +644,7 @@ api.Handler.sendReview / sendReviewStream        [internal/api/handler.go]
     │   2. persist user message
     │
     ▼
-council.Council.RunFull("code-review")            [internal/council/runner.go]
+council.Rada.RunFull("code-review")            [internal/council/runner.go]
     │   resolves ct = NewCodeReviewCouncilType(...)
     │   dispatches to runRoleBased
     │
@@ -743,7 +743,7 @@ Based on all reviewer findings above, produce a consolidated code review.
 | File | Key symbols |
 |------|------------|
 | `internal/api/handler.go` | `sendMessage`, `sendMessageStream`, `sendReview`, `sendReviewStream` |
-| `internal/council/runner.go` | `Council.RunFull`, `runStage1`, `runStage2`, `runStage3` |
+| `internal/council/runner.go` | `Rada.RunFull`, `runStage1`, `runStage2`, `runStage3` |
 | `internal/council/rolebased.go` | `runRoleBased`, `runRoleBasedStage1`, `runRoleBasedStage3` |
 | `internal/council/review_roles.go` | `DefaultReviewRoles`, `NewCodeReviewCouncilType` |
 | `internal/council/council.go` | `checkQuorum`, `assignLabels`, `QuorumError` |

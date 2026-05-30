@@ -19,7 +19,7 @@ Create **two** unit files at the paths shown below:
 [Service]
 Type=oneshot
 ExecStart=/home/val/wrk/projects/vmm-rada/vmm-rada/.claude/dreaming/dreaming.sh
-# `claude` CLI needs OPENROUTER_API_KEY (and any other secrets the script
+# `claude` CLI needs AI_PROVIDER_API_KEY (and any other secrets the script
 # uses). systemd user units start with a near-empty environment, so the
 # script's reliance on a parent shell loading .env doesn't apply here —
 # load it explicitly. EnvironmentFile= treats the file as missing-OK only

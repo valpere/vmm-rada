@@ -23,7 +23,7 @@ You receive Go source code (handlers, council logic, storage functions, or utili
 
 Prioritize in this order:
 1. **Handler tests** (`internal/api/`) — HTTP contract, status codes, error responses
-2. **Council logic** (`internal/council/`) — stage orchestration, ranking, Kendall's W
+2. **Rada logic** (`internal/council/`) — stage orchestration, ranking, Kendall's W
 3. **Storage tests** (`internal/storage/`) — real filesystem with `t.TempDir()`, never mock
 4. **Pure utility functions** — ranking helpers, parsers, formatters
 5. **Out of scope** — OpenRouter API calls (always mocked), real filesystem outside `t.TempDir()`
@@ -216,7 +216,7 @@ For cost-intensive analysis (large diffs, bulk file scans, structured output gen
 
 ```bash
 source .claude/skills/lib/env.sh && source .claude/skills/lib/rest.sh
-load_env_key OPENROUTER_API_KEY
+load_env_key AI_PROVIDER_API_KEY
 CONTENT=$(openrouter_ask "qwen/qwen3-coder-next" "$PROMPT")
 ```
 
