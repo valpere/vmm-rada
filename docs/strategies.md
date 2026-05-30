@@ -2,7 +2,7 @@
 
 The `Strategy` enum (`internal/council/types.go`) declares **7 constants — all implemented**. The strategy roadmap is complete.
 
-For architecture context (package layout, layer boundaries, dispatch switch) see [`architecture-v2.md`](./architecture-v2.md). For the academic background of each strategy see [`council-research-synthesis.md`](./council-research-synthesis.md).
+For architecture context (package layout, layer boundaries, dispatch switch) see [`architecture-v2.md`](./architecture-v2.md). For the academic background of each strategy see [`council-research-synthesis.md`](./council-research-synthesis.md). For three hand-picked test prompts per strategy see [`strategy-showcase.md`](./strategy-showcase.md) (machine-readable: `eval/benchmarks/strategy-showcase.yaml`).
 
 Stage 0 (clarification) runs **before** strategy dispatch and is strategy-independent — see the [Stage 0 section in architecture-v2.md](./architecture-v2.md#stage-0-clarification--strategy-independent). It has its own dedicated model configuration (`CLARIFICATION_MODELS`, `CLARIFICATION_ARBITER_MODEL`); see `.env.example`. Both env vars are optional and fall back to the council type's `Models` / `ChairmanModel` when unset.
 

@@ -1,0 +1,308 @@
+# Strategy Showcase — one benchmark file per deliberation strategy.
+# Purpose: smoke-test each strategy's deliberation strength with prompts
+# specifically chosen to highlight what that strategy does best.
+#
+# Schema matches eval/benchmark.go BenchmarkItem:
+#   id:       unique identifier (strategy-NNN)
+#   category: code | analysis | factual | creative | estimation
+#   strategy: which council strategy this prompt is designed for
+#   question: the prompt sent to the council
+#   rubric:   (optional) scoring guidance for the meta-judge
+
+# ── PeerReview ────────────────────────────────────────────────────────────────
+# Best when cross-critique between members improves accuracy and depth.
+
+- id: peer-001
+  category: analysis
+  strategy: peer_review
+  question: >
+    Explain the CAP theorem and when you would choose consistency over
+    availability in a distributed system.
+  rubric: >
+    Award full marks for correctly defining all three CAP properties,
+    explaining the consistency-availability trade-off under network
+    partition, and giving concrete examples (e.g. banking vs. DNS).
+    Deduct for conflating CP/AP systems or omitting the partition
+    assumption.
+
+- id: peer-002
+  category: analysis
+  strategy: peer_review
+  question: >
+    What are the key trade-offs between microservices and a monolith?
+    When is each the right architectural choice?
+  rubric: >
+    Full marks: addresses operational complexity, deployment overhead,
+    team coupling, latency, and gives clear guidance on team/scale
+    thresholds. Penalise dogmatic "microservices always win" answers.
+
+- id: peer-003
+  category: analysis
+  strategy: peer_review
+  question: >
+    Describe the SOLID principles with a concrete Go example for each one.
+  rubric: >
+    Must cover all five principles with working (or clearly correct)
+    Go code snippets. Deduct for generic OOP examples that don't
+    account for Go's interface-based composition model.
+
+# ── RoleBased ─────────────────────────────────────────────────────────────────
+# Best when multiple specialist angles are needed on the same problem.
+
+- id: role-001
+  category: analysis
+  strategy: role_based
+  question: >
+    We are building a healthcare data platform that stores patient records.
+    What are the critical considerations from technical, legal, security,
+    and UX perspectives?
+  rubric: >
+    Full marks: covers HIPAA/GDPR compliance, encryption at rest and
+    in transit, audit logging, access control, UI accessibility, and
+    at least one concrete technical recommendation per domain. Penalise
+    for missing the regulatory angle entirely.
+
+- id: role-002
+  category: analysis
+  strategy: role_based
+  question: >
+    Should a 5-person startup use a managed cloud database (e.g. RDS,
+    PlanetScale) or self-host Postgres? Analyse from engineering,
+    cost, operations, and scaling angles.
+  rubric: >
+    Must address at least four dimensions: initial cost, operational
+    burden, scaling ceiling, team expertise requirement. A clear
+    recommendation with stated assumptions is required for full marks.
+
+- id: role-003
+  category: analysis
+  strategy: role_based
+  question: >
+    Design a feature flag system for a SaaS product. Cover the API
+    design, data model, rollout mechanics (percentage, user segment),
+    and monitoring/observability.
+  rubric: >
+    Full marks for a concrete API (endpoints or SDK surface), a viable
+    data model (flags, rules, targeting), at least one rollout
+    strategy beyond simple on/off, and a monitoring approach
+    (flag evaluation latency, stale flag detection).
+
+# ── Majority ──────────────────────────────────────────────────────────────────
+# Best for factual/correctness questions with a clear right answer.
+
+- id: maj-001
+  category: factual
+  strategy: majority
+  question: >
+    What is the time complexity of Dijkstra's algorithm when implemented
+    with a binary min-heap, and why?
+  rubric: >
+    Correct answer: O((V + E) log V). Must explain that each vertex is
+    extracted once (V log V) and each edge relaxation is a heap
+    decrease-key (E log V). Penalise for stating O(V²) without
+    qualifying that as the naive adjacency-matrix variant.
+
+- id: maj-002
+  category: factual
+  strategy: majority
+  question: >
+    Is Redis single-threaded for command execution? Explain the nuance,
+    including how Redis 6+ changed the picture.
+  rubric: >
+    Full marks: yes for the command execution loop (single-threaded
+    event loop); Redis 6+ added threaded I/O for reading/writing
+    network data while keeping command processing single-threaded.
+    Penalise for a flat yes/no without the I/O threading nuance.
+
+- id: maj-003
+  category: factual
+  strategy: majority
+  question: >
+    What HTTP status code should a REST API return when a resource does
+    not exist versus when the client lacks permission to see it? Explain
+    the security implications of each choice.
+  rubric: >
+    404 for not-found, 403 for forbidden (when the resource exists but
+    access is denied), 404 also acceptable for forbidden to avoid
+    resource enumeration. Must acknowledge the security trade-off
+    (information leakage vs. usability). 401 vs 403 distinction a bonus.
+
+# ── GenerateRankRefine ────────────────────────────────────────────────────────
+# Best when quality criteria are clear and top draft benefits from refinement.
+
+- id: grr-001
+  category: code
+  strategy: generate_rank_refine
+  question: >
+    Write a Go function that finds all prime numbers up to N using the
+    Sieve of Eratosthenes. Include proper documentation and edge-case
+    handling for N ≤ 1.
+  rubric: >
+    Full marks: correct algorithm, O(N log log N) complexity, handles
+    N ≤ 1 gracefully, idiomatic Go (named return or clear variable
+    naming, doc comment). Penalise for trial division masquerading
+    as a sieve, or for panics on edge cases.
+
+- id: grr-002
+  category: creative
+  strategy: generate_rank_refine
+  question: >
+    Write a concise explanation of how a Bloom filter works, suitable
+    for a technical blog post aimed at junior engineers. Use an analogy
+    and explain the false-positive trade-off.
+  rubric: >
+    Must include: what a Bloom filter is (probabilistic set membership),
+    an accessible analogy, explanation of false positives vs. false
+    negatives, and at least one real-world use case. Penalise for
+    mathematical notation without plain-English translation.
+
+- id: grr-003
+  category: analysis
+  strategy: generate_rank_refine
+  question: >
+    Write a system design document outline for a URL shortener that
+    handles 10 million stored URLs and 1000 redirects per second.
+    Cover: requirements, data model, API, storage choice, and
+    scalability considerations.
+  rubric: >
+    Full marks: clear functional/non-functional requirements, a viable
+    data model (ID → URL mapping), a redirect API endpoint, a
+    justified storage choice (Redis + Postgres is canonical), and
+    at least one horizontal scaling approach. Penalise for designs
+    that cannot reach the stated RPS.
+
+# ── MultiAgentDebate ──────────────────────────────────────────────────────────
+# Best for contested trade-offs where steel-manning opposing views helps.
+
+- id: debate-001
+  category: analysis
+  strategy: multi_agent_debate
+  question: >
+    Is GraphQL always better than REST for new API projects? Make the
+    strongest case for each position, then provide a resolved
+    recommendation with conditions.
+  rubric: >
+    Full marks: genuine steel-man of both sides (REST: simplicity,
+    caching, tooling; GraphQL: flexibility, underfetch/overfetch
+    elimination). Penalise if the "debate" is one-sided or the
+    resolution lacks concrete conditions (e.g. team size, client
+    diversity, caching requirements).
+
+- id: debate-002
+  category: analysis
+  strategy: multi_agent_debate
+  question: >
+    Should LLM applications prefer RAG or fine-tuning for incorporating
+    domain-specific knowledge? Debate both approaches and resolve
+    with a decision framework.
+  rubric: >
+    Must cover: RAG (up-to-date knowledge, lower cost, interpretable)
+    vs. fine-tuning (latency, no retrieval infra, style alignment).
+    Resolution should include a decision framework (data freshness,
+    budget, latency budget). Penalise for ignoring hybrid approaches.
+
+- id: debate-003
+  category: analysis
+  strategy: multi_agent_debate
+  question: >
+    Is Kubernetes overkill for a team of 5 engineers? Present and
+    rigorously critique both positions, then recommend a threshold
+    for when Kubernetes becomes the right choice.
+  rubric: >
+    Pro-K8s: standardisation, ecosystem, self-healing. Anti-K8s:
+    operational complexity, learning curve, cost at small scale.
+    Resolution must include a concrete threshold (team size, service
+    count, or traffic pattern). Penalise for vague "it depends"
+    without actionable criteria.
+
+# ── MixtureOfAgents ───────────────────────────────────────────────────────────
+# Best for code generation and layered multi-aspect analysis.
+
+- id: moa-001
+  category: code
+  strategy: mixture_of_agents
+  question: >
+    Write a production-ready Go HTTP middleware that handles rate
+    limiting (token bucket, per-IP), structured request logging
+    (slog), and panic recovery with stack trace capture. The
+    middleware must be composable and testable.
+  rubric: >
+    Full marks: correct token bucket implementation (or use of
+    golang.org/x/time/rate), slog-based logging with request ID
+    propagation, panic recovery that does not swallow the stack
+    trace, and clear interface for composability. Penalise for
+    global state or non-testable designs.
+
+- id: moa-002
+  category: code
+  strategy: mixture_of_agents
+  question: >
+    Design and implement an in-memory task queue in Go using only the
+    standard library. Cover: the public API, a fixed-size worker
+    pool, task retry with exponential backoff, and graceful shutdown
+    via context cancellation.
+  rubric: >
+    Must have a clean public API (Submit, Shutdown), correct worker
+    pool with no goroutine leaks, retry logic with backoff (not busy
+    loop), and graceful shutdown that drains in-flight tasks before
+    returning. Penalise for data races (verified via -race).
+
+- id: moa-003
+  category: analysis
+  strategy: mixture_of_agents
+  question: >
+    Analyse the trade-offs between event sourcing and traditional CRUD
+    for a financial ledger system. Cover: consistency guarantees,
+    auditability, query complexity, storage growth, and operational
+    burden. Conclude with a recommendation.
+  rubric: >
+    Full marks: addresses all five dimensions with concrete examples
+    (e.g. CQRS read models for event sourcing, snapshot strategies
+    for storage growth). Recommendation must be conditional on stated
+    constraints. Penalise for treating event sourcing as universally
+    superior.
+
+# ── Delphi ────────────────────────────────────────────────────────────────────
+# Best for estimation, forecasting, and collective judgment converging to consensus.
+
+- id: delphi-001
+  category: estimation
+  strategy: delphi
+  question: >
+    Estimate the engineering effort (person-weeks) to migrate a
+    100 000-line Python monolith to Go microservices. Provide a range
+    (optimistic / realistic / pessimistic) with your key assumptions
+    explicitly stated.
+  rubric: >
+    Full marks: a range (not a single point), explicit assumptions
+    (team size, test coverage, domain complexity, rewrite vs.
+    strangler fig), and at least one major risk factor. Penalise
+    for a single number without a range or for omitting assumptions.
+
+- id: delphi-002
+  category: estimation
+  strategy: delphi
+  question: >
+    Rate the production readiness of SQLite as the primary database
+    for a B2B SaaS with 10 000 active users and 50 writes per second
+    on a scale of 0–10. Justify your score with specific criteria.
+  rubric: >
+    A score alone is insufficient — must justify with concrete
+    criteria (write concurrency, WAL mode, backup complexity,
+    replication absence). Scores 4–7 are defensible with
+    appropriate caveats; 0–3 or 8–10 require strong reasoning.
+
+- id: delphi-003
+  category: estimation
+  strategy: delphi
+  question: >
+    How many years from now (mid-2026) until LLMs can autonomously
+    complete a two-week greenfield software project at senior-engineer
+    quality, without human intervention? Provide a range and your
+    reasoning.
+  rubric: >
+    Full marks: a range (not a single year), reasoning that addresses
+    current capability gaps (long-horizon planning, debugging
+    feedback loops, non-determinism), and at least one named
+    capability milestone required before the threshold is reached.
+    Penalise for unfounded certainty in either direction.
