@@ -1,6 +1,6 @@
-# LLM Council — Query Processing Pipeline
+# VMM Rada — Query Processing Pipeline
 
-This document traces the full lifecycle of a single user message through the LLM Council
+This document traces the full lifecycle of a single user message through the VMM Rada
 pipeline — from the HTTP request landing on the Go server to the final SSE `complete`
 event being flushed to the browser. It is a code-anchored walkthrough; every step
 references the function and file responsible for it.

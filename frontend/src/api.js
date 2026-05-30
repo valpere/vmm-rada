@@ -1,5 +1,5 @@
 /**
- * API client for the LLM Council backend.
+ * API client for the VMM Rada backend.
  *
  * Adapter pattern: this module is the sole point of contact between the React
  * frontend and the Go backend.  All network requests (`fetch` calls) and SSE

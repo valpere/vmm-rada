@@ -1,11 +1,11 @@
 #!/bin/bash
-# llm-council project dreaming pass.
+# vmm-rada project dreaming pass.
 #
 # Purpose: scheduled (weekly) curation of .claude/context-essentials.md drift,
 # /fix-review themes, stale plans, agent-memory health.
 # Read-only — outputs report only.
 #
-# Schedule (cron): `0 4 * * 0  /home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh`
+# Schedule (cron): `0 4 * * 0  /home/val/wrk/projects/vmm-rada/vmm-rada/.claude/dreaming/dreaming.sh`
 # (Sunday 04:00, 1h after user-level pass to space out API load)
 
 set -euo pipefail
@@ -33,7 +33,7 @@ if [[ ! -d "$PROJECT_DIR/.git" ]]; then
   exit 1
 fi
 
-echo "[$(date -Iseconds)] llm-council dreaming pass started" >> "$LOG"
+echo "[$(date -Iseconds)] vmm-rada dreaming pass started" >> "$LOG"
 
 # Run from project root so relative paths in prompt work.
 cd "$PROJECT_DIR"
@@ -53,7 +53,7 @@ echo "$PROMPT" | claude \
   > "$REPORT" 2>> "$LOG"
 
 EXIT=$?
-echo "[$(date -Iseconds)] llm-council dreaming finished (exit=$EXIT, report=$REPORT)" >> "$LOG"
+echo "[$(date -Iseconds)] vmm-rada dreaming finished (exit=$EXIT, report=$REPORT)" >> "$LOG"
 
 if [[ $EXIT -ne 0 ]]; then
   echo "[dreaming] non-zero exit; check $LOG" >&2

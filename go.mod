@@ -1,4 +1,4 @@
-module github.com/valpere/llm-council
+module github.com/valpere/vmm-rada
 
 go 1.26.3
 

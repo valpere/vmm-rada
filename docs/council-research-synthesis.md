@@ -1,4 +1,4 @@
-# LLM Council Research Synthesis
+# VMM Rada Research Synthesis
 
 A comprehensive synthesis of research and design patterns for multi-LLM deliberation systems, aggregated from 9 LLM conversations covering strategies, protocols, Go implementation patterns, operational hazards, and production deployment.
 
@@ -23,7 +23,7 @@ A comprehensive synthesis of research and design patterns for multi-LLM delibera
 
 ## 1. Core Concept
 
-An **LLM Council** (also: Multi-Agent Debate, Mixture of Agents) is a deliberation system where multiple LLMs independently answer a prompt, then through structured interaction converge on or synthesize a higher-quality final answer.
+An **VMM Rada** (also: Multi-Agent Debate, Mixture of Agents) is a deliberation system where multiple LLMs independently answer a prompt, then through structured interaction converge on or synthesize a higher-quality final answer.
 
 ### Structure
 
@@ -138,7 +138,7 @@ Roles can rotate across rounds to prevent authority bias.
 
 ## 3. LCCP Protocol State Machine
 
-The **LLM Council Consensus Protocol (LCCP)** is a formal state machine specification developed through extensive analysis. It provides a rigorous foundation for implementation.
+The **VMM Rada Consensus Protocol (LCCP)** is a formal state machine specification developed through extensive analysis. It provides a rigorous foundation for implementation.
 
 ### 3.1 Roles and Objects
 

@@ -1,11 +1,11 @@
 ---
 name: project_architecture
-description: LLM Council Go backend — module map, key design decisions, established conventions
+description: VMM Rada Go backend — module map, key design decisions, established conventions
 type: project
 last-verified: 2026-05-10
 ---
 
-Go backend for LLM Council, a 3-stage multi-LLM deliberation system.
+Go backend for VMM Rada, a 3-stage multi-LLM deliberation system.
 
 **Why:** Python/FastAPI original was rewritten to Go for performance and deployment simplicity.
 **How to apply:** Architecture decisions must remain consistent with the modular monolith pattern already established.

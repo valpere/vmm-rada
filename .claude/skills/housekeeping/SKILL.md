@@ -1,10 +1,10 @@
 ---
 name: housekeeping
-description: "LLM Council recurring repo health check. Runs 7 checks (stale branches, fmt.Println leaks, tracked .env, tracked backups, TODO/FIXME count, go vet, CI test delta) and outputs a pass/fail table. Usage: /housekeeping"
+description: "VMM Rada recurring repo health check. Runs 7 checks (stale branches, fmt.Println leaks, tracked .env, tracked backups, TODO/FIXME count, go vet, CI test delta) and outputs a pass/fail table. Usage: /housekeeping"
 ---
 
 # Skill: /housekeeping
-# LLM Council — Repo Health Check
+# VMM Rada — Repo Health Check
 
 ---
 

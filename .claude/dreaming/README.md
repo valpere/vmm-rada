@@ -1,4 +1,4 @@
-# Dreaming — llm-council project
+# Dreaming — vmm-rada project
 
 Project-specific dreaming pass. Виявляє drift від `context-essentials.md`,
 recurring `/fix-review` теми, stale plans, agent-memory health.
@@ -7,36 +7,36 @@ recurring `/fix-review` теми, stale plans, agent-memory health.
 
 Manually:
 ```bash
-~/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
+~/wrk/projects/vmm-rada/vmm-rada/.claude/dreaming/dreaming.sh
 ```
 
 Scheduled — **systemd user timer** (recommended, catches up missed runs).
 Create **two** unit files at the paths shown below:
 
-`~/.config/systemd/user/dreaming-llm-council.service`:
+`~/.config/systemd/user/dreaming-vmm-rada.service`:
 
 ```ini
 [Service]
 Type=oneshot
-ExecStart=/home/val/wrk/projects/llm-council/llm-council/.claude/dreaming/dreaming.sh
+ExecStart=/home/val/wrk/projects/vmm-rada/vmm-rada/.claude/dreaming/dreaming.sh
 # `claude` CLI needs OPENROUTER_API_KEY (and any other secrets the script
 # uses). systemd user units start with a near-empty environment, so the
 # script's reliance on a parent shell loading .env doesn't apply here —
 # load it explicitly. EnvironmentFile= treats the file as missing-OK only
 # when prefixed with `-`, which is what we want during first-run setup.
-EnvironmentFile=-%h/wrk/projects/llm-council/llm-council/.env
-# Use the script's own log directory (~/.cache/llm-council/, mode 0700)
+EnvironmentFile=-%h/wrk/projects/vmm-rada/vmm-rada/.env
+# Use the script's own log directory (~/.cache/vmm-rada/, mode 0700)
 # rather than /tmp — /tmp is world-readable and could leak secrets if the
 # pass ever logs prompt content, env values, or stack traces.
-StandardOutput=append:%h/.cache/llm-council/dreaming-systemd.log
-StandardError=append:%h/.cache/llm-council/dreaming-systemd.log
+StandardOutput=append:%h/.cache/vmm-rada/dreaming-systemd.log
+StandardError=append:%h/.cache/vmm-rada/dreaming-systemd.log
 ```
 
-`~/.config/systemd/user/dreaming-llm-council.timer`:
+`~/.config/systemd/user/dreaming-vmm-rada.timer`:
 
 ```ini
 [Unit]
-Description=Weekly llm-council dreaming pass
+Description=Weekly vmm-rada dreaming pass
 
 [Timer]
 OnCalendar=Sun 04:00          # Nominal — комп зазвичай вимкнений
@@ -51,7 +51,7 @@ Activate:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now dreaming-llm-council.timer
+systemctl --user enable --now dreaming-vmm-rada.timer
 
 # Optional but recommended: keeps the user-level systemd manager running
 # even when you're logged out, so the timer fires on overnight catchup

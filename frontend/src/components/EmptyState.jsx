@@ -11,7 +11,7 @@ export default function EmptyState({ onSendMessage, isLoading }) {
   return (
     <div className="empty-state-container">
       <div className="empty-state-hero">
-        <h2 className="empty-state-title">LLM Council</h2>
+        <h2 className="empty-state-title">VMM Rada</h2>
         <p className="empty-state-subtitle">
           Ask a question — multiple models answer independently, peer-review each other,
           and a chairman synthesises the final answer.

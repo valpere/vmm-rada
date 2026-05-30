@@ -111,7 +111,7 @@ export default function ChatInterface({
                 </div>
               ) : (
                 <div className="assistant-message">
-                  <div className="message-label">LLM Council</div>
+                  <div className="message-label">VMM Rada</div>
 
                   {/* Stage 0 */}
                   <Stage0

@@ -1,6 +1,6 @@
 # Plans
 
-Implementation plans for the LLM Council backend.
+Implementation plans for the VMM Rada backend.
 
 Plans are created by the `/plan` skill. Each plan can be promoted to a GitHub issue.
 
@@ -149,7 +149,7 @@ After the plan is confirmed, `/plan` offers to create a GitHub issue:
 
 ```bash
 gh issue create \
-  --repo valpere/llm-council \
+  --repo valpere/vmm-rada \
   --title "<type>(<component>): <title>" \
   --label "<comma-separated labels>" \
   --body "$(cat <<'EOF'

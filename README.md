@@ -1,7 +1,7 @@
-# LLM Council
+# VMM Rada
 
 A multi-LLM deliberation system. Rather than asking a single AI model for an
-answer, LLM Council assembles a council of models that independently respond,
+answer, VMM Rada assembles a council of models that independently respond,
 anonymously review each other, and have a designated Chairman synthesize a
 final answer.
 
@@ -79,8 +79,8 @@ User query
 
 ```bash
 # 1. Clone and enter the repo
-git clone git@github.com:valpere/llm-council.git
-cd llm-council
+git clone git@github.com:valpere/vmm-rada.git
+cd vmm-rada
 
 # 2. Configure the backend
 cp .env.example .env
@@ -88,7 +88,7 @@ cp .env.example .env
 
 # 3. Run the backend
 make dev
-# → LLM Council API listening on :8001
+# → VMM Rada API listening on :8001
 ```
 
 In a second terminal, start the frontend:
@@ -134,11 +134,11 @@ For the frontend, see `frontend/.env.example`.
 
 ```bash
 # Backend
-make build      # Compile to bin/llm-council
+make build      # Compile to bin/vmm-rada
 make dev        # Run without compiling (go run ./cmd/server)
 make lint       # go vet + staticcheck
 make test       # go test -race -count=1 ./...
-make clean      # Remove bin/llm-council
+make clean      # Remove bin/vmm-rada
 
 # Frontend
 make fr-dev     # Vite dev server on localhost:5173
@@ -202,7 +202,7 @@ Each conversation is a single JSON file under `DATA_DIR`:
 ## Project structure
 
 ```
-llm-council/
+vmm-rada/
 ├── cmd/server/main.go            Entry point — wires config → client → council → storage → api
 ├── internal/
 │   ├── config/config.go          Config struct and Load() from environment variables
@@ -220,7 +220,7 @@ llm-council/
 ├── data/conversations/           Created at runtime — one JSON file per conversation
 ├── Makefile
 ├── .env.example                  Template for all supported backend environment variables
-└── go.mod                        Module: llm-council, Go 1.26+
+└── go.mod                        Module: vmm-rada, Go 1.26+
 ```
 
 ### Frontend structure

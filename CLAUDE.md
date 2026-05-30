@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-LLM Council — a multi-LLM deliberation system. Council models independently answer a query,
+VMM Rada — a multi-LLM deliberation system. Council models independently answer a query,
 anonymously peer-review each other, and a Chairman model synthesises a final answer.
 
 **Status: v2 shipping.** The v1 implementation is archived on `archive/v1`. v2 is the active

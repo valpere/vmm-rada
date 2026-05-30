@@ -4,7 +4,7 @@ description: "Review and triage Dependabot PRs using the 6-stage security + stab
 ---
 
 # Skill: /review-deps
-# LLM Council — Dependabot PR Triage Pipeline
+# VMM Rada — Dependabot PR Triage Pipeline
 
 ---
 
@@ -25,7 +25,7 @@ description: "Review and triage Dependabot PRs using the 6-stage security + stab
 Detect `--dry-run`. Strip it. Remaining args:
 - Empty or `all` →
   ```bash
-  gh pr list --repo valpere/llm-council \
+  gh pr list --repo valpere/vmm-rada \
     --author "app/dependabot" --state open \
     --json number,title,headRefName --limit 50
   ```
@@ -157,7 +157,7 @@ gh pr close {number} \
 
 ```bash
 gh issue create \
-  --repo valpere/llm-council \
+  --repo valpere/vmm-rada \
   --title "Migrate {package_name} from v{old_major} to v{new_major}" \
   --body "## Context
 

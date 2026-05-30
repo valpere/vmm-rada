@@ -46,7 +46,7 @@ Wait for user input, then proceed with the selected draft or new task descriptio
 ### 1. Understand the task
 
 **If argument is a number:** check if it matches a plan file prefix (select that plan)
-or a GitHub issue number (fetch it with `gh issue view <n> --repo valpere/llm-council`).
+or a GitHub issue number (fetch it with `gh issue view <n> --repo valpere/vmm-rada`).
 
 **If argument is a description:** check `.claude/plans/` for an existing plan matching
 the description. If found, use it. If not, create a new one.
@@ -105,12 +105,12 @@ Always create after Tech Lead approval. Do not ask.
 
 **Check for duplicates first:**
 ```bash
-gh issue list --repo valpere/llm-council --state open --search "<title keywords>"
+gh issue list --repo valpere/vmm-rada --state open --search "<title keywords>"
 ```
 
 If a duplicate exists (same topic, less detailed body): close it, then create the new one.
 ```bash
-gh issue close <old-number> --repo valpere/llm-council \
+gh issue close <old-number> --repo valpere/vmm-rada \
   --comment "Superseded by #<new-number> — replaced with plan-driven issue."
 ```
 
@@ -119,7 +119,7 @@ stay internal:
 
 ```bash
 gh issue create \
-  --repo valpere/llm-council \
+  --repo valpere/vmm-rada \
   --title "<type>(<component>): <title>" \
   --label "<comma-separated labels>" \
   --body "$(cat <<'EOF'

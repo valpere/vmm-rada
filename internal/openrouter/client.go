@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 const (
@@ -173,8 +173,8 @@ func (c *Client) doAttempt(ctx context.Context, body []byte) (*http.Response, er
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("HTTP-Referer", "https://github.com/valpere/llm-council")
-	httpReq.Header.Set("X-Title", "LLM Council")
+	httpReq.Header.Set("HTTP-Referer", "https://github.com/valpere/vmm-rada")
+	httpReq.Header.Set("X-Title", "VMM Rada")
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {

@@ -1,4 +1,4 @@
-# LLM Council — Architecture (v2)
+# VMM Rada — Architecture (v2)
 
 > This document reflects the current v2 codebase. The v1 implementation is preserved on `archive/v1`.
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-LLM Council is a multi-LLM deliberation system. A set of council models independently
+VMM Rada is a multi-LLM deliberation system. A set of council models independently
 answer a user query, anonymously peer-review each other's answers, and a Chairman model
 synthesises a final response. The result streams to the browser over Server-Sent Events.
 

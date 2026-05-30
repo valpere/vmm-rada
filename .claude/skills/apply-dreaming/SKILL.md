@@ -1,6 +1,6 @@
 ---
 name: apply-dreaming
-description: "Read the latest llm-council dreaming report and apply
+description: "Read the latest vmm-rada dreaming report and apply
   high-confidence findings. Routes findings through the project's
   standard /backlog → Tech Lead → /ship → /fix-review workflow for
   code-touching changes AND for changes to load-bearing .claude/
@@ -11,7 +11,7 @@ user-invocable: true
 argument-hint: "[week|latest]"
 ---
 
-# /apply-dreaming (llm-council)
+# /apply-dreaming (vmm-rada)
 
 Walks each dreaming-report finding interactively and leaves an audit
 trail (`[applied YYYY-MM-DD]` / `[planned …]` / `[skipped …]` markers
@@ -26,7 +26,7 @@ appended to the report).
 ## Inputs
 
 - Optional argument: `latest` (default) or `YYYY-W##`.
-- Project root: `~/wrk/projects/llm-council/llm-council/`.
+- Project root: `~/wrk/projects/vmm-rada/vmm-rada/`.
 
 ## Steps
 
@@ -188,7 +188,7 @@ Skipped: P
 
 PRs opened: <list>
 Plans pending: <list>
-Backup: /tmp/dreaming-W##-llm-council-backup-HHMM/
+Backup: /tmp/dreaming-W##-vmm-rada-backup-HHMM/
 
 Next steps:
 1. Watch PRs for Copilot review (one round).

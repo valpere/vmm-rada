@@ -1,4 +1,4 @@
-// Command eval runs the LLM Council evaluation harness — a manual,
+// Command eval runs the VMM Rada evaluation harness — a manual,
 // pre-merge regression detector that compares the council pipeline against
 // a single-model baseline using an LLM-as-judge.
 //
@@ -27,10 +27,10 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/valpere/llm-council/internal/config"
-	"github.com/valpere/llm-council/internal/council"
-	"github.com/valpere/llm-council/internal/eval"
-	"github.com/valpere/llm-council/internal/openrouter"
+	"github.com/valpere/vmm-rada/internal/config"
+	"github.com/valpere/vmm-rada/internal/council"
+	"github.com/valpere/vmm-rada/internal/eval"
+	"github.com/valpere/vmm-rada/internal/openrouter"
 )
 
 func main() {

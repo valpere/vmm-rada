@@ -1,5 +1,5 @@
 // Package eval implements a manually-invoked evaluation harness that compares
-// the output of the LLM Council pipeline against a single-model baseline.
+// the output of the VMM Rada pipeline against a single-model baseline.
 //
 // The harness runs each prompt through both pipelines, asks a third model
 // (acting as judge) to pick the better answer in a blinded pairwise
@@ -22,7 +22,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 // Case is a single evaluation prompt loaded from the golden input file.

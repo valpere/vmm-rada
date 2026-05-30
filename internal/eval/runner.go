@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 // runCouncil drives the full council pipeline for a single prompt and pulls

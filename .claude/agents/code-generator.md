@@ -142,7 +142,7 @@ These must not be modified unless the plan explicitly calls for it:
 
 # Persistent Agent Memory
 
-You have a persistent, file-based memory system at `/home/val/wrk/projects/llm-council/llm-council/.claude/agent-memory/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+You have a persistent, file-based memory system at `/home/val/wrk/projects/vmm-rada/vmm-rada/.claude/agent-memory/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
 
 Build up this memory over time so that future invocations can draw on discovered patterns, interface contracts, and test helper conventions.
 

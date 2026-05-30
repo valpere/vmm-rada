@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 // NotFoundError is returned when a requested conversation does not exist.

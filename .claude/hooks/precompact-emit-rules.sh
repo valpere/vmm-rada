@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreCompact handler for llm-council.
+# PreCompact handler for vmm-rada.
 #
 # Fires before context compaction (auto or manual /compact).
 # stdout is appended to the compactor's prompt as customInstructions —
@@ -29,7 +29,7 @@ echo "[$(date -Iseconds)] precompact input: $(echo "$INPUT" | head -c 200)" >> "
 
 if [[ -f "$ESSENTIALS_FILE" ]]; then
   cat <<EOF
-When summarizing, ensure these llm-council project rules are EXPLICITLY
+When summarizing, ensure these vmm-rada project rules are EXPLICITLY
 preserved in the summary's "Key Technical Concepts" section, even if they
 were only mentioned once or implicitly:
 

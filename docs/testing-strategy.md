@@ -1,6 +1,6 @@
 # Testing Strategy — v2 Council Implementation
 
-Defines the testing layers, tooling, and conventions for the LLM Council v2 backend.
+Defines the testing layers, tooling, and conventions for the VMM Rada v2 backend.
 Each layer targets a different risk surface; together they give confidence that the
 deliberation pipeline is correct under concurrency, partial failure, and adversarial
 LLM output.

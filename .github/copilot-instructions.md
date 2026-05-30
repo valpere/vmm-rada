@@ -1,8 +1,8 @@
-# LLM Council — Copilot Instructions
+# VMM Rada — Copilot Instructions
 
 ## What this repo does
 
-`llm-council` is a multi-LLM deliberation system with a Go HTTP backend and a React + Vite frontend.
+`vmm-rada` is a multi-LLM deliberation system with a Go HTTP backend and a React + Vite frontend.
 
 **Pipeline (3 stages, streamed over SSE):**
 1. **Stage 1** — council models answer the user query in parallel
@@ -13,18 +13,18 @@ Conversations are persisted as JSON files on disk.
 
 ## Language and runtime
 
-- **Go 1.26+**. Module name: `github.com/valpere/llm-council`.
+- **Go 1.26+**. Module name: `github.com/valpere/vmm-rada`.
 - No CGo, no generated code.
 - Runtime dependency: `github.com/joho/godotenv` only. UUIDs use `crypto/rand` (no uuid package).
 
 ## Build, run, lint, test
 
 ```bash
-make build       # go build -o bin/llm-council ./cmd/server
+make build       # go build -o bin/vmm-rada ./cmd/server
 make dev         # go run ./cmd/server
 make lint        # go vet ./... && go run honnef.co/go/tools/cmd/staticcheck@v0.5.1 ./...
 make test        # go test -race -count=1 ./...
-make clean       # rm -f bin/llm-council
+make clean       # rm -f bin/vmm-rada
 
 make fr-dev      # cd frontend && npm run dev  (Vite at :5173)
 make fr-build    # cd frontend && npm run build

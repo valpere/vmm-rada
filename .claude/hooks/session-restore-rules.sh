@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart handler for llm-council with matcher='compact'.
+# SessionStart handler for vmm-rada with matcher='compact'.
 #
 # Fires when a session resumes AFTER compaction. Returns JSON whose
 # additionalContext is injected into the new session.
@@ -26,7 +26,7 @@ if [[ -f "$ESSENTIALS_FILE" ]]; then
   jq -n --arg ctx "$(cat "$ESSENTIALS_FILE")" '{
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: ("Session resumed after compaction. llm-council critical rules re-injected:\n\n" + $ctx)
+      additionalContext: ("Session resumed after compaction. vmm-rada critical rules re-injected:\n\n" + $ctx)
     }
   }'
 fi
