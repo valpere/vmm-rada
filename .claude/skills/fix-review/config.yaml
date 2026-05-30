@@ -1,0 +1,45 @@
+# vmm-rada project-level fix-review config.
+# Overrides ~/.claude/skills/fix-review/config.yaml for this repo.
+# Provider: Ollama (cloud models via local endpoint — no OpenRouter key needed).
+
+provider: ollama
+
+# Load API key from this env var instead of the default OPENROUTER_API_KEY.
+# AI_PROVIDER_API_KEY is set in .env; Ollama ignores the auth header but
+# the value must be non-empty to pass the skill's key-presence check.
+api_key_env: AI_PROVIDER_API_KEY
+
+reviewers:
+  openrouter:
+    round_1: { model: qwen3-coder-next:cloud }    # coding-focused, cloud quality
+    round_2: { model: minimax-m2.7:cloud }          # MiniMax, non-thinking, long-ctx
+    round_3: { model: devstral-small-2:24b-cloud } # Mistral code model, non-thinking
+
+  # Local failover tier — tools-capable models, no network dependency.
+  # Engages automatically when the Ollama cloud endpoint probe fails.
+  # ollama-review.sh reads the prompt from stdin, calls the OpenAI-compat
+  # endpoint, and returns the model's raw content (JSON array expected).
+  cli:
+    - name: qwen3-coder-30b
+      cmd: "bash .claude/skills/fix-review/ollama-review.sh qwen3-coder:30b"
+    - name: qwen2.5-coder-7b
+      cmd: "bash .claude/skills/fix-review/ollama-review.sh qwen2.5-coder:7b"
+    - name: granite3.3-8b
+      cmd: "bash .claude/skills/fix-review/ollama-review.sh granite3.3:8b"
+
+# Ollama OpenAI-compat endpoint — used instead of the OpenRouter default.
+# chat_payload_system + chat_content in rest.sh both work here since the
+# /v1 endpoint returns .choices[0].message.content (OpenAI format).
+openrouter_api_url: http://localhost:11434/v1/chat/completions
+
+post_summary_to_pr: true
+telemetry_enabled: true
+
+pricing:
+  "qwen3-coder-next:cloud":  { input: 0.00, output: 0.00 }
+  "deepseek-v4-flash:cloud": { input: 0.00, output: 0.00 }
+  "glm-5.1:cloud":           { input: 0.00, output: 0.00 }
+  # Local failover models
+  "qwen3-coder:30b":  { input: 0.00, output: 0.00 }
+  "qwen2.5-coder:7b": { input: 0.00, output: 0.00 }
+  "granite3.3:8b":    { input: 0.00, output: 0.00 }

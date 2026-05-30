@@ -32,7 +32,7 @@ VMM Rada is a backend API that runs a **3-stage multi-model deliberation pipelin
 cd vmm-rada
 
 # Create .env with your API key
-echo "OPENROUTER_API_KEY=sk-or-v1-..." > .env
+echo "AI_PROVIDER_API_KEY=sk-or-v1-..." > .env
 
 # Run (must be from repo root)
 go run ./cmd/server
@@ -48,10 +48,10 @@ All configuration is via environment variables. The server reads from `.env` at 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | *(required)* | Your OpenRouter API key. The server refuses to start if this is not set. |
-| `COUNCIL_MODELS` | See below | Comma-separated list of model IDs to use as council members. |
+| `AI_PROVIDER_API_KEY` | *(required)* | Your OpenRouter API key. The server refuses to start if this is not set. |
+| `RADA_MODELS` | See below | Comma-separated list of model IDs to use as council members. |
 | `CHAIRMAN_MODEL` | `openai/gpt-4o-mini` | Model that synthesizes the final answer in Stage 3. |
-| `DEFAULT_COUNCIL_TEMPERATURE` | `0.7` | Sampling temperature for council and chairman calls. |
+| `DEFAULT_RADA_TEMPERATURE` | `0.7` | Sampling temperature for council and chairman calls. |
 | `PORT` | `8001` | TCP port the HTTP server listens on. |
 | `DATA_DIR` | `data/conversations` | Directory where conversation JSON files are stored. Relative to the working directory. |
 | `LLM_API_BASE_URL` | *(optional)* | Override the OpenRouter API base URL. Must be an absolute `http`/`https` URL. Useful for pointing at a compatible local proxy. |
@@ -70,7 +70,7 @@ google/gemini-flash-1.5
 ### Custom council example
 
 ```bash
-COUNCIL_MODELS="openai/gpt-4o,anthropic/claude-3-5-sonnet,google/gemini-flash-1.5" \
+RADA_MODELS="openai/gpt-4o,anthropic/claude-3-5-sonnet,google/gemini-flash-1.5" \
 CHAIRMAN_MODEL="openai/gpt-4o" \
 go run ./cmd/server
 ```
@@ -90,7 +90,7 @@ go build -o vmm-rada ./cmd/server
 ./vmm-rada
 
 # With custom config
-OPENROUTER_API_KEY=sk-or-v1-... PORT=9000 go run ./cmd/server
+AI_PROVIDER_API_KEY=sk-or-v1-... PORT=9000 go run ./cmd/server
 ```
 
 **Important:** Always run from the repo root, not from `cmd/server/`. The default data directory (`data/conversations`) is relative to the working directory.
@@ -198,7 +198,7 @@ All error responses use the same shape:
 |--------|------|
 | `400` | Malformed JSON body or request too large (> 1 MB) |
 | `404` | Conversation not found |
-| `503` | Council quorum not met (too many models failed) |
+| `503` | Rada quorum not met (too many models failed) |
 | `500` | Internal error (storage failure) |
 
 ---

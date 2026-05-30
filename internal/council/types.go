@@ -64,7 +64,7 @@ type Role struct {
 type CouncilType struct {
 	Name          string
 	Strategy      Strategy
-	Models        []string // Council members. RoleBased assigns models to Roles by index mod len; other strategies use all.
+	Models        []string // Rada members. RoleBased assigns models to Roles by index mod len; other strategies use all.
 	Roles         []Role   // RoleBased only: role definitions with specialist instructions.
 	ChairmanModel string
 	Temperature   float64

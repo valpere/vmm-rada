@@ -70,12 +70,12 @@ openrouter_content() {
 
 # Convenience: build payload + POST + extract content in one call.
 # Usage: CONTENT=$(openrouter_ask "$MODEL" "$PROMPT")
-# Requires OPENROUTER_API_KEY to be exported.
+# Requires AI_PROVIDER_API_KEY to be exported.
 openrouter_ask() {
   local model="$1"
   local prompt="$2"
   local payload response
   payload=$(openrouter_payload "$model" "$prompt")
-  response=$(rest_post "https://openrouter.ai/api/v1/chat/completions" "$payload" "$OPENROUTER_API_KEY")
+  response=$(rest_post "https://openrouter.ai/api/v1/chat/completions" "$payload" "$AI_PROVIDER_API_KEY")
   openrouter_content "$response"
 }

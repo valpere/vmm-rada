@@ -33,30 +33,30 @@ func StripCodeFence(s string) string {
 	return s
 }
 
-// Council orchestrates the full multi-stage deliberation pipeline.
+// Rada orchestrates the full multi-stage deliberation pipeline.
 // Full implementation is provided in a later milestone.
-type Council struct {
+type Rada struct {
 	client   LLMClient
 	registry map[string]CouncilType
 	logger   *slog.Logger
 }
 
-// NewCouncil creates a Council that uses client for LLM calls and resolves
+// NewCouncil creates a Rada that uses client for LLM calls and resolves
 // named council types from registry.
-func NewCouncil(client LLMClient, registry map[string]CouncilType, logger *slog.Logger) *Council {
-	return &Council{
+func NewCouncil(client LLMClient, registry map[string]CouncilType, logger *slog.Logger) *Rada {
+	return &Rada{
 		client:   client,
 		registry: registry,
 		logger:   logger,
 	}
 }
 
-// Compile-time assertions: Council implements Runner and Stage0Runner.
-var _ Runner = (*Council)(nil)
-var _ Stage0Runner = (*Council)(nil)
+// Compile-time assertions: Rada implements Runner and Stage0Runner.
+var _ Runner = (*Rada)(nil)
+var _ Stage0Runner = (*Rada)(nil)
 
 // RunFull dispatches to the pipeline implementation for the council type's strategy.
-func (c *Council) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error {
+func (c *Rada) RunFull(ctx context.Context, query string, councilTypeName string, onEvent EventFunc) error {
 	ct, ok := c.registry[councilTypeName]
 	if !ok {
 		return fmt.Errorf("council: unknown council type %q", councilTypeName)
@@ -82,7 +82,7 @@ func (c *Council) RunFull(ctx context.Context, query string, councilTypeName str
 }
 
 // runPeerReview runs the Karpathy-style 3-stage peer review pipeline.
-func (c *Council) runPeerReview(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runPeerReview(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	// Stage 1 — parallel generation across all configured models.
 	allStage1 := c.runStage1(ctx, query, ct.Models, ct.Temperature)
 
@@ -158,7 +158,7 @@ func (c *Council) runPeerReview(ctx context.Context, query string, ct CouncilTyp
 // Each goroutine writes to its own pre-allocated results[i] slot — no mutex needed.
 // Context cancellation is propagated to every Complete call.
 // Quorum is NOT checked here — that is the caller's responsibility.
-func (c *Council) runStage1(ctx context.Context, query string, models []string, temperature float64) []StageOneResult {
+func (c *Rada) runStage1(ctx context.Context, query string, models []string, temperature float64) []StageOneResult {
 	results := make([]StageOneResult, len(models))
 	var wg sync.WaitGroup
 	for i, model := range models {
@@ -194,7 +194,7 @@ func (c *Council) runStage1(ctx context.Context, query string, models []string, 
 // rankings so midrank imputation in CalculateAggregateRankings handles them.
 // Unknown labels are logged and dropped from the ranking.
 // LLM call failures are stored in StageTwoResult.Error; parse failures are not.
-func (c *Council) runStage2(ctx context.Context, query string, stage1 []StageOneResult, temperature float64) []StageTwoResult {
+func (c *Rada) runStage2(ctx context.Context, query string, stage1 []StageOneResult, temperature float64) []StageTwoResult {
 	// Build the prompt and label maps once — shared across all reviewer goroutines.
 	labeledResponses := make(map[string]string, len(stage1))
 	knownLabels := make(map[string]bool, len(stage1))
@@ -260,7 +260,7 @@ func (c *Council) runStage2(ctx context.Context, query string, stage1 []StageOne
 
 // RunClarificationRound runs one Stage 0 clarification round.
 // It emits either "stage0_round_complete" (with questions) or "stage0_done" (proceed to Stage 1).
-func (c *Council) RunClarificationRound(
+func (c *Rada) RunClarificationRound(
 	ctx context.Context,
 	query string,
 	history []ClarificationRound,
@@ -370,7 +370,7 @@ func (c *Council) RunClarificationRound(
 
 // runStage0Generators sends Stage 0 prompts to all models concurrently and collects
 // their proposed clarification questions.
-func (c *Council) runStage0Generators(ctx context.Context, prompt []ChatMessage, models []string, temperature float64) [][]ClarificationQuestion {
+func (c *Rada) runStage0Generators(ctx context.Context, prompt []ChatMessage, models []string, temperature float64) [][]ClarificationQuestion {
 	results := make([][]ClarificationQuestion, len(models))
 	var wg sync.WaitGroup
 	for i, model := range models {
@@ -414,7 +414,7 @@ func (c *Council) runStage0Generators(ctx context.Context, prompt []ChatMessage,
 
 // runStage0Chairman calls the chairman model to dedupe, prioritise, and decide
 // whether to ask the user for clarification.
-func (c *Council) runStage0Chairman(ctx context.Context, query string, candidates []string, round int, cfg ClarificationConfig, accumulated int, chairmanModel string, temperature float64) ([]ClarificationQuestion, bool, error) {
+func (c *Rada) runStage0Chairman(ctx context.Context, query string, candidates []string, round int, cfg ClarificationConfig, accumulated int, chairmanModel string, temperature float64) ([]ClarificationQuestion, bool, error) {
 	prompt := BuildStage0ChairmanPrompt(query, candidates, round, cfg.MaxRounds, cfg.MaxQuestionsPerRound, accumulated, cfg.MaxTotalQuestions)
 	resp, err := c.client.Complete(ctx, CompletionRequest{
 		Model:          chairmanModel,
@@ -463,7 +463,7 @@ func (c *Council) runStage0Chairman(ctx context.Context, query string, candidate
 
 // RunFullWithClarifications augments the original query with clarification history
 // then delegates to RunFull.
-func (c *Council) RunFullWithClarifications(
+func (c *Rada) RunFullWithClarifications(
 	ctx context.Context,
 	originalQuery string,
 	history []ClarificationRound,
@@ -476,7 +476,7 @@ func (c *Council) RunFullWithClarifications(
 
 // runStage3 calls the Chairman model to synthesize a final answer from the
 // Stage 1 responses and Stage 2 peer-review rankings. Sequential — single LLM call.
-func (c *Council) runStage3(ctx context.Context, query string, stage2 []StageTwoResult, labelToModel map[string]string, consensusW float64, chairmanModel string, temperature float64, labeledResponses map[string]string) (StageThreeResult, error) {
+func (c *Rada) runStage3(ctx context.Context, query string, stage2 []StageTwoResult, labelToModel map[string]string, consensusW float64, chairmanModel string, temperature float64, labeledResponses map[string]string) (StageThreeResult, error) {
 	start := time.Now()
 	resp, err := c.client.Complete(ctx, CompletionRequest{
 		Model:       chairmanModel,

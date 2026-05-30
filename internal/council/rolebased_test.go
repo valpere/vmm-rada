@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// roleCouncilFixture returns a Council wired for RoleBased strategy with 2 roles.
-func roleCouncilFixture(complete func(ctx context.Context, req CompletionRequest) (CompletionResponse, error)) *Council {
+// roleCouncilFixture returns a Rada wired for RoleBased strategy with 2 roles.
+func roleCouncilFixture(complete func(ctx context.Context, req CompletionRequest) (CompletionResponse, error)) *Rada {
 	registry := map[string]CouncilType{
 		"roles": {
 			Name:          "roles",

@@ -32,7 +32,7 @@ import (
 // Models and ChairmanModel are UNUSED for MoA registrations — the runner reads
 // ProposerModels / AggregatorModels / RefinerModel directly. See CouncilType's
 // field-usage matrix in types.go.
-func (c *Council) runMixtureOfAgents(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runMixtureOfAgents(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.ProposerModels) == 0 {
 		return fmt.Errorf("council type %q has no proposer models configured (set ProposerModels for MixtureOfAgents)", ct.Name)
 	}
@@ -131,7 +131,7 @@ func (c *Council) runMixtureOfAgents(ctx context.Context, query string, ct Counc
 // successful Layer 1 proposers fed into the prompt — deterministic (sorted by
 // Label) so transcript-agreement tests can verify Sources matches the prompt
 // body byte-for-byte.
-func (c *Council) runMoaLayer2(ctx context.Context, query string, proposers []StageOneResult, aggregatorLabelToModel map[string]string, temperature float64) []AggregatorOutput {
+func (c *Rada) runMoaLayer2(ctx context.Context, query string, proposers []StageOneResult, aggregatorLabelToModel map[string]string, temperature float64) []AggregatorOutput {
 	// Stable order of sources mirrors the prompt builder's internal sort.
 	sources := make([]string, len(proposers))
 	for i, p := range proposers {
@@ -195,7 +195,7 @@ func (c *Council) runMoaLayer2(ctx context.Context, query string, proposers []St
 // runMoaRefine calls the Layer 3 refiner once with the successful aggregator
 // outputs and returns the synthesised final answer. Failure path matches
 // runStage3 — Model + DurationMs are populated even on error.
-func (c *Council) runMoaRefine(ctx context.Context, query string, aggregators []AggregatorOutput, labelToModel map[string]string, refinerModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runMoaRefine(ctx context.Context, query string, aggregators []AggregatorOutput, labelToModel map[string]string, refinerModel string, temperature float64) (StageThreeResult, error) {
 	start := time.Now()
 	msgs := BuildMoaRefinerPrompt(query, aggregators, labelToModel)
 	resp, err := c.client.Complete(ctx, CompletionRequest{

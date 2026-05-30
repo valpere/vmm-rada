@@ -55,7 +55,7 @@ is written), so a proper HTTP status code is always possible.
 | Invalid conversation ID format | `400` | `"invalid conversation id"` |
 | Malformed or missing request body | `400` | `"invalid request body"` |
 | Conversation not found | `404` | `"not found"` |
-| Council quorum not met | `503` | `"council quorum not met"` |
+| Rada quorum not met | `503` | `"council quorum not met"` |
 | Review: one or more roles failed (all 4 required) | `503` | `"council quorum not met"` |
 | Storage failure (pre-pipeline) | `500` | `"internal server error"` |
 | SSE streaming not supported by server | `500` | `"streaming not supported"` |
@@ -203,7 +203,7 @@ Send a message and receive the full deliberation result in a single JSON respons
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `content` | string | yes | The user's message |
-| `council_type` | string | no | Council strategy name; defaults to `DEFAULT_COUNCIL_TYPE` env var |
+| `council_type` | string | no | Rada strategy name; defaults to `DEFAULT_RADA_TYPE` env var |
 
 > **Planned (issue #154):** When Stage 0 clarification is enabled, the request body is XOR — supply exactly one of `content` (round 1) or `answers` (round 2+). Both present, or neither, returns `400`. The `council_type` for round 2+ is loaded from storage; do not re-send it.
 >

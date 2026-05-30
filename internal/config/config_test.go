@@ -36,7 +36,7 @@ func unsetenv(t *testing.T, key string) {
 // baseEnv sets the minimum required environment for config.Load() to succeed.
 func baseEnv(t *testing.T) {
 	t.Helper()
-	setenv(t, "OPENROUTER_API_KEY", "sk-test")
+	setenv(t, "AI_PROVIDER_API_KEY", "sk-test")
 }
 
 // ── TestLoad_LLMBaseURL ────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ func TestLoad_LLMAPIMaxRetries(t *testing.T) {
 // ── TestLoad_ClarificationModels ──────────────────────────────────────────
 //
 // The config loader must NOT pre-fill the Stage 0 model fields from
-// COUNCIL_MODELS / CHAIRMAN_MODEL when the dedicated env vars are unset.
+// RADA_MODELS / CHAIRMAN_MODEL when the dedicated env vars are unset.
 // Resolution is the runner's job; the config is just transport.
 
 func TestLoad_ClarificationModels_BothSet(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLoad_ClarificationModels_BothUnset_FieldsEmpty(t *testing.T) {
 	unsetenv(t, "CLARIFICATION_MODELS")
 	unsetenv(t, "CLARIFICATION_ARBITER_MODEL")
 	// Pre-fill council defaults to prove the loader does NOT pre-fill from them.
-	setenv(t, "COUNCIL_MODELS", "model-a,model-b")
+	setenv(t, "RADA_MODELS", "model-a,model-b")
 	setenv(t, "CHAIRMAN_MODEL", "chairman-z")
 
 	cfg, err := Load()
@@ -226,7 +226,7 @@ func TestLoad_ClarificationModels_BothUnset_FieldsEmpty(t *testing.T) {
 //
 // Setting MAJORITY_MODELS is what registers the "majority" council type at
 // startup; the loader leaves the field empty when unset (no pre-fill from
-// COUNCIL_MODELS). MAJORITY_CHAIRMAN_MODEL is optional.
+// RADA_MODELS). MAJORITY_CHAIRMAN_MODEL is optional.
 
 func TestLoad_MajorityModels_BothSet(t *testing.T) {
 	baseEnv(t)
@@ -273,7 +273,7 @@ func TestLoad_MajorityModels_BothUnset(t *testing.T) {
 	unsetenv(t, "MAJORITY_MODELS")
 	unsetenv(t, "MAJORITY_CHAIRMAN_MODEL")
 	// Pre-fill council defaults to prove the loader does NOT pre-fill from them.
-	setenv(t, "COUNCIL_MODELS", "model-a,model-b")
+	setenv(t, "RADA_MODELS", "model-a,model-b")
 	setenv(t, "CHAIRMAN_MODEL", "chairman-z")
 
 	cfg, err := Load()

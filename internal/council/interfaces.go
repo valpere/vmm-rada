@@ -3,7 +3,7 @@ package council
 import "context"
 
 // LLMClient is the interface for sending completion requests to an LLM gateway.
-// Council logic depends only on this interface, not on a specific gateway implementation.
+// Rada logic depends only on this interface, not on a specific gateway implementation.
 type LLMClient interface {
 	Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error)
 }

@@ -79,7 +79,7 @@ func (r *debateRecorder) record(req CompletionRequest) (CompletionResponse, erro
 	}
 }
 
-func debateCouncil(t *testing.T, models []string, chairman string, maxRounds int, rec *debateRecorder) *Council {
+func debateCouncil(t *testing.T, models []string, chairman string, maxRounds int, rec *debateRecorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {

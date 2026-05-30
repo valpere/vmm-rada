@@ -9,7 +9,7 @@ import (
 
 // runRoleBased executes the role-based 2-stage pipeline (Stage 1 + Stage 3).
 // Stage 2 is skipped; a minimal Stage2CompleteData event is emitted for SSE compatibility.
-func (c *Council) runRoleBased(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runRoleBased(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.Roles) == 0 {
 		return fmt.Errorf("council type %q has no roles configured", ct.Name)
 	}
@@ -60,7 +60,7 @@ func (c *Council) runRoleBased(ctx context.Context, query string, ct CouncilType
 
 // runRoleBasedStage1 executes all roles concurrently.
 // Model assignment: ct.Models[i % len(ct.Models)].
-func (c *Council) runRoleBasedStage1(ctx context.Context, query string, ct CouncilType) []StageOneResult {
+func (c *Rada) runRoleBasedStage1(ctx context.Context, query string, ct CouncilType) []StageOneResult {
 	results := make([]StageOneResult, len(ct.Roles))
 	var wg sync.WaitGroup
 
@@ -98,7 +98,7 @@ func (c *Council) runRoleBasedStage1(ctx context.Context, query string, ct Counc
 }
 
 // runRoleBasedStage3 asks the chairman to synthesise all role findings.
-func (c *Council) runRoleBasedStage3(ctx context.Context, query string, roleResults []StageOneResult, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runRoleBasedStage3(ctx context.Context, query string, roleResults []StageOneResult, chairmanModel string, temperature float64) (StageThreeResult, error) {
 	start := time.Now()
 	msgs := BuildRoleChairmanPrompt(query, roleResults)
 

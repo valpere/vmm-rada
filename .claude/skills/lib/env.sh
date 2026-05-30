@@ -3,8 +3,8 @@
 #
 # Usage:
 #   source .claude/skills/lib/env.sh
-#   load_env_key OPENROUTER_API_KEY          # exports OPENROUTER_API_KEY; warns if missing
-#   load_env_key OPENROUTER_API_KEY .env.local  # override env file
+#   load_env_key AI_PROVIDER_API_KEY          # exports AI_PROVIDER_API_KEY; warns if missing
+#   load_env_key AI_PROVIDER_API_KEY .env.local  # override env file
 #
 # Strips trailing whitespace and surrounding quotes to prevent invisible auth failures.
 

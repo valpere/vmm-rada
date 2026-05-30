@@ -25,7 +25,7 @@ Navigate to `http://localhost:5173` in your browser. You will see the VMM Rada i
 │                     │                                          │
 │   VMM Rada       │   Stage 1: Individual Responses          │
 │   ─────────────     │   Stage 2: Peer Rankings                 │
-│   + New Conver…     │   Stage 3: Final Council Answer          │
+│   + New Conver…     │   Stage 3: Final Rada Answer          │
 │                     │                                          │
 │   ● My Question     │   [question input]                       │
 │   ○ Another Q       │                                          │
@@ -90,7 +90,7 @@ Below the individual evaluations is a summary table that combines all votes into
 
 This table answers: "Which response did the council collectively judge to be best?"
 
-### Stage 3 — Final Council Answer
+### Stage 3 — Final Rada Answer
 
 The Chairman model reads the question, all Stage 1 responses, and the Stage 2 rankings, then synthesizes a single final answer.
 
@@ -163,7 +163,7 @@ The backend controls which models participate. Relevant environment variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `COUNCIL_MODELS` | Comma-separated list of models used in Stage 1 and Stage 2 |
+| `RADA_MODELS` | Comma-separated list of models used in Stage 1 and Stage 2 |
 | `CHAIRMAN_MODEL` | The model used for Stage 3 synthesis |
 | `TITLE_MODEL` | The model used to generate conversation titles (runs concurrently with the pipeline) |
 | `PORT` | Backend port (default `8001`) |

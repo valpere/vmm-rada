@@ -40,7 +40,7 @@ const (
 // (call error / JSON parse failure / empty revision) drop that debater
 // from subsequent rounds and append a DebaterDropout marker that the
 // chairman + DebateView can reason about.
-func (c *Council) runMultiAgentDebate(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runMultiAgentDebate(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.Models) == 0 {
 		return fmt.Errorf("council type %q has no models configured", ct.Name)
 	}
@@ -190,7 +190,7 @@ func (c *Council) runMultiAgentDebate(ctx context.Context, query string, ct Coun
 // Each debater's prompt shows the OTHER debaters' previous-round outputs (with
 // labels only — never model names) and the debater's OWN previous-round
 // answer (so they can revise it rather than start from scratch).
-func (c *Council) runDebateRound(ctx context.Context, query string, alive []string, previousByLabel map[string]DebaterRevision, round, totalRounds int, temperature float64) (DebateRound, []DebaterDropout) {
+func (c *Rada) runDebateRound(ctx context.Context, query string, alive []string, previousByLabel map[string]DebaterRevision, round, totalRounds int, temperature float64) (DebateRound, []DebaterDropout) {
 	results := make([]DebaterRevision, len(alive))
 	dropoutSlots := make([]*DebaterDropout, len(alive))
 
@@ -315,7 +315,7 @@ func (c *Council) runDebateRound(ctx context.Context, query string, alive []stri
 // results to produce a refined final answer. Failure path matches runStage3
 // and runRoleBasedStage3 (returns StageThreeResult{Model, DurationMs, Error}
 // even when the call errors).
-func (c *Council) runDebateStage3(ctx context.Context, query string, stage1 []StageOneResult, debate *Debate, labelToModel map[string]string, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runDebateStage3(ctx context.Context, query string, stage1 []StageOneResult, debate *Debate, labelToModel map[string]string, chairmanModel string, temperature float64) (StageThreeResult, error) {
 	start := time.Now()
 	msgs := BuildDebateChairmanPrompt(query, stage1, debate, labelToModel)
 	resp, err := c.client.Complete(ctx, CompletionRequest{

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// majorityFixture builds a Council whose registry's "test" entry uses the
+// majorityFixture builds a Rada whose registry's "test" entry uses the
 // Majority strategy with the given chairman (empty for the no-chairman path)
 // and a 4-model pool. The mock client routes by request-shape: prompt prefix
 // classifies the call as Stage 1 vs polish vs tiebreak.
@@ -52,7 +52,7 @@ func (r *majorityRecorder) record(req CompletionRequest) (CompletionResponse, er
 	}
 }
 
-func majorityCouncil(t *testing.T, models []string, chairman string, rec *majorityRecorder) *Council {
+func majorityCouncil(t *testing.T, models []string, chairman string, rec *majorityRecorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {

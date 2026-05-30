@@ -1,4 +1,4 @@
-# Testing Strategy — v2 Council Implementation
+# Testing Strategy — v2 Rada Implementation
 
 Defines the testing layers, tooling, and conventions for the VMM Rada v2 backend.
 Each layer targets a different risk surface; together they give confidence that the
@@ -23,9 +23,9 @@ LLM output.
 Unit tests live in the same package under `_test.go` files. They use only fake
 implementations — no network, no disk.
 
-### 1.1 Council logic (`internal/council/`)
+### 1.1 Rada logic (`internal/council/`)
 
-**Seam:** `LLMClient` interface. All stage methods accept a `*Council` whose `client`
+**Seam:** `LLMClient` interface. All stage methods accept a `*Rada` whose `client`
 field is a `mockLLMClient` with a scriptable `complete` function.
 
 **Coverage targets:**
@@ -216,7 +216,7 @@ plus the `cmd/eval` binary fill that gap.
 
 For each prompt in a fixed golden set, the harness runs:
 
-1. **Council pipeline** — `Runner.RunFull` against the configured council
+1. **Rada pipeline** — `Runner.RunFull` against the configured council
    type, capturing the chairman's final answer and the Stage 2 consensus W.
 2. **Single-model baseline** — `LLMClient.Complete` against one of the
    council's models, given just the user prompt.

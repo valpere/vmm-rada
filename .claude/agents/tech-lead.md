@@ -38,7 +38,7 @@ internal/config/            ← env var loading and validation only
 Violations that are **always** a REJECT:
 - Business logic inside a handler (anything beyond parse → call → respond)
 - `net/http` imported in `council` or `storage` packages
-- A concrete type (`*Council`, `*Store`, `*openrouter.Client`) referenced in a handler
+- A concrete type (`*Rada`, `*Store`, `*openrouter.Client`) referenced in a handler
 - Package cycles of any kind
 
 ### Interface pattern (canonical)
@@ -56,7 +56,7 @@ type Storer interface { ... }
 
 Compile-time checks must accompany every interface:
 ```go
-var _ Runner = (*Council)(nil)
+var _ Runner = (*Rada)(nil)
 var _ LLMClient = (*openrouter.Client)(nil)
 var _ Storer = (*Store)(nil)
 ```

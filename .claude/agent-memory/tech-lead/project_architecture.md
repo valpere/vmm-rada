@@ -19,7 +19,7 @@ internal/config/config.go     — Config struct, Load() from env; supports Stage
 internal/openrouter/client.go — Concrete LLM gateway; implements council.LLMClient interface
 internal/council/interfaces.go — LLMClient / Runner / Stage0Runner interfaces (DI seam)
 internal/council/types.go     — Domain types: CouncilType, Stage*Result, EventFunc, CompletionRequest/Response
-internal/council/council.go   — Council struct; main 3-stage pipeline (peer review)
+internal/council/council.go   — Rada struct; main 3-stage pipeline (peer review)
 internal/council/runner.go    — Runner orchestration + Strategy dispatch switch (3 implemented, 4 planned); structured logging via slog
 internal/council/rolebased.go — Role-based 2-stage pipeline (Stage 1 + Stage 3, no peer review)
 internal/council/majority.go  — Majority strategy (vote-tally, opt-in via MAJORITY_MODELS); Stage 2 emits kind="vote_tally"

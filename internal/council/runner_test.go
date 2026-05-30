@@ -583,9 +583,9 @@ func (r *stage0Recorder) record(req CompletionRequest) (CompletionResponse, erro
 	return makeResponse("{}"), nil
 }
 
-// stage0Fixture returns a Council whose registry's "test" entry has the given
+// stage0Fixture returns a Rada whose registry's "test" entry has the given
 // generator pool and chairman model. The mock client uses the recorder.
-func stage0Fixture(t *testing.T, ctModels []string, ctChairman string, rec *stage0Recorder) *Council {
+func stage0Fixture(t *testing.T, ctModels []string, ctChairman string, rec *stage0Recorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {

@@ -77,7 +77,7 @@ func (r *moaRecorder) record(req CompletionRequest) (CompletionResponse, error) 
 	}
 }
 
-func moaCouncil(t *testing.T, proposers, aggregators []string, refiner string, rec *moaRecorder) *Council {
+func moaCouncil(t *testing.T, proposers, aggregators []string, refiner string, rec *moaRecorder) *Rada {
 	t.Helper()
 	registry := map[string]CouncilType{
 		"test": {

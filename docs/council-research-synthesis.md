@@ -97,7 +97,7 @@ Hierarchical layered architecture:
 - **Strong benchmark results** (Together AI research).
 - **Downside:** Context grows with each layer; expensive on tokens.
 
-### 2.5 Karpathy-Style Peer Review Council
+### 2.5 Karpathy-Style Peer Review Rada
 
 Three clean stages (referenced as "gold standard" by Grok):
 
@@ -111,7 +111,7 @@ This is the design implemented in this project's existing codebase.
 
 Multiple anonymous blind review rounds with averaged ratings. Well-suited for structured survey-like tasks; less common in LLM contexts.
 
-### 2.7 Role-Based Council
+### 2.7 Role-Based Rada
 
 Assign specialized roles to different models:
 
@@ -669,7 +669,7 @@ Maintain `BestSoFar` state (highest-ranked valid answer seen so far). Update aft
 | **Result Instability** | Different runs produce different answers | Lower temperature for synthesis; deterministic policies; audit trace |
 | **Debugging Difficulty** | Multi-agent systems "break diffusely" — no clear root cause | Strong traceability; event log; parent_ids; artifact replay; structured logging |
 | **False Consensus Confidence** | "3/3 models agree" shown as reliability signal | Never present consensus as proof; add disclaimers; external verification |
-| **Wrong Domain Application** | Council used for simple factual answers where one model + RAG is better | Task complexity classifier; adaptive router |
+| **Wrong Domain Application** | Rada used for simple factual answers where one model + RAG is better | Task complexity classifier; adaptive router |
 | **Race Conditions** | Parallel agents see intermediate streaming results and diverge mid-generation | Barrier synchronization; no streaming between agents within a round |
 
 ### Minimum Practical Defense Set
@@ -921,7 +921,7 @@ Not every query warrants a full council. Route adaptively:
 | Trivial | Factual lookup, simple classification | Single LLM |
 | Simple + low stakes | Straightforward with minor ambiguity | Single LLM |
 | Simple + high stakes | Low complexity but high cost of error | Lightweight council (2 LLMs) |
-| Moderate | Reasoning, ambiguity, multiple valid answers | Council (2–3 LLMs) |
+| Moderate | Reasoning, ambiguity, multiple valid answers | Rada (2–3 LLMs) |
 | Complex / Expert | High stakes, auditing required, domain expertise | Full council with roles |
 
 **Scoring factors:** +2 for reasoning requirements, +2 for ambiguity, +2 for domain expertise required, +3 for high stakes, -2 for factual/classification tasks, -1 for reversible decisions.
@@ -991,7 +991,7 @@ type MessageEnvelope struct {
 **Key metrics to track:**
 
 ```
-Council-level:
+Rada-level:
   - request_count, request_duration, request_cost, request_quality
   - rounds_to_converge, early_stop_rate, agreement_rate, dissent_rate
 
@@ -1241,7 +1241,7 @@ For long-running sessions, support SSE or WebSocket streaming:
 - `final_answer` event
 - `error` event with reason code
 
-### 11.5 Council Type Registry
+### 11.5 Rada Type Registry
 
 Register named council configurations that users can select by name. Each `CouncilType` record contains:
 
@@ -1300,7 +1300,7 @@ Mitigation: shuffled label assignment (`rand.Perm`) per request so no model is
 systematically "Response A". Self-identification is probabilistic, not deterministic.
 Separate ranker pools are a named council type variant, not a v1 requirement.
 
-### Council type scope — model sets only for v1; strategy abstraction deferred
+### Rada type scope — model sets only for v1; strategy abstraction deferred
 
 A "council type" is a named configuration: a fixed strategy (Karpathy peer-review)
 combined with a configurable model set and parameters. Multiple council types with
@@ -1367,7 +1367,7 @@ until an evaluation framework exists.
 
 - **Strategy:** A deliberation algorithm (`PeerReview`, `MajorityVoting`, `MoA`). Pure
   behavior, no model specifics. Typed constant/enum in Go.
-- **Council type:** A named, user-selectable configuration combining strategy + model
+- **Rada type:** A named, user-selectable configuration combining strategy + model
   set + parameters (`"default"`, `"expert"`, `"fast"`). User-facing.
 
 In the API, the field is `council_type` (string name). Strategy is resolved server-side
@@ -1384,7 +1384,7 @@ user-controlled text — only server-assigned labels.
 This resolves the internal synthesis contradiction: §2.5 (pass raw output) vs. §7/§9.9
 (pass only validated summary). Middle ground: parsed structure, no full sanitization pass.
 
-### Council type selection API shape — field in POST request body
+### Rada type selection API shape — field in POST request body
 
 ```json
 POST /api/conversations/{id}/message
@@ -1417,7 +1417,7 @@ does not scale. Interface design must not leak JSON-specific assumptions.
 
 ### OpenRouter model lifecycle — model IDs in configuration, not code
 
-Council type registry stores model IDs as configuration strings updatable without
+Rada type registry stores model IDs as configuration strings updatable without
 redeployment. The implementation must not hardcode model IDs in source code.
 
 ### CalculateAggregateRankings — package-level function, not on Runner interface

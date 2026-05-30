@@ -27,7 +27,7 @@ const defaultRefineTopK = 3
 //
 // Both Stage 2 and Stage 3 use ct.ChairmanModel. Splitting them into separate
 // RankerModel/RefinerModel fields is deferred — see docs/strategies.md.
-func (c *Council) runGenerateRankRefine(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runGenerateRankRefine(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.Models) == 0 {
 		return fmt.Errorf("council type %q has no models configured", ct.Name)
 	}
@@ -163,7 +163,7 @@ func averageScoreOf(rankings []RankedCandidate, criteria []string) float64 {
 // and returns the parsed, validated, sorted rankings. Loud error on any
 // parse failure — Stage 2 IS the entire ranking, so silent fall-through
 // would corrupt refinement.
-func (c *Council) runRankStage(ctx context.Context, query string, candidates []StageOneResult, criteria []string, k int, chairmanModel string, temperature float64) ([]RankedCandidate, error) {
+func (c *Rada) runRankStage(ctx context.Context, query string, candidates []StageOneResult, criteria []string, k int, chairmanModel string, temperature float64) ([]RankedCandidate, error) {
 	prompt := BuildRankPrompt(query, candidates, criteria, k)
 	resp, err := c.client.Complete(ctx, CompletionRequest{
 		Model:          chairmanModel,
@@ -250,7 +250,7 @@ func (c *Council) runRankStage(ctx context.Context, query string, candidates []S
 // refined synthesis. Both success and error paths populate Model + DurationMs
 // so error-path observability matches the success path (consistent with
 // runStage3 and runRoleBasedStage3).
-func (c *Council) runRefineStage(ctx context.Context, query string, advancing []StageOneResult, criteria []string, chairmanModel string, temperature float64) (StageThreeResult, error) {
+func (c *Rada) runRefineStage(ctx context.Context, query string, advancing []StageOneResult, criteria []string, chairmanModel string, temperature float64) (StageThreeResult, error) {
 	start := time.Now()
 	msgs := BuildRankRefinePrompt(query, advancing, criteria)
 	resp, err := c.client.Complete(ctx, CompletionRequest{

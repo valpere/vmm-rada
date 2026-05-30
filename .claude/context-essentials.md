@@ -24,7 +24,7 @@ contract and require Tech Lead override.
 
 - Backend: **Go**. Run `go build`, `go vet`, `go test ./...` before `/ship`.
 - Frontend: **React 19 + Vite 8, plain JavaScript**. No TypeScript.
-- LLM Gateway: **OpenRouter API**. Key in `.env` as `OPENROUTER_API_KEY`.
+- LLM Gateway: configurable (`AI_PROVIDER_NAME`, default `openrouter`). Key in `.env` as `AI_PROVIDER_API_KEY`.
 
 ## Workflow gates
 

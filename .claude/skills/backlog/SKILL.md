@@ -59,7 +59,7 @@ Identify and read every file that will change. Do not guess — read them.
 
 Typical candidates per area:
 - **API / HTTP** — `internal/api/handler.go`
-- **Council logic** — `internal/council/council.go`, `interfaces.go`, `types.go`, `prompts.go`
+- **Rada logic** — `internal/council/council.go`, `interfaces.go`, `types.go`, `prompts.go`
 - **Config** — `internal/config/config.go`
 - **Storage** — `internal/storage/storage.go`
 - **Entry point** — `cmd/server/main.go`

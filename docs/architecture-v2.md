@@ -35,7 +35,7 @@ Go HTTP server  (:8001)
 | `internal/config` | `config.go` | Reads and validates env vars; returns `*Config` |
 | `internal/openrouter` | `client.go` | `LLMClient` implementation; POSTs to OpenRouter (or compatible) API |
 | `internal/council` | `types.go` | Shared types: `CouncilType`, `Strategy`, `StageOneResult`, `StageTwoResult`, `StageThreeResult`, `Metadata`, `EventFunc` |
-| `internal/council` | `runner.go` | `Council` struct; `RunFull()` strategy dispatch; `runPeerReview` + Stage 1/2/3 helpers |
+| `internal/council` | `runner.go` | `Rada` struct; `RunFull()` strategy dispatch; `runPeerReview` + Stage 1/2/3 helpers |
 | `internal/council` | `rolebased.go` | `runRoleBased` — 2-stage roles → chairman pipeline |
 | `internal/council` | `council.go` | Helpers: `checkQuorum()`, `assignLabels()`, `QuorumError` |
 | `internal/council` | `rankings.go` | `CalculateAggregateRankings()` — Kendall's W consensus coefficient |
@@ -81,7 +81,7 @@ Every interface implementation has a compile-time assertion:
 
 ```go
 var _ council.LLMClient = (*openrouter.Client)(nil)
-var _ council.Runner    = (*council.Council)(nil)
+var _ council.Runner    = (*council.Rada)(nil)
 ```
 
 ### Composition root (`cmd/server/main.go`)
@@ -99,7 +99,7 @@ config.Load()
 
 This keeps all dependency injection in one place and makes each package independently testable.
 
-### Council pipeline (`internal/council`)
+### Rada pipeline (`internal/council`)
 
 The `Strategy` enum carries **7 constants — all implemented**. The strategy roadmap is complete. See [`strategies.md`](./strategies.md) for the full per-strategy reference.
 
@@ -119,7 +119,7 @@ const (
 type CouncilType struct {
     Name          string
     Strategy      Strategy
-    Models        []string    // Council members. RoleBased assigns by index mod len. UNUSED for MixtureOfAgents.
+    Models        []string    // Rada members. RoleBased assigns by index mod len. UNUSED for MixtureOfAgents.
     Roles         []Role      // RoleBased only.
     ChairmanModel string      // Synthesiser / arbiter / facilitator. UNUSED for MixtureOfAgents.
     Temperature   float64
@@ -270,7 +270,7 @@ Registration is opt-in AND requires both `DELPHI_MODELS` and `DELPHI_CHAIRMAN_MO
 
 #### Per-registration model configuration
 
-Every `CouncilType` registration is independent. Two registrations with the same `Strategy` but different `Models` / `ChairmanModel` are valid — e.g. `"factual-majority"` and `"creative-majority"` both use `Strategy: Majority` with different voter pools. Each strategy has its own namespaced env var family (`MAJORITY_MODELS`, `MAJORITY_CHAIRMAN_MODEL`, `DEBATE_MODELS`, etc.) with fall-through to `COUNCIL_MODELS` / `CHAIRMAN_MODEL` when unset; see [`strategies.md`](./strategies.md) for the full table. Plumbing lands with each strategy's implementation PR.
+Every `CouncilType` registration is independent. Two registrations with the same `Strategy` but different `Models` / `ChairmanModel` are valid — e.g. `"factual-majority"` and `"creative-majority"` both use `Strategy: Majority` with different voter pools. Each strategy has its own namespaced env var family (`MAJORITY_MODELS`, `MAJORITY_CHAIRMAN_MODEL`, `DEBATE_MODELS`, etc.) with fall-through to `RADA_MODELS` / `CHAIRMAN_MODEL` when unset; see [`strategies.md`](./strategies.md) for the full table. Plumbing lands with each strategy's implementation PR.
 
 #### Stage 0 (clarification) — strategy-independent
 
@@ -288,7 +288,7 @@ arbiter model    : cfg.ArbiterModel → ct.ChairmanModel → error
 
 The error is loud — `RunClarificationRound` returns explicitly rather than emitting `stage0_done`. This catches misconfiguration (e.g. a future strategy with no `ChairmanModel`, registered without setting `CLARIFICATION_ARBITER_MODEL`).
 
-The config loader does **not** pre-fill the Stage 0 fields from `COUNCIL_MODELS` / `CHAIRMAN_MODEL`; it leaves them empty and lets the runner do the resolution. This preserves the per-council-type fall-back hop, which is what "no existing deployments break" actually means.
+The config loader does **not** pre-fill the Stage 0 fields from `RADA_MODELS` / `CHAIRMAN_MODEL`; it leaves them empty and lets the runner do the resolution. This preserves the per-council-type fall-back hop, which is what "no existing deployments break" actually means.
 
 ### Storage (`internal/storage`)
 

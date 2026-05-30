@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-VMM Rada — a multi-LLM deliberation system. Council models independently answer a query,
+VMM Rada — a multi-LLM deliberation system. Rada models independently answer a query,
 anonymously peer-review each other, and a Chairman model synthesises a final answer.
 
 **Status: v2 shipping.** The v1 implementation is archived on `archive/v1`. v2 is the active
@@ -27,8 +27,8 @@ configuration.
 
 - **Backend:** Go 1.26.3
 - **Frontend:** React 19 + Vite 8, plain JavaScript (no TypeScript) — lives in `frontend/`
-- **LLM Gateway:** OpenRouter API (override via `LLM_API_BASE_URL` for Ollama / vLLM)
-- **API key:** `.env` → `OPENROUTER_API_KEY=sk-or-v1-...`
+- **LLM Gateway:** configurable provider via `AI_PROVIDER_NAME` (default `openrouter`); URL override via `LLM_API_BASE_URL` for Ollama / vLLM
+- **API key:** `.env` → `AI_PROVIDER_API_KEY=<key>` (use any non-empty placeholder for keyless providers)
 
 ## Frontend architecture rules (immutable)
 

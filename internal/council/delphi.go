@@ -48,7 +48,7 @@ const (
 // NO DelphiDropout type is added. Dropped raters are simply absent from
 // subsequent rounds' Ratings slices; chairman and frontend infer dropout
 // by label-set diff between rounds.
-func (c *Council) runDelphi(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
+func (c *Rada) runDelphi(ctx context.Context, query string, ct CouncilType, onEvent EventFunc) error {
 	if len(ct.Models) == 0 {
 		return fmt.Errorf("council type %q has no models configured", ct.Name)
 	}
@@ -239,7 +239,7 @@ func (c *Council) runDelphi(ctx context.Context, query string, ct CouncilType, o
 //
 // Per-rater LLM error / JSON parse failure / empty scores result in a
 // rating with Error set; the caller drops those raters from the run.
-func (c *Council) runDelphiRound(
+func (c *Rada) runDelphiRound(
 	ctx context.Context,
 	query string,
 	candidates []StageOneResult,
@@ -411,7 +411,7 @@ func computeDelphiStats(ratings []DelphiRating, criteria []string, prevMean map[
 // round per-rater ratings + summaries + converged stats. Failure path
 // matches runStage3 / runDebateStage3 / runMoaRefine — Model + DurationMs
 // populated even on error.
-func (c *Council) runDelphiStage3(
+func (c *Rada) runDelphiStage3(
 	ctx context.Context,
 	query string,
 	candidates []StageOneResult,
