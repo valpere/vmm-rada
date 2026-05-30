@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 func TestJudge_Compare_HappyPath(t *testing.T) {

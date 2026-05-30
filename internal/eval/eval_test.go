@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 // fakeLLMClient routes Complete() calls to the per-model `responses` map.

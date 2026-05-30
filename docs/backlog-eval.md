@@ -1,7 +1,7 @@
 # Eval Harness — Backlog
 
 Archived from GitHub issues #141–#151. These issues describe the full design of an
-automated evaluation and optimization loop for LLM Council.
+automated evaluation and optimization loop for VMM Rada.
 
 ---
 

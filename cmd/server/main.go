@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/valpere/llm-council/internal/api"
-	"github.com/valpere/llm-council/internal/config"
-	"github.com/valpere/llm-council/internal/council"
-	"github.com/valpere/llm-council/internal/openrouter"
-	"github.com/valpere/llm-council/internal/storage"
+	"github.com/valpere/vmm-rada/internal/api"
+	"github.com/valpere/vmm-rada/internal/config"
+	"github.com/valpere/vmm-rada/internal/council"
+	"github.com/valpere/vmm-rada/internal/openrouter"
+	"github.com/valpere/vmm-rada/internal/storage"
 )
 
 func main() {

@@ -20,7 +20,7 @@ export default function Sidebar({
   return (
     <div className={`sidebar${isOpen ? '' : ' collapsed'}`}>
       <div className="sidebar-header">
-        <span className="sidebar-title">LLM Council</span>
+        <span className="sidebar-title">VMM Rada</span>
         <button
           className="sidebar-toggle"
           onClick={onToggle}

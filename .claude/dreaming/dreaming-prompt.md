@@ -1,11 +1,11 @@
-You are doing a **dreaming pass** for the **llm-council** project —
+You are doing a **dreaming pass** for the **vmm-rada** project —
 async, scheduled curation of project context. This is sleep-time
 consolidation: review what accumulated since last pass, identify
 patterns, suggest curation.
 
 ## Project context
 
-- **llm-council** — multi-LLM deliberation system (Go backend + React frontend)
+- **vmm-rada** — multi-LLM deliberation system (Go backend + React frontend)
 - Workflow: `/backlog → Tech Lead → /ship → Copilot → /fix-review → squash merge`
 - Source of truth: `CLAUDE.md` (project instructions)
 - See `.claude/context-essentials.md` for immutable rules
@@ -87,7 +87,7 @@ Cross-reference with recent slash-command usage in transcripts.
 ## Report format
 
 ```markdown
-# llm-council dreaming pass — YYYY-W##
+# vmm-rada dreaming pass — YYYY-W##
 
 Date: YYYY-MM-DD
 Branch surveyed: <current branch>
@@ -134,6 +134,6 @@ PRs examined: <count>
 - Output the report as **plain markdown**.
 - Do **NOT** wrap the entire report in a ` ```markdown ` code fence.
 - Do **NOT** add preamble like "I have enough sample data..." — start
-  directly with the `# llm-council dreaming pass — ...` heading.
+  directly with the `# vmm-rada dreaming pass — ...` heading.
 - Do **NOT** add postamble like "Report complete." — end after the
   last section.

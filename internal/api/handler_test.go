@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valpere/llm-council/internal/council"
-	"github.com/valpere/llm-council/internal/storage"
+	"github.com/valpere/vmm-rada/internal/council"
+	"github.com/valpere/vmm-rada/internal/storage"
 )
 
 // ── mocks ────────────────────────────────────────────────────────────────────

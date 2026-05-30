@@ -1,14 +1,14 @@
 .PHONY: build dev lint test clean fr-dev fr-build fr-lint help
 
-BIN := bin/llm-council
+BIN := bin/vmm-rada
 
 help:
 	@echo "Backend:"
-	@echo "  make build      build binary to bin/llm-council"
+	@echo "  make build      build binary to bin/vmm-rada"
 	@echo "  make dev        go run ./cmd/server"
 	@echo "  make lint       go vet + staticcheck"
 	@echo "  make test       go test -race ./..."
-	@echo "  make clean      remove bin/llm-council"
+	@echo "  make clean      remove bin/vmm-rada"
 	@echo ""
 	@echo "Frontend:"
 	@echo "  make fr-dev     vite dev server (localhost:5173)"

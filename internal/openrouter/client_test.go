@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/valpere/llm-council/internal/council"
+	"github.com/valpere/vmm-rada/internal/council"
 )
 
 // testClient returns a Client pointed at srv with the given API key and no

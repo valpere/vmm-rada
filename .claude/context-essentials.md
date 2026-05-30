@@ -1,4 +1,4 @@
-# Context Essentials — llm-council
+# Context Essentials — vmm-rada
 
 > Re-injected into session context after compaction (via SessionStart hook
 > with matcher='compact') and emphasized to the compactor (via PreCompact

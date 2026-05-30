@@ -1,6 +1,6 @@
-# LLM Council — User Guide
+# VMM Rada — User Guide
 
-LLM Council is a backend API that runs a **3-stage multi-model deliberation pipeline**. Instead of asking one AI for an answer, it asks a council of models, has them anonymously peer-review each other, and uses a designated Chairman to synthesize a final answer from all inputs.
+VMM Rada is a backend API that runs a **3-stage multi-model deliberation pipeline**. Instead of asking one AI for an answer, it asks a council of models, has them anonymously peer-review each other, and uses a designated Chairman to synthesize a final answer from all inputs.
 
 ---
 
@@ -29,7 +29,7 @@ LLM Council is a backend API that runs a **3-stage multi-model deliberation pipe
 
 ```bash
 # Clone and enter the repo
-cd llm-council
+cd vmm-rada
 
 # Create .env with your API key
 echo "OPENROUTER_API_KEY=sk-or-v1-..." > .env
@@ -86,8 +86,8 @@ Any model available on OpenRouter can be used. The council works best with at le
 go run ./cmd/server
 
 # Build and run
-go build -o llm-council ./cmd/server
-./llm-council
+go build -o vmm-rada ./cmd/server
+./vmm-rada
 
 # With custom config
 OPENROUTER_API_KEY=sk-or-v1-... PORT=9000 go run ./cmd/server
@@ -441,7 +441,7 @@ Simply copy the `data/conversations/` directory. Each file is independent.
 ### Changing the data directory
 
 ```bash
-DATA_DIR=/var/lib/llm-council/conversations go run ./cmd/server
+DATA_DIR=/var/lib/vmm-rada/conversations go run ./cmd/server
 ```
 
 The directory is created automatically on first use with permissions `0700`.

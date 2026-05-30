@@ -1,6 +1,6 @@
 # Development Workflow
 
-This document describes the full development process for the LLM Council frontend — from idea to merged code. It covers the roles of humans, skills, and agents, how they interact, and which tool to reach for in each situation.
+This document describes the full development process for the VMM Rada frontend — from idea to merged code. It covers the roles of humans, skills, and agents, how they interact, and which tool to reach for in each situation.
 
 ---
 

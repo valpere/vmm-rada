@@ -77,7 +77,7 @@ func TestCouncilTypeHasRoles(t *testing.T) {
 - [ ] **Step 2: Run test to confirm it fails**
 
 ```bash
-cd /home/val/wrk/projects/llm-council/llm-council
+cd /home/val/wrk/projects/vmm-rada/vmm-rada
 go test ./internal/council/ -run TestRoleBasedStrategyConstants -v
 ```
 
@@ -578,7 +578,7 @@ Expected: compile error — `rolebased.go` not yet created; also `noopLogger` ma
 - [ ] **Step 3: Check if noopLogger helper exists in tests**
 
 ```bash
-grep -n "noopLogger" /home/val/wrk/projects/llm-council/llm-council/internal/council/*.go
+grep -n "noopLogger" /home/val/wrk/projects/vmm-rada/vmm-rada/internal/council/*.go
 ```
 
 If not found, add it to `internal/council/council_test.go` (or a new `testhelpers_test.go`):
@@ -983,7 +983,7 @@ registry := map[string]council.CouncilType{
 - [ ] **Step 3: Build to verify no compile errors**
 
 ```bash
-cd /home/val/wrk/projects/llm-council/llm-council
+cd /home/val/wrk/projects/vmm-rada/vmm-rada
 go build ./...
 ```
 
@@ -1464,7 +1464,7 @@ After all tasks complete, verify the full feature end-to-end:
 **1. Build the server:**
 
 ```bash
-cd /home/val/wrk/projects/llm-council/llm-council
+cd /home/val/wrk/projects/vmm-rada/vmm-rada
 go build ./cmd/server/
 ```
 

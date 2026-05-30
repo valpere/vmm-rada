@@ -36,7 +36,7 @@ select issue → read issue + files → resolve uncertainties → branch → imp
 **`/ship` (no args)** — list the top 5 open, unblocked issues sorted by priority:
 
 ```bash
-gh issue list --repo valpere/llm-council --state open \
+gh issue list --repo valpere/vmm-rada --state open \
   --json number,title,labels \
   --jq '[.[] | select(.labels | map(.name) | contains(["blocked"]) | not)]
         | sort_by(
@@ -61,7 +61,7 @@ Display as a numbered menu and wait for selection.
 ## Step 1: Read the issue
 
 ```bash
-gh issue view <number> --repo valpere/llm-council --json title,body,labels
+gh issue view <number> --repo valpere/vmm-rada --json title,body,labels
 ```
 
 Read `## Summary` and `## Acceptance Criteria`. These define what done looks like.
@@ -181,7 +181,7 @@ Check review status yourself — do not ask the user:
 
 ```bash
 # Poll until a review appears or 5 minutes pass
-gh pr view <number> --repo valpere/llm-council --json reviews,statusCheckRollup
+gh pr view <number> --repo valpere/vmm-rada --json reviews,statusCheckRollup
 ```
 
 Or watch checks:
@@ -198,10 +198,10 @@ Once Copilot has posted its review (or 5 minutes have elapsed with no review), p
 Fetch the review comments:
 
 ```bash
-gh pr view <number> --repo valpere/llm-council --json reviews \
+gh pr view <number> --repo valpere/vmm-rada --json reviews \
   --jq '.reviews[] | select(.author.login == "copilot-pull-request-reviewer") | .body'
 
-gh api repos/valpere/llm-council/pulls/<number>/comments \
+gh api repos/valpere/vmm-rada/pulls/<number>/comments \
   --jq '.[] | "[\(.path):\(.line)] \(.body)"'
 ```
 
@@ -232,12 +232,12 @@ git checkout main && git pull
 The `Closes #N` in the PR body auto-closes the issue on merge. Verify:
 
 ```bash
-gh issue view <number> --repo valpere/llm-council --json state,closed
+gh issue view <number> --repo valpere/vmm-rada --json state,closed
 ```
 
 If not closed automatically:
 ```bash
-gh issue close <number> --repo valpere/llm-council --comment "Resolved in PR #<pr-number>."
+gh issue close <number> --repo valpere/vmm-rada --comment "Resolved in PR #<pr-number>."
 ```
 
 Report: issue closed, PR merged, what Copilot flagged (if anything).

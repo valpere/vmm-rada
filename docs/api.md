@@ -1,4 +1,4 @@
-# LLM Council — HTTP API Reference
+# VMM Rada — HTTP API Reference
 
 ## Base URL
 

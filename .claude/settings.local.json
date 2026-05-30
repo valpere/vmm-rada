@@ -1,9 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -la /home/val/wrk/projects/llm-council/llm-council/.* 2>/dev/null | grep -v \"^\\\\.\" | head -20)",
-      "Bash(find /home/val/wrk/projects/llm-council/llm-council -name \"*.json\" -o -name \"*.yaml\" -o -name \"*.yml\" -o -name \"*.toml\" -o -name \"*.cfg\" -o -name \"*.ini\" 2>/dev/null | grep -v \".git\")",
-      "Bash(wc -l /home/val/wrk/github_repos/karpathy/llm-council/frontend/src/*.css /home/val/wrk/github_repos/karpathy/llm-council/frontend/src/components/*.css 2>/dev/null)",
       "Bash(go mod:*)",
       "Bash(go vet:*)",
       "Bash(make build:*)",
@@ -23,12 +20,10 @@
       "Bash(gh project:*)",
       "Bash(git checkout:*)",
       "Bash(git mv:*)",
-      "Bash(# .env.example is ignored by the global gitignore \\(the .* pattern\\), move it manually\nmv .env.example backend/.env.example && git add -f backend/.env.example\ngit status --short)",
       "Bash(go test:*)",
       "Bash(git branch:*)",
       "Bash(git commit:*)",
       "Bash(git remote:*)",
-      "Bash(python3 -c \":*)",
       "Bash(git stash:*)",
       "Bash(git pull:*)",
       "Bash(git cherry-pick:*)",
@@ -37,38 +32,14 @@
       "Bash(git rebase:*)",
       "Bash(make lint:*)",
       "Bash(gh issue:*)",
-      "Bash(mkdir -p /home/val/wrk/projects/llm-council/llm-council-frontend/.claude)",
-      "Bash(mkdir -p /home/val/wrk/projects/llm-council/llm-council/.claude)",
       "Bash(truncate:*)",
       "Bash(for dir:*)",
       "Bash(do echo:*)",
-      "Read(//home/val/wrk/projects/llm-council/llm-council/**)",
+      "Read(//home/val/wrk/projects/vmm-rada/vmm-rada/**)",
       "Bash(done)",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council-frontend log --oneline -5)",
       "Bash(flock:*)",
-      "Bash(python3 -c \"import json,sys; reviews=json.load\\(sys.stdin\\); [print\\(f''''[{r[\"\"state\"\"]}] {r[\"\"body\"\"][:500]}''''\\) for r in reviews if r[''''body'''']]\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d[''''title'''']\\); print\\(d[''''body'''']\\)\")",
       "Bash(git config:*)",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council-frontend ls-files .claude/)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d[''''title'''']\\); print\\(''''Branch:'''', d[''''headRefName'''']\\)\")",
-      "Bash(cp -r /home/val/wrk/projects/llm-council/llm-council/.claude/skills/fix-review ~/.claude/skills/)",
-      "Bash(cp -r /home/val/wrk/projects/llm-council/llm-council/.claude/skills/plan ~/.claude/skills/)",
-      "Bash(cp -r /home/val/wrk/projects/llm-council/llm-council/.claude/skills/ship ~/.claude/skills/)",
-      "Bash(cp -r /home/val/wrk/projects/llm-council/llm-council/.claude/skills/find-bugs ~/.claude/skills/)",
-      "Bash(cp -r /home/val/wrk/projects/llm-council/llm-council/.claude/skills/improve ~/.claude/skills/)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''PR #{d[\"\"number\"\"]}: {d[\"\"title\"\"]} [{d[\"\"state\"\"]}] — branch: {d[\"\"headRefName\"\"]}''''\\)\")",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council status --short .claude/)",
-      "Read(//home/val/**)",
-      "Read(//home/val/.config/git/**)",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council add .claude/)",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council diff --cached --stat)",
-      "Bash(git -C /home/val/wrk/projects/llm-council/llm-council log --oneline -3)",
       "Bash(git:*)",
-      "Bash(sed -i 's/^## Step 7:/## Step 6:/' .claude/skills/ship/SKILL.md)",
-      "Bash(sed -i 's/^## Step 8:/## Step 7:/' .claude/skills/ship/SKILL.md)",
-      "Bash(sed -i 's/^## Step 9:/## Step 8:/' .claude/skills/ship/SKILL.md)",
-      "Bash(sed -i 's/^## Step 10:/## Step 9:/' .claude/skills/ship/SKILL.md)",
-      "Bash(sed -i 's/^## Step 11:/## Step 10:/' .claude/skills/ship/SKILL.md)",
       "Bash(go install:*)",
       "Bash(staticcheck:*)",
       "Bash(go get:*)",
@@ -78,25 +49,15 @@
       "Bash(echo \"=== $f ===\")",
       "Bash(grep:*)",
       "Bash(make help:*)",
-      "Bash(make check:*)"
+      "Bash(make check:*)",
+      "Read(//home/val/**)",
+      "Read(//home/val/.config/git/**)"
     ],
     "deny": [
       "Bash(rm -rf*)",
       "Bash(git push --force*)",
       "Bash(git reset --hard*)",
       "Bash(git checkout -- *)"
-    ]
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "A new session has started in the llm-council project. Schedule the hourly frontend sync cron job using CronCreate with cron '47 * * * *' and the following prompt (copy it exactly): ---PROMPT START--- You are the backend Claude for the llm-council repository. Perform a frontend sync check. First, read /home/val/wrk/projects/llm-council/llm-council/.env and extract AGA2AGA_AGENT_NAME (your agent id) and AGA2AGA_API_KEY (your api_key). Gateway: http://localhost:3001. Steps: 1. Read /home/val/.claude/projects/-home-val-wrk-projects-llm-council-llm-council/memory/project_frontend_sync.md and note what changed last time. 2. Run: git -C /home/val/wrk/projects/llm-council/llm-council-frontend log --oneline -10 3. Run: gh issue list --repo valpere/llm-council-frontend --state open --json number,title -q '.[] | \"#\\(.number) \\(.title)\"' 4. Check inbox via aga2aga MCP: call receive_message with agent and api_key from .env. If a message arrives (from != ''), read and act on it. 5. Compare git log and issues against memory. Update /home/val/.claude/projects/-home-val-wrk-projects-llm-council-llm-council/memory/project_frontend_sync.md if anything changed. 6. If you have something genuinely useful to tell the frontend, send it via aga2aga MCP: call send_message with agent and api_key from .env, to='llm-council-frontend', and a concise body. Only send if genuinely useful. Be concise. ---PROMPT END--- Do this silently without announcing it."
-          }
-        ]
-      }
     ]
   }
 }
