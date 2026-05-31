@@ -49,6 +49,7 @@ type Client struct {
 	http       *http.Client
 	maxRetries int          // total retries (1 initial attempt + maxRetries retries)
 	logger     *slog.Logger // never nil — NewClient substitutes slog.Default()
+	cb         *CircuitBreaker // optional; nil disables circuit breaking
 
 	// retryBaseDelay is the first attempt's nominal backoff. Per-Client so tests
 	// can shrink it without mutating package-level state and breaking parallel runs.
@@ -61,10 +62,11 @@ type Client struct {
 }
 
 // NewClient creates a Client with the given API key, base URL, HTTP timeout,
-// retry budget, and logger. baseURL overrides the default OpenRouter endpoint;
-// pass "" to use the default. maxRetries of 0 means a single attempt (no
-// retries). A nil logger falls back to slog.Default().
-func NewClient(apiKey, baseURL string, timeout time.Duration, maxRetries int, logger *slog.Logger) *Client {
+// retry budget, logger, and optional circuit breaker. baseURL overrides the
+// default OpenRouter endpoint; pass "" to use the default. maxRetries of 0
+// means a single attempt (no retries). A nil logger falls back to
+// slog.Default(). A nil cb disables circuit breaking.
+func NewClient(apiKey, baseURL string, timeout time.Duration, maxRetries int, logger *slog.Logger, cb *CircuitBreaker) *Client {
 	if baseURL == "" {
 		baseURL = defaultURL
 	}
@@ -80,6 +82,7 @@ func NewClient(apiKey, baseURL string, timeout time.Duration, maxRetries int, lo
 		http:                         &http.Client{Timeout: timeout},
 		maxRetries:                   maxRetries,
 		logger:                       logger,
+		cb:                           cb,
 		retryBaseDelay:               defaultRetryBaseDelay,
 		maxCumulativeBackoffDuration: defaultMaxCumulativeBackoffDuration,
 	}
@@ -93,7 +96,14 @@ var _ council.LLMClient = (*Client)(nil)
 // exponential backoff and ±25% jitter, honoring Retry-After headers (capped at
 // 30 s) and a cumulative 60 s sleep budget. Returns *APIError on non-200
 // responses after retries are exhausted.
+//
+// If a circuit breaker is configured and open, Complete returns council.ErrCircuitOpen
+// immediately without making an HTTP call.
 func (c *Client) Complete(ctx context.Context, req council.CompletionRequest) (council.CompletionResponse, error) {
+	if c.cb != nil && !c.cb.Allow() {
+		return council.CompletionResponse{}, council.ErrCircuitOpen
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return council.CompletionResponse{}, fmt.Errorf("marshal request: %w", err)
@@ -121,10 +131,17 @@ func (c *Client) Complete(ctx context.Context, req council.CompletionRequest) (c
 					c.logger.Info("openrouter: failed after retries",
 						"attempts", attempt+1, "final_error", finalErr)
 				}
+				if c.cb != nil {
+					c.cb.RecordFailure()
+				}
 				return council.CompletionResponse{}, finalErr
 			}
 			// Successful 200 + decoded body.
-			return c.decodeBody(resp)
+			result, decErr := c.decodeBody(resp)
+			if decErr == nil && c.cb != nil {
+				c.cb.RecordSuccess()
+			}
+			return result, decErr
 		}
 
 		// Retryable. lastErr always tracks the most recent reason for retry so
@@ -139,6 +156,9 @@ func (c *Client) Complete(ctx context.Context, req council.CompletionRequest) (c
 			}
 			c.logger.Info("openrouter: retries exhausted",
 				"attempts", attempt+1, "final_error", lastErr)
+			if c.cb != nil {
+				c.cb.RecordFailure()
+			}
 			return council.CompletionResponse{}, lastErr
 		}
 
@@ -147,6 +167,9 @@ func (c *Client) Complete(ctx context.Context, req council.CompletionRequest) (c
 			c.logger.Info("openrouter: cumulative backoff cap reached",
 				"cumulative_ms", cumulativeBackoff.Milliseconds(),
 				"final_error", lastErr)
+			if c.cb != nil {
+				c.cb.RecordFailure()
+			}
 			return council.CompletionResponse{}, lastErr
 		}
 		cumulativeBackoff += delay
