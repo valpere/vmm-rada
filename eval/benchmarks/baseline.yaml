@@ -1,0 +1,245 @@
+# Baseline benchmark — 20 questions across 4 categories (5 each).
+# Purpose: catch regressions in council quality vs. a single-model baseline.
+# Run before any prompt-template, strategy, or default-models change.
+#
+# Schema: id, category, question, rubric (optional)
+
+# ── Code (5) ─────────────────────────────────────────────────────────────────
+
+- id: code-001
+  category: code
+  question: >
+    Write a Go function that checks whether a string is a valid palindrome,
+    ignoring non-alphanumeric characters and case. Include a brief doc comment
+    and a table-driven test with at least 4 cases.
+  rubric: >
+    Award marks for correct normalisation (strip non-alnum, lowercase),
+    correct two-pointer or reverse comparison, proper doc comment, and
+    meaningful test cases (empty string, single char, mixed case, punctuation).
+
+- id: code-002
+  category: code
+  question: >
+    Implement a generic stack in Go (Go 1.18+ generics) with Push, Pop,
+    Peek, Len, and IsEmpty methods. Pop and Peek must return (T, bool) to
+    signal an empty stack without panicking.
+  rubric: >
+    Award marks for correct type parameter constraint (any), correct slice
+    backing, safe Pop/Peek returning false on empty, and compile-correctness
+    of the generic syntax.
+
+- id: code-003
+  category: code
+  question: >
+    Write a concurrent Go program that fetches URLs from a channel using a
+    fixed-size worker pool (4 workers), records the HTTP status code for each
+    URL, and gracefully shuts down when the input channel is closed. Use only
+    the standard library.
+  rubric: >
+    Award marks for correct goroutine fan-out pattern, proper WaitGroup usage,
+    no goroutine leak on shutdown, and idiomatic channel close signalling.
+
+- id: code-004
+  category: code
+  question: >
+    Explain the difference between a mutex (sync.Mutex) and a read-write
+    mutex (sync.RWMutex) in Go. Give a concrete example showing when
+    RWMutex provides a measurable throughput advantage over Mutex.
+  rubric: >
+    Award marks for explaining read-lock parallelism, write-lock exclusivity,
+    concrete scenario (e.g. cache with many readers + occasional writer), and
+    noting the overhead of RWMutex for write-heavy workloads.
+
+- id: code-005
+  category: code
+  question: >
+    Design a rate limiter in Go using the token bucket algorithm. The
+    implementation must be safe for concurrent use, configurable (rate and
+    burst), and expose an Allow() bool method. Do not use external packages.
+  rubric: >
+    Award marks for correct token replenishment logic, mutex-safe state,
+    proper handling of burst capacity, and clean API. Deduct for data races
+    or incorrect token calculation.
+
+# ── Analysis (5) ─────────────────────────────────────────────────────────────
+
+- id: analysis-001
+  category: analysis
+  question: >
+    Compare the trade-offs between event sourcing and traditional CRUD for
+    a financial ledger system. Cover: consistency guarantees, auditability,
+    query complexity, storage growth, and operational burden.
+  rubric: >
+    Award marks for addressing all five dimensions, giving concrete examples
+    from the financial domain, and providing a nuanced recommendation rather
+    than a blanket preference.
+
+- id: analysis-002
+  category: analysis
+  question: >
+    A startup has a monolithic Rails app that handles 50 000 users. The CTO
+    wants to migrate to microservices. Analyse the risks and benefits, and
+    recommend a migration strategy with concrete milestones.
+  rubric: >
+    Award marks for identifying real risks (distributed systems complexity,
+    data consistency, operational overhead), tangible benefits (independent
+    deployment, team autonomy), and a phased strategy (strangler-fig pattern
+    or equivalent).
+
+- id: analysis-003
+  category: analysis
+  question: >
+    Explain how garbage collection works in Go (tricolor mark-and-sweep,
+    write barrier, stop-the-world pauses). What are the practical implications
+    for latency-sensitive services, and how can developers reduce GC pressure?
+  rubric: >
+    Award marks for accurate description of the tricolor algorithm, correct
+    explanation of write barriers, honest characterisation of STW pauses in
+    modern Go (sub-millisecond), and practical advice (reduce allocations,
+    use sync.Pool, pre-size slices/maps).
+
+- id: analysis-004
+  category: analysis
+  question: >
+    Compare PostgreSQL and MongoDB for a SaaS application that stores
+    user-generated content (posts, comments, reactions) with heavy read
+    traffic (10:1 read/write ratio). The schema is expected to evolve
+    frequently. Which would you choose and why?
+  rubric: >
+    Award marks for discussing schema flexibility, ACID guarantees,
+    indexing strategies, read scalability, and schema migration complexity.
+    Deduct for oversimplified "use Postgres for everything" or "NoSQL is
+    always flexible" reasoning.
+
+- id: analysis-005
+  category: analysis
+  question: >
+    What are the key differences between optimistic and pessimistic locking
+    in databases? When should each be used, and what are the failure modes
+    of each approach under high contention?
+  rubric: >
+    Award marks for correct definitions, concrete use-case guidance
+    (optimistic for low-contention reads, pessimistic for write-heavy
+    critical sections), and honest discussion of failure modes (optimistic:
+    retry storms; pessimistic: deadlocks, lock escalation).
+
+# ── Factual (5) ──────────────────────────────────────────────────────────────
+
+- id: factual-001
+  category: factual
+  question: >
+    What is the time complexity of quicksort in the best, average, and
+    worst cases? What causes the worst case, and how does the choice of
+    pivot strategy mitigate it?
+  rubric: >
+    Award marks for correct O(n log n) average, O(n²) worst case, correct
+    identification of already-sorted input as the worst-case trigger for
+    naive pivot, and explanation of randomised or median-of-three pivot.
+
+- id: factual-002
+  category: factual
+  question: >
+    What does the CAP theorem state? Name two real distributed systems that
+    prioritise consistency over availability (CP) and two that prioritise
+    availability over consistency (AP). Explain your classification.
+  rubric: >
+    Award marks for correct theorem statement (Consistency, Availability,
+    Partition tolerance — pick 2 of 3 under partition), correct examples
+    (CP: HBase, Zookeeper; AP: Cassandra, CouchDB or equivalent), and
+    accurate classification reasoning.
+
+- id: factual-003
+  category: factual
+  question: >
+    What HTTP status code should a REST API return when a requested resource
+    does not exist? What about when the client is authenticated but lacks
+    permission to access it? Explain the security implication of returning
+    404 vs 403 in each case.
+  rubric: >
+    Award marks for 404 (not found), 403 (forbidden), correct explanation
+    that 403 leaks resource existence (enumeration attack surface), and
+    the trade-off of returning 404 for both cases to prevent enumeration.
+
+- id: factual-004
+  category: factual
+  question: >
+    Explain what a B-tree index is and why databases use it instead of a
+    hash index for range queries. What is the typical time complexity for
+    point lookups and range scans?
+  rubric: >
+    Award marks for correct description of balanced tree structure,
+    O(log n) point lookup, O(log n + k) range scan, and correct explanation
+    that hash indexes cannot satisfy range queries (no ordering).
+
+- id: factual-005
+  category: factual
+  question: >
+    What is the difference between TCP and UDP? Name two protocols built on
+    each and explain why each choice of transport was appropriate.
+  rubric: >
+    Award marks for correct characterisation of TCP (reliable, ordered,
+    connection-oriented) vs UDP (unreliable, unordered, connectionless),
+    appropriate examples (TCP: HTTP/HTTPS, SMTP; UDP: DNS, QUIC/video
+    streaming), and sound reasoning for each.
+
+# ── Creative (5) ─────────────────────────────────────────────────────────────
+
+- id: creative-001
+  category: creative
+  question: >
+    Write a concise explanation of how a Bloom filter works, aimed at a
+    junior engineer who has never seen probabilistic data structures. Use
+    one analogy, explain the false-positive trade-off, and give a real-world
+    use case.
+  rubric: >
+    Award marks for a clear accessible analogy, correct explanation that
+    Bloom filters have no false negatives, accurate description of the
+    space-accuracy trade-off, and a relevant use case (e.g. cache pre-check,
+    spell checker, or database query optimisation).
+
+- id: creative-002
+  category: creative
+  question: >
+    Write a system design document outline for a URL shortener that handles
+    10 million stored URLs and 1000 redirects per second. Cover: functional
+    requirements, data model, API design, storage choice, and a scaling
+    bottleneck you'd address first.
+  rubric: >
+    Award marks for plausible throughput math, a concrete data model (short
+    code → long URL mapping), REST API sketch, justified storage choice
+    (Redis/Postgres or similar), and a specific bottleneck (e.g. redirect
+    hot path, key generation collision).
+
+- id: creative-003
+  category: creative
+  question: >
+    Explain the concept of dependency injection to a developer who only
+    knows procedural programming. Use a concrete analogy from everyday life
+    and show a before-and-after code example in any language.
+  rubric: >
+    Award marks for an accessible non-code analogy (e.g. restaurant/kitchen,
+    power outlet), correct explanation of inversion of control, and a clear
+    before/after code example that demonstrates the testability benefit.
+
+- id: creative-004
+  category: creative
+  question: >
+    Design a feature flag system for a SaaS product. Cover the API design,
+    data model, rollout mechanics (percentage-based, user-segment targeting),
+    and the observability you would add to detect a bad rollout early.
+  rubric: >
+    Award marks for a practical API surface (create/update/evaluate endpoints),
+    a data model that supports targeting rules, percentage rollout logic,
+    and concrete observability (error rate dashboards, flag evaluation events).
+
+- id: creative-005
+  category: creative
+  question: >
+    Write a post-mortem template for a production incident. Include sections
+    for timeline, root cause analysis, contributing factors, impact
+    quantification, action items (with owners and due dates), and lessons
+    learned. Explain why each section matters.
+  rubric: >
+    Award marks for a complete and usable template with all requested sections,
+    brief but accurate explanation of each section's purpose (blameless culture,
+    systemic vs. human causes, measurable impact, SMART action items).

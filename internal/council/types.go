@@ -103,11 +103,20 @@ type CompletionRequest struct {
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 }
 
+// Usage holds token counts and optional cost returned by the LLM gateway.
+// CostUSD is omitempty because local providers (Ollama) do not report cost.
+type Usage struct {
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	CostUSD          float64 `json:"cost_usd,omitempty"`
+}
+
 // CompletionResponse is received from the LLM gateway.
 type CompletionResponse struct {
 	Choices []struct {
 		Message ChatMessage `json:"message"`
 	} `json:"choices"`
+	Usage Usage `json:"usage"`
 }
 
 // EventFunc is the callback used to stream stage-completion events to the caller.
