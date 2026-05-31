@@ -180,9 +180,9 @@ function App() {
   const handleDeleteConversation = async (id) => {
     try {
       await api.deleteConversation(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
+      const remaining = conversations.filter((c) => c.id !== id);
+      setConversations(remaining);
       if (currentConversationId === id) {
-        const remaining = conversations.filter((c) => c.id !== id);
         setCurrentConversationId(remaining.length > 0 ? remaining[0].id : null);
         if (remaining.length === 0) setCurrentConversation(null);
       }
