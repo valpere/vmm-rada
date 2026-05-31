@@ -156,6 +156,11 @@ function App() {
   }, [currentConversationId]);
 
   const handleNewConversation = async () => {
+    const existing = conversations.find((c) => c.message_count === 0);
+    if (existing) {
+      setCurrentConversationId(existing.id);
+      return;
+    }
     try {
       const newConv = await api.createConversation();
       setConversations([
@@ -170,6 +175,34 @@ function App() {
 
   const handleSelectConversation = (id) => {
     setCurrentConversationId(id);
+  };
+
+  const handleDeleteConversation = async (id) => {
+    try {
+      await api.deleteConversation(id);
+      const remaining = conversations.filter((c) => c.id !== id);
+      setConversations(remaining);
+      if (currentConversationId === id) {
+        setCurrentConversationId(remaining.length > 0 ? remaining[0].id : null);
+        if (remaining.length === 0) setCurrentConversation(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+    }
+  };
+
+  const handleRenameConversation = async (id, title) => {
+    try {
+      const result = await api.renameConversation(id, title);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, title: result.title } : c))
+      );
+      if (currentConversationId === id) {
+        setCurrentConversation((prev) => prev ? { ...prev, title: result.title } : prev);
+      }
+    } catch (error) {
+      console.error('Failed to rename conversation:', error);
+    }
   };
 
   // Returns the SSE event handlers for an active stream, sharing updateLast.
@@ -314,6 +347,8 @@ function App() {
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
         theme={theme}

@@ -58,6 +58,7 @@ type Storer interface {
 	SaveUserMessage(id, content string) error
 	SaveAssistantMessage(id string, msg council.AssistantMessage) error
 	SaveTitle(id, title string) error
+	DeleteConversation(id string) error
 	CloseConversation(id string) error
 	SaveClarificationRound(id string, round int, questions []council.ClarificationQuestion, councilType string) error
 	UpdateClarificationAnswers(id string, round int, answers []council.ClarificationAnswer) error
@@ -352,4 +353,19 @@ func (s *Store) SaveTitle(id, title string) error {
 	}
 	c.Title = title
 	return s.writeConversation(c)
+}
+
+func (s *Store) DeleteConversation(id string) error {
+	if !isValidUUID(id) {
+		return &NotFoundError{ID: id}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.Remove(s.filePath(id)); err != nil {
+		if os.IsNotExist(err) {
+			return &NotFoundError{ID: id}
+		}
+		return fmt.Errorf("delete %s: %w", id, err)
+	}
+	return nil
 }
