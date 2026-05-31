@@ -61,3 +61,12 @@ frontend/dist/
 
 # Playwright test screenshots
 *.png
+
+tmp/
+chromium/
+
+# fix-review operational telemetry (local, not shared)
+.claude/skills/fix-review/telemetry.jsonl
+
+# Eval batch run output
+runs/
