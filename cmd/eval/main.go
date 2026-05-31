@@ -2,13 +2,18 @@
 // pre-merge regression detector that compares the council pipeline against
 // a single-model baseline using an LLM-as-judge.
 //
-// Usage:
+// Modes:
 //
-//	go run ./cmd/eval \
-//	    -input internal/eval/testdata/golden.json \
-//	    -out eval-results.json \
-//	    -baseline-model openai/gpt-4o-mini \
-//	    -council-type default
+//	Single question:
+//	  go run ./cmd/eval -question "What is 2+2?" -baseline-model gpt-4o-mini
+//
+//	Batch benchmark (YAML):
+//	  go run ./cmd/eval -benchmark eval/benchmarks/baseline.yaml \
+//	      -baseline-model gpt-4o-mini
+//
+//	Legacy JSON suite:
+//	  go run ./cmd/eval -input internal/eval/testdata/golden.json \
+//	      -out eval-results.json -baseline-model gpt-4o-mini
 //
 // Costs real money (~$1–2 per pass with the balanced model preset). Run
 // before any prompt-template, strategy, or default-models change.
@@ -21,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"syscall"
 	"time"
@@ -42,12 +48,14 @@ func main() {
 
 func run() error {
 	var (
-		inputPath     = flag.String("input", "internal/eval/testdata/golden.json", "path to golden case JSON file")
-		outPath       = flag.String("out", "eval-results.json", "path to write the results JSON envelope")
+		inputPath     = flag.String("input", "", "path to golden case JSON file (legacy mode)")
+		outPath       = flag.String("out", "eval-results.json", "path to write results JSON (legacy mode)")
 		baselineModel = flag.String("baseline-model", "", "single-model baseline (required)")
 		judgeModel    = flag.String("judge-model", "", "judge model — defaults to chairman; MUST differ from baseline")
 		councilType   = flag.String("council-type", "default", "council type registered in the server registry")
 		seed          = flag.Int64("seed", 0, "RNG seed for A/B order (0 = time-based, captured into output meta)")
+		question      = flag.String("question", "", "run a single question ad-hoc")
+		benchmarkFile = flag.String("benchmark", "", "path to YAML benchmark file for batch mode")
 	)
 	flag.Parse()
 
@@ -77,117 +85,49 @@ func run() error {
 		return fmt.Errorf("judge model %q must differ from baseline model to avoid self-preference bias; pass -judge-model explicitly", jModel)
 	}
 
-	// Read input file twice's worth of work in one pass: parse + hash. The
-	// hash is echoed into the output meta so a flipped result can be replayed
-	// against the exact same prompt set.
-	data, err := os.ReadFile(*inputPath)
-	if err != nil {
-		return fmt.Errorf("read input: %w", err)
-	}
-	suite, err := eval.LoadSuite(data)
-	if err != nil {
-		return err
-	}
-	if len(suite.Cases) == 0 {
-		return fmt.Errorf("input %q contains zero cases", *inputPath)
-	}
-
 	chosenSeed := *seed
 	if chosenSeed == 0 {
 		chosenSeed = time.Now().UnixNano()
 	}
 
-	// Build the council pipeline using the same wiring shape as cmd/server.
-	registry := map[string]council.CouncilType{
-		cfg.DefaultCouncilType: {
-			Name:          cfg.DefaultCouncilType,
-			Strategy:      council.PeerReview,
-			Models:        cfg.DefaultCouncilModels,
-			ChairmanModel: cfg.DefaultCouncilChairmanModel,
-			Temperature:   cfg.DefaultCouncilTemperature,
-		},
+	// Honour SIGINT / SIGTERM mid-run — the harness is sequential, so
+	// cancelling between cases is enough; no goroutine cleanup is needed.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// ── Mode dispatch ────────────────────────────────────────────────────────
+	// Priority: --benchmark > --question > --input (legacy JSON)
+	if *benchmarkFile != "" {
+		return runBatch(ctx, *benchmarkFile, *baselineModel, jModel, *councilType, chosenSeed, cfg, logger)
 	}
-	// Mirror cmd/server's opt-in Majority registration so eval can target
-	// the strategy via -council-type majority when MAJORITY_MODELS is set.
-	// ChairmanModel is NOT defaulted to the global CHAIRMAN_MODEL — see
-	// cmd/server/main.go for the rationale.
-	if len(cfg.MajorityModels) > 0 {
-		registry["majority"] = council.CouncilType{
-			Name:          "majority",
-			Strategy:      council.Majority,
-			Models:        cfg.MajorityModels,
-			ChairmanModel: cfg.MajorityChairmanModel,
-			Temperature:   cfg.DefaultCouncilTemperature,
+
+	var (
+		suite    eval.Suite
+		inputSHA string
+	)
+	if *question != "" {
+		suite = eval.Suite{Cases: []eval.Case{{ID: "adhoc-001", Prompt: *question, Category: "adhoc"}}}
+		inputSHA = eval.SuiteSHA256([]byte(*question))
+	} else {
+		// Legacy JSON suite mode.
+		if *inputPath == "" {
+			return fmt.Errorf("one of -question, -benchmark, or -input is required")
 		}
-	}
-	// Mirror cmd/server's opt-in GenerateRankRefine registration. Both env
-	// vars are required (no no-LLM path); skip with a warn if chairman is
-	// missing.
-	if len(cfg.GenerateRankRefineModels) > 0 {
-		if cfg.GenerateRankRefineChairmanModel == "" {
-			logger.Warn("GENERATE_RANK_REFINE_MODELS set but GENERATE_RANK_REFINE_CHAIRMAN_MODEL is empty; skipping registration of \"generate-rank-refine\" council type")
-		} else {
-			registry["generate-rank-refine"] = council.CouncilType{
-				Name:          "generate-rank-refine",
-				Strategy:      council.GenerateRankRefine,
-				Models:        cfg.GenerateRankRefineModels,
-				ChairmanModel: cfg.GenerateRankRefineChairmanModel,
-				Temperature:   cfg.DefaultCouncilTemperature,
-			}
+		data, err := os.ReadFile(*inputPath)
+		if err != nil {
+			return fmt.Errorf("read input: %w", err)
 		}
-	}
-	// Mirror cmd/server's opt-in MultiAgentDebate registration.
-	if len(cfg.DebateModels) > 0 {
-		if cfg.DebateChairmanModel == "" {
-			logger.Warn("DEBATE_MODELS set but DEBATE_CHAIRMAN_MODEL is empty; skipping registration of \"debate\" council type")
-		} else {
-			registry["debate"] = council.CouncilType{
-				Name:            "debate",
-				Strategy:        council.MultiAgentDebate,
-				Models:          cfg.DebateModels,
-				ChairmanModel:   cfg.DebateChairmanModel,
-				Temperature:     cfg.DefaultCouncilTemperature,
-				MaxDebateRounds: cfg.DebateMaxRounds,
-			}
+		suite, err = eval.LoadSuite(data)
+		if err != nil {
+			return err
 		}
-	}
-	// Mirror cmd/server's opt-in MixtureOfAgents registration. Requires all
-	// three MOA_* env vars; partial config is logged and skipped.
-	if len(cfg.MoaProposerModels) > 0 || len(cfg.MoaAggregatorModels) > 0 || cfg.MoaRefinerModel != "" {
-		switch {
-		case len(cfg.MoaProposerModels) == 0:
-			logger.Warn("MOA_AGGREGATOR_MODELS or MOA_REFINER_MODEL set but MOA_PROPOSER_MODELS is empty; skipping registration of \"moa\" council type")
-		case len(cfg.MoaAggregatorModels) == 0:
-			logger.Warn("MOA_PROPOSER_MODELS set but MOA_AGGREGATOR_MODELS is empty; skipping registration of \"moa\" council type")
-		case cfg.MoaRefinerModel == "":
-			logger.Warn("MOA_PROPOSER_MODELS / MOA_AGGREGATOR_MODELS set but MOA_REFINER_MODEL is empty; skipping registration of \"moa\" council type")
-		default:
-			registry["moa"] = council.CouncilType{
-				Name:             "moa",
-				Strategy:         council.MixtureOfAgents,
-				ProposerModels:   cfg.MoaProposerModels,
-				AggregatorModels: cfg.MoaAggregatorModels,
-				RefinerModel:     cfg.MoaRefinerModel,
-				Temperature:      cfg.DefaultCouncilTemperature,
-			}
+		if len(suite.Cases) == 0 {
+			return fmt.Errorf("input %q contains zero cases", *inputPath)
 		}
+		inputSHA = eval.SuiteSHA256(data)
 	}
-	// Mirror cmd/server's opt-in Delphi registration.
-	if len(cfg.DelphiModels) > 0 {
-		if cfg.DelphiChairmanModel == "" {
-			logger.Warn("DELPHI_MODELS set but DELPHI_CHAIRMAN_MODEL is empty; skipping registration of \"delphi\" council type")
-		} else {
-			registry["delphi"] = council.CouncilType{
-				Name:                       "delphi",
-				Strategy:                   council.Delphi,
-				Models:                     cfg.DelphiModels,
-				ChairmanModel:              cfg.DelphiChairmanModel,
-				Temperature:                cfg.DefaultCouncilTemperature,
-				MaxDelphiRounds:            cfg.DelphiMaxRounds,
-				DelphiConvergenceThreshold: cfg.DelphiConvergenceThreshold,
-			}
-		}
-	}
+
+	registry := buildRegistry(cfg)
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}
@@ -199,11 +139,6 @@ func run() error {
 	})
 	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger, cb)
 	runner := council.NewCouncil(client, registry, logger)
-
-	// Honour SIGINT / SIGTERM mid-run — the harness is sequential, so
-	// cancelling between cases is enough; no goroutine cleanup is needed.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	results, err := eval.Run(ctx, eval.Options{
 		Suite:         suite,
@@ -222,7 +157,7 @@ func run() error {
 
 	meta := eval.Meta{
 		Seed:          chosenSeed,
-		InputSHA256:   eval.SuiteSHA256(data),
+		InputSHA256:   inputSHA,
 		BaselineModel: *baselineModel,
 		JudgeModel:    jModel,
 		CouncilType:   *councilType,
@@ -245,6 +180,201 @@ func run() error {
 		return fmt.Errorf("write stderr: %w", err)
 	}
 	return nil
+}
+
+// runBatch loads a YAML benchmark file and runs all items sequentially,
+// writing a BatchReport to runs/<timestamp>/report.json. Progress is
+// printed to stderr after each item. Aborts if EVAL_MAX_COST_USD is exceeded.
+func runBatch(
+	ctx context.Context,
+	benchmarkPath, baselineModel, judgeModel, councilType string,
+	seed int64,
+	cfg *config.Config,
+	logger *slog.Logger,
+) error {
+	data, err := os.ReadFile(benchmarkPath)
+	if err != nil {
+		return fmt.Errorf("read benchmark: %w", err)
+	}
+	items, err := eval.LoadBenchmark(data)
+	if err != nil {
+		return fmt.Errorf("parse benchmark: %w", err)
+	}
+	if len(items) == 0 {
+		return fmt.Errorf("benchmark %q contains zero items", benchmarkPath)
+	}
+
+	maxCost := 1.0
+	if raw := os.Getenv("EVAL_MAX_COST_USD"); raw != "" {
+		if v, fErr := fmt.Sscanf(raw, "%f", &maxCost); v != 1 || fErr != nil {
+			logger.Warn("EVAL_MAX_COST_USD is invalid; using fallback value", "value", raw, "fallback", maxCost)
+		}
+	}
+
+	registry := buildRegistry(cfg)
+	if _, ok := registry[councilType]; !ok {
+		return fmt.Errorf("unknown council type %q (known: %v)", councilType, knownTypes(registry))
+	}
+
+	cb := openrouter.NewCircuitBreaker(openrouter.CircuitBreakerConfig{
+		FailureThreshold: cfg.CBFailureThreshold,
+		WindowDuration:   time.Duration(cfg.CBWindowDurationSecs) * time.Second,
+		ResetTimeout:     time.Duration(cfg.CBResetTimeoutSecs) * time.Second,
+	})
+	baseClient := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger, cb)
+	meter := eval.NewMeteringClient(baseClient)
+	runner := council.NewCouncil(meter, registry, logger)
+
+	startedAt := time.Now()
+	runID := startedAt.Format("20060102-150405")
+
+	outDir := filepath.Join("runs", runID)
+	if err := os.MkdirAll(outDir, 0750); err != nil {
+		return fmt.Errorf("create output dir: %w", err)
+	}
+
+	// Convert benchmark items to eval cases.
+	cases := make([]eval.Case, len(items))
+	for i, it := range items {
+		cases[i] = eval.Case{ID: it.ID, Prompt: it.Question, Category: it.Category}
+	}
+	suite := eval.Suite{Cases: cases}
+
+	results := make([]eval.Result, 0, len(items))
+	for i, c := range suite.Cases {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		itemStart := time.Now()
+		r := eval.RunSingleCase(ctx, c, eval.Options{
+			Suite:         eval.Suite{Cases: []eval.Case{c}},
+			Runner:        runner,
+			Client:        meter,
+			BaselineModel: baselineModel,
+			JudgeModel:    judgeModel,
+			CouncilType:   councilType,
+			Temperature:   cfg.DefaultCouncilTemperature,
+			Seed:          seed,
+			Logger:        logger,
+		})
+		results = append(results, r)
+		elapsed := time.Since(itemStart).Seconds()
+		_, _, costSoFar := meter.Totals()
+		fmt.Fprintf(os.Stderr, "[%d/%d] %s %s (%.1fs)\n",
+			i+1, len(items), c.ID, r.JudgeVerdict, elapsed)
+
+		if costSoFar > maxCost {
+			logger.Warn("EVAL_MAX_COST_USD exceeded — aborting",
+				"cost_usd", costSoFar, "limit_usd", maxCost, "completed", i+1)
+			break
+		}
+
+		if i < len(items)-1 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second):
+			}
+		}
+	}
+
+	pt, ct, totalCost := meter.Totals()
+	report := eval.BatchReport{
+		RunID:         runID,
+		BenchmarkFile: benchmarkPath,
+		StartedAt:     startedAt,
+		FinishedAt:    time.Now(),
+		Meta: eval.Meta{
+			Seed:          seed,
+			InputSHA256:   eval.SuiteSHA256(data),
+			BaselineModel: baselineModel,
+			JudgeModel:    judgeModel,
+			CouncilType:   councilType,
+		},
+		Results:      results,
+		Summary:      eval.Aggregate(results),
+		TotalTokens:  pt + ct,
+		TotalCostUSD: totalCost,
+	}
+
+	outPath := filepath.Join(outDir, "report.json")
+	f, err := os.Create(outPath)
+	if err != nil {
+		return fmt.Errorf("create report: %w", err)
+	}
+	defer f.Close()
+	if err := eval.WriteBatchReport(f, report); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(os.Stdout, "%s\n", report.Summary.Format(len(results)))
+	fmt.Fprintf(os.Stderr, "wrote %s (tokens=%d cost=$%.4f)\n", outPath, report.TotalTokens, totalCost)
+	return nil
+}
+
+// buildRegistry constructs the council type registry from cfg, mirroring
+// cmd/server/main.go. Extracted here so runBatch can use it without
+// duplicating the long opt-in registration block.
+func buildRegistry(cfg *config.Config) map[string]council.CouncilType {
+	registry := map[string]council.CouncilType{
+		cfg.DefaultCouncilType: {
+			Name:          cfg.DefaultCouncilType,
+			Strategy:      council.PeerReview,
+			Models:        cfg.DefaultCouncilModels,
+			ChairmanModel: cfg.DefaultCouncilChairmanModel,
+			Temperature:   cfg.DefaultCouncilTemperature,
+		},
+	}
+	if len(cfg.MajorityModels) > 0 {
+		registry["majority"] = council.CouncilType{
+			Name:          "majority",
+			Strategy:      council.Majority,
+			Models:        cfg.MajorityModels,
+			ChairmanModel: cfg.MajorityChairmanModel,
+			Temperature:   cfg.DefaultCouncilTemperature,
+		}
+	}
+	if len(cfg.GenerateRankRefineModels) > 0 && cfg.GenerateRankRefineChairmanModel != "" {
+		registry["generate-rank-refine"] = council.CouncilType{
+			Name:          "generate-rank-refine",
+			Strategy:      council.GenerateRankRefine,
+			Models:        cfg.GenerateRankRefineModels,
+			ChairmanModel: cfg.GenerateRankRefineChairmanModel,
+			Temperature:   cfg.DefaultCouncilTemperature,
+		}
+	}
+	if len(cfg.DebateModels) > 0 && cfg.DebateChairmanModel != "" {
+		registry["debate"] = council.CouncilType{
+			Name:            "debate",
+			Strategy:        council.MultiAgentDebate,
+			Models:          cfg.DebateModels,
+			ChairmanModel:   cfg.DebateChairmanModel,
+			Temperature:     cfg.DefaultCouncilTemperature,
+			MaxDebateRounds: cfg.DebateMaxRounds,
+		}
+	}
+	if len(cfg.MoaProposerModels) > 0 && len(cfg.MoaAggregatorModels) > 0 && cfg.MoaRefinerModel != "" {
+		registry["moa"] = council.CouncilType{
+			Name:             "moa",
+			Strategy:         council.MixtureOfAgents,
+			ProposerModels:   cfg.MoaProposerModels,
+			AggregatorModels: cfg.MoaAggregatorModels,
+			RefinerModel:     cfg.MoaRefinerModel,
+			Temperature:      cfg.DefaultCouncilTemperature,
+		}
+	}
+	if len(cfg.DelphiModels) > 0 && cfg.DelphiChairmanModel != "" {
+		registry["delphi"] = council.CouncilType{
+			Name:                       "delphi",
+			Strategy:                   council.Delphi,
+			Models:                     cfg.DelphiModels,
+			ChairmanModel:              cfg.DelphiChairmanModel,
+			Temperature:                cfg.DefaultCouncilTemperature,
+			MaxDelphiRounds:            cfg.DelphiMaxRounds,
+			DelphiConvergenceThreshold: cfg.DelphiConvergenceThreshold,
+		}
+	}
+	return registry
 }
 
 // knownTypes returns the keys of registry sorted lexicographically — used

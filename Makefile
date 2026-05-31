@@ -1,4 +1,4 @@
-.PHONY: build dev lint test clean fr-dev fr-build fr-lint help
+.PHONY: build dev lint test clean fr-dev fr-build fr-lint eval-single eval-batch help
 
 BIN := bin/vmm-rada
 
@@ -14,6 +14,10 @@ help:
 	@echo "  make fr-dev     vite dev server (localhost:5173)"
 	@echo "  make fr-build   production build"
 	@echo "  make fr-lint    eslint"
+	@echo ""
+	@echo "Eval:"
+	@echo "  make eval-single Q=\"...\"                  run a single ad-hoc question"
+	@echo "  make eval-batch BENCHMARK=<file.yaml>     run a full YAML benchmark"
 
 build:
 	go build -o $(BIN) ./cmd/server
@@ -39,3 +43,9 @@ fr-build:
 
 fr-lint:
 	cd frontend && npm run lint
+
+eval-single:
+	go run ./cmd/eval -question "$(Q)" -baseline-model "$(BASELINE)" -council-type "$(or $(COUNCIL),default)"
+
+eval-batch:
+	go run ./cmd/eval -benchmark "$(BENCHMARK)" -baseline-model "$(BASELINE)" -council-type "$(or $(COUNCIL),default)"

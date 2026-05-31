@@ -218,6 +218,20 @@ func remapVerdict(raw string, councilFirst bool) Verdict {
 	}
 }
 
+// RunSingleCase executes one case end-to-end and returns its Result.
+// It is the per-item primitive used by the batch runner. opts.Seed is used
+// to initialise the per-run RNG (the batch runner should pass the same seed
+// for reproducibility).
+func RunSingleCase(ctx context.Context, c Case, opts Options) Result {
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	rng := rand.New(rand.NewPCG(uint64(opts.Seed), 0))
+	judge := &Judge{Client: opts.Client, Model: opts.JudgeModel, Temperature: opts.Temperature}
+	return runCase(ctx, c, opts, judge, rng, logger)
+}
+
 // LoadSuite is a convenience helper for the cmd/eval CLI: it parses a JSON
 // array of cases. It lives here rather than in cmd/ so tests can use it.
 func LoadSuite(data []byte) (Suite, error) {
