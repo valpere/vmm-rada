@@ -82,9 +82,11 @@ export default function Sidebar({
               <div
                 key={conv.id}
                 className={`conversation-item${conv.id === currentConversationId ? ' active' : ''}`}
-                onClick={() => { if (editingId !== conv.id) onSelectConversation(conv.id); }}
               >
-                <div className="conversation-item-content">
+                <button
+                  className="conversation-item-btn"
+                  onClick={() => { if (editingId !== conv.id) onSelectConversation(conv.id); }}
+                >
                   {editingId === conv.id ? (
                     <input
                       className="conversation-rename-input"
@@ -101,7 +103,7 @@ export default function Sidebar({
                     </div>
                   )}
                   <div className="conversation-meta">{formatDate(conv.created_at)}</div>
-                </div>
+                </button>
 
                 <div className="conversation-menu-wrap" ref={openMenuId === conv.id ? menuRef : null}>
                   <button

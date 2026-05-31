@@ -131,9 +131,15 @@
   border-color: var(--accent);
 }
 
-.conversation-item-content {
+.conversation-item-btn {
   flex: 1;
   min-width: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
 }
 
 .conversation-title {
