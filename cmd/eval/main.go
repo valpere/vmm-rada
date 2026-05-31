@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -206,7 +207,9 @@ func runBatch(
 
 	maxCost := 1.0
 	if raw := os.Getenv("EVAL_MAX_COST_USD"); raw != "" {
-		if v, fErr := fmt.Sscanf(raw, "%f", &maxCost); v != 1 || fErr != nil {
+		if v, fErr := strconv.ParseFloat(raw, 64); fErr == nil && v > 0 {
+			maxCost = v
+		} else {
 			logger.Warn("EVAL_MAX_COST_USD is invalid; using fallback value", "value", raw, "fallback", maxCost)
 		}
 	}
@@ -254,7 +257,7 @@ func runBatch(
 			JudgeModel:    judgeModel,
 			CouncilType:   councilType,
 			Temperature:   cfg.DefaultCouncilTemperature,
-			Seed:          seed,
+			Seed:          seed + int64(i),
 			Logger:        logger,
 		})
 		results = append(results, r)
