@@ -66,6 +66,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	logger.Info("LLM provider", "name", cfg.ProviderName, "base_url", cfg.LLMBaseURL)
 
 	// Default judge to chairman if -judge-model was not provided.
 	jModel := *judgeModel

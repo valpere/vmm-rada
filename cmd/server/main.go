@@ -33,6 +33,7 @@ func main() {
 		logger.Error("configuration error", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("LLM provider", "name", cfg.ProviderName, "base_url", cfg.LLMBaseURL)
 
 	// Build the council type registry from config fields.
 	registry := map[string]council.CouncilType{
