@@ -116,6 +116,10 @@
   cursor: pointer;
   transition: background 0.15s;
   border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
 }
 
 .conversation-item:hover {
@@ -127,6 +131,11 @@
   border-color: var(--accent);
 }
 
+.conversation-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .conversation-title {
   color: var(--text-primary);
   font-size: 13px;
@@ -136,10 +145,89 @@
   white-space: nowrap;
 }
 
+.conversation-rename-input {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  outline: none;
+}
+
 .conversation-meta {
   color: var(--text-muted);
   font-size: 11px;
   margin-top: 3px;
+}
+
+.conversation-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.conversation-menu-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.conversation-item:hover .conversation-menu-btn,
+.conversation-item.active .conversation-menu-btn {
+  opacity: 1;
+}
+
+.conversation-menu-btn:hover {
+  color: var(--text-primary);
+  background: var(--border-color);
+}
+
+.conversation-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  min-width: 100px;
+  overflow: hidden;
+}
+
+.conversation-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.conversation-dropdown-item:hover {
+  background: var(--bg-hover, var(--border-color));
+}
+
+.conversation-dropdown-item--danger {
+  color: #e05c5c;
+}
+
+.conversation-dropdown-item--danger:hover {
+  background: rgba(224, 92, 92, 0.1);
 }
 
 .sidebar-footer {

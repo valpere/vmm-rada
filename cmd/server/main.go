@@ -165,6 +165,7 @@ func main() {
 	handler := api.NewHandler(runner, runner, store, logger, cfg.DefaultCouncilType, clarificationCfg)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
+	mux.Handle("/", http.FileServer(http.Dir("frontend/dist")))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

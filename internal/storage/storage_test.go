@@ -517,3 +517,37 @@ func TestCorruptFileSkippedInList(t *testing.T) {
 		t.Errorf("ID: got %q, want %q", list[0].ID, c.ID)
 	}
 }
+
+func TestDeleteConversation(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := storage.NewStore(dir, slog.Default())
+
+	t.Run("happy path removes file", func(t *testing.T) {
+		c, err := s.CreateConversation()
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		if err := s.DeleteConversation(c.ID); err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+		if _, err := s.GetConversation(c.ID); err == nil {
+			t.Error("expected not-found after delete")
+		}
+	})
+
+	t.Run("not found returns NotFoundError", func(t *testing.T) {
+		err := s.DeleteConversation("00000000-0000-4000-8000-000000000099")
+		var nfe *storage.NotFoundError
+		if !errors.As(err, &nfe) {
+			t.Errorf("expected NotFoundError, got %v", err)
+		}
+	})
+
+	t.Run("invalid UUID returns NotFoundError", func(t *testing.T) {
+		err := s.DeleteConversation("not-a-uuid")
+		var nfe *storage.NotFoundError
+		if !errors.As(err, &nfe) {
+			t.Errorf("expected NotFoundError for invalid UUID, got %v", err)
+		}
+	})
+}

@@ -23,6 +23,7 @@ type mockStorer struct {
 	saveUserMessage            func(string, string) error
 	saveAssistantMessage       func(string, council.AssistantMessage) error
 	saveTitle                  func(string, string) error
+	deleteConversation         func(string) error
 	closeConversation          func(string) error
 	saveClarificationRound     func(string, int, []council.ClarificationQuestion, string) error
 	updateClarificationAnswers func(string, int, []council.ClarificationAnswer) error
@@ -62,6 +63,12 @@ func (m *mockStorer) SaveAssistantMessage(id string, msg council.AssistantMessag
 func (m *mockStorer) SaveTitle(id, title string) error {
 	if m.saveTitle != nil {
 		return m.saveTitle(id, title)
+	}
+	return nil
+}
+func (m *mockStorer) DeleteConversation(id string) error {
+	if m.deleteConversation != nil {
+		return m.deleteConversation(id)
 	}
 	return nil
 }
@@ -1181,6 +1188,133 @@ func TestSendMessageStream(t *testing.T) {
 			}
 			if tc.checkSSE != nil {
 				tc.checkSSE(t, w.Body.String())
+			}
+		})
+	}
+}
+
+// ── DeleteConversation ───────────────────────────────────────────────────────
+
+func TestDeleteConversation(t *testing.T) {
+	tests := []struct {
+		name     string
+		id       string
+		storer   *mockStorer
+		wantCode int
+	}{
+		{
+			name: "204 happy path",
+			id:   testConvID,
+			storer: &mockStorer{
+				deleteConversation: func(id string) error { return nil },
+			},
+			wantCode: http.StatusNoContent,
+		},
+		{
+			name: "404 not found",
+			id:   testConvID,
+			storer: &mockStorer{
+				deleteConversation: func(id string) error {
+					return &storage.NotFoundError{ID: id}
+				},
+			},
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name:     "400 invalid UUID",
+			id:       "not-a-uuid",
+			storer:   &mockStorer{},
+			wantCode: http.StatusBadRequest,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newTestHandler(tc.storer, &mockRunner{})
+			req := httptest.NewRequest(http.MethodDelete, "/api/conversations/"+tc.id, nil)
+			req.SetPathValue("id", tc.id)
+			w := httptest.NewRecorder()
+			h.deleteConversation(w, req)
+			if w.Code != tc.wantCode {
+				t.Errorf("status: got %d, want %d", w.Code, tc.wantCode)
+			}
+		})
+	}
+}
+
+// ── RenameConversation ───────────────────────────────────────────────────────
+
+func TestRenameConversation(t *testing.T) {
+	longTitle := strings.Repeat("あ", maxTitleRunes+5) // multi-byte runes over limit
+	tests := []struct {
+		name      string
+		id        string
+		body      string
+		storer    *mockStorer
+		wantCode  int
+		wantTitle string
+	}{
+		{
+			name:      "200 happy path",
+			id:        testConvID,
+			body:      `{"title":"My Chat"}`,
+			storer:    &mockStorer{saveTitle: func(id, title string) error { return nil }},
+			wantCode:  http.StatusOK,
+			wantTitle: "My Chat",
+		},
+		{
+			name:      "200 over-limit title is truncated",
+			id:        testConvID,
+			body:      `{"title":"` + longTitle + `"}`,
+			storer:    &mockStorer{saveTitle: func(id, title string) error { return nil }},
+			wantCode:  http.StatusOK,
+			wantTitle: string([]rune(longTitle)[:maxTitleRunes]),
+		},
+		{
+			name:     "400 empty title",
+			id:       testConvID,
+			body:     `{"title":""}`,
+			storer:   &mockStorer{},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "400 invalid UUID",
+			id:       "not-a-uuid",
+			body:     `{"title":"x"}`,
+			storer:   &mockStorer{},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "404 not found",
+			id:   testConvID,
+			body: `{"title":"x"}`,
+			storer: &mockStorer{
+				saveTitle: func(id, title string) error {
+					return &storage.NotFoundError{ID: id}
+				},
+			},
+			wantCode: http.StatusNotFound,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newTestHandler(tc.storer, &mockRunner{})
+			req := httptest.NewRequest(http.MethodPatch, "/api/conversations/"+tc.id,
+				bytes.NewBufferString(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.SetPathValue("id", tc.id)
+			w := httptest.NewRecorder()
+			h.renameConversation(w, req)
+			if w.Code != tc.wantCode {
+				t.Errorf("status: got %d, want %d", w.Code, tc.wantCode)
+			}
+			if tc.wantTitle != "" && w.Code == http.StatusOK {
+				var resp map[string]string
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("decode response: %v", err)
+				}
+				if resp["title"] != tc.wantTitle {
+					t.Errorf("title: got %q, want %q", resp["title"], tc.wantTitle)
+				}
 			}
 		})
 	}

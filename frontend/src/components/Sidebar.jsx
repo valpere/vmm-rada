@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import './Sidebar.css';
 import { stripMarkdown } from '../utils';
 
@@ -12,11 +13,49 @@ export default function Sidebar({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  onDeleteConversation,
+  onRenameConversation,
   isOpen,
   onToggle,
   theme,
   onToggleTheme,
 }) {
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openMenuId]);
+
+  const startEdit = (conv, e) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    setEditingId(conv.id);
+    setEditValue(stripMarkdown(conv.title || 'New Conversation'));
+  };
+
+  const commitEdit = (id) => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== stripMarkdown(conversations.find((c) => c.id === id)?.title || '')) {
+      onRenameConversation(id, trimmed);
+    }
+    setEditingId(null);
+  };
+
+  const handleEditKeyDown = (e, id) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(id); }
+    if (e.key === 'Escape') setEditingId(null);
+  };
+
   return (
     <div className={`sidebar${isOpen ? '' : ' collapsed'}`}>
       <div className="sidebar-header">
@@ -40,18 +79,63 @@ export default function Sidebar({
             <div className="no-conversations">No conversations yet</div>
           ) : (
             conversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
                 className={`conversation-item${conv.id === currentConversationId ? ' active' : ''}`}
-                onClick={() => onSelectConversation(conv.id)}
+                onClick={() => { if (editingId !== conv.id) onSelectConversation(conv.id); }}
               >
-                <div className="conversation-title">
-                  {stripMarkdown(conv.title || 'New Conversation')}
+                <div className="conversation-item-content">
+                  {editingId === conv.id ? (
+                    <input
+                      className="conversation-rename-input"
+                      value={editValue}
+                      autoFocus
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => commitEdit(conv.id)}
+                      onKeyDown={(e) => handleEditKeyDown(e, conv.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div className="conversation-title">
+                      {stripMarkdown(conv.title || 'New Conversation')}
+                    </div>
+                  )}
+                  <div className="conversation-meta">{formatDate(conv.created_at)}</div>
                 </div>
-                <div className="conversation-meta">
-                  {formatDate(conv.created_at)}
+
+                <div className="conversation-menu-wrap" ref={openMenuId === conv.id ? menuRef : null}>
+                  <button
+                    className="conversation-menu-btn"
+                    aria-label="Conversation actions"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuId(openMenuId === conv.id ? null : conv.id);
+                    }}
+                  >
+                    ···
+                  </button>
+                  {openMenuId === conv.id && (
+                    <div className="conversation-dropdown">
+                      <button
+                        className="conversation-dropdown-item"
+                        onClick={(e) => startEdit(conv, e)}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        className="conversation-dropdown-item conversation-dropdown-item--danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onDeleteConversation(conv.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>

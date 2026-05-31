@@ -80,6 +80,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/conversations", h.wrap(h.listConversations))
 	mux.Handle("POST /api/conversations", h.wrap(h.createConversation))
 	mux.Handle("GET /api/conversations/{id}", h.wrap(h.getConversation))
+	mux.Handle("DELETE /api/conversations/{id}", h.wrap(h.deleteConversation))
+	mux.Handle("PATCH /api/conversations/{id}", h.wrap(h.renameConversation))
 	mux.Handle("POST /api/conversations/{id}/message", h.wrap(h.sendMessage))
 	mux.Handle("POST /api/conversations/{id}/message/stream", h.wrap(h.sendMessageStream))
 }
@@ -93,7 +95,7 @@ func (h *Handler) wrap(next http.HandlerFunc) http.Handler {
 
 		if origin := r.Header.Get("Origin"); allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 			w.Header().Add("Vary", "Origin")
 		}
@@ -165,6 +167,61 @@ func (h *Handler) getConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, conv)
+}
+
+func (h *Handler) deleteConversation(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !uuidRE.MatchString(id) {
+		h.writeError(w, http.StatusBadRequest, "invalid conversation id")
+		return
+	}
+	if err := h.storage.DeleteConversation(id); err != nil {
+		if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
+			h.writeError(w, http.StatusNotFound, "not found")
+			return
+		}
+		h.logger.Error("delete conversation", "id", id, "error", err)
+		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type renameRequest struct {
+	Title string `json:"title"`
+}
+
+func (h *Handler) renameConversation(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !uuidRE.MatchString(id) {
+		h.writeError(w, http.StatusBadRequest, "invalid conversation id")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	var req renameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Title == "" {
+		h.writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	title := req.Title
+	if utf8.RuneCountInString(title) > maxTitleRunes {
+		runes := []rune(title)
+		title = string(runes[:maxTitleRunes])
+	}
+	if err := h.storage.SaveTitle(id, title); err != nil {
+		if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
+			h.writeError(w, http.StatusNotFound, "not found")
+			return
+		}
+		h.logger.Error("rename conversation", "id", id, "error", err)
+		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]string{"id": id, "title": title})
 }
 
 func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
