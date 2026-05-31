@@ -234,7 +234,7 @@ func TestComplete_ResponseFormatForwarded(t *testing.T) {
 // ── TestNewClient ─────────────────────────────────────────────────────────────
 
 func TestNewClient_DefaultURL(t *testing.T) {
-	c := NewClient("my-key", "", 30*time.Second, 2, nil)
+	c := NewClient("my-key", "", 30*time.Second, 2, nil, nil)
 	if c.apiKey != "my-key" {
 		t.Errorf("apiKey: got %q, want %q", c.apiKey, "my-key")
 	}
@@ -254,7 +254,7 @@ func TestNewClient_DefaultURL(t *testing.T) {
 
 func TestNewClient_CustomURL(t *testing.T) {
 	const custom = "http://localhost:11434/v1/chat/completions"
-	c := NewClient("ollama", custom, 10*time.Second, 0, nil)
+	c := NewClient("ollama", custom, 10*time.Second, 0, nil, nil)
 	if c.baseURL != custom {
 		t.Errorf("baseURL: got %q, want %q", c.baseURL, custom)
 	}
@@ -264,7 +264,7 @@ func TestNewClient_CustomURL(t *testing.T) {
 }
 
 func TestNewClient_NegativeRetriesClampedToZero(t *testing.T) {
-	c := NewClient("k", "", time.Second, -5, nil)
+	c := NewClient("k", "", time.Second, -5, nil, nil)
 	if c.maxRetries != 0 {
 		t.Errorf("maxRetries: got %d, want 0 (clamped)", c.maxRetries)
 	}
@@ -651,5 +651,82 @@ func TestIsRetriableStatus(t *testing.T) {
 				t.Errorf("isRetriableStatus(%d) = %v, want %v", tc.code, got, tc.want)
 			}
 		})
+	}
+}
+
+// ── Circuit breaker smoke tests ───────────────────────────────────────────────
+
+// TestComplete_CircuitOpen_FailsFast verifies Complete returns council.ErrCircuitOpen
+// immediately (no HTTP call) when the circuit breaker is open.
+func TestComplete_CircuitOpen_FailsFast(t *testing.T) {
+	var called bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		writeJSON(w, mockCompletion{Choices: []struct {
+			Message struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+		}{{Message: struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}{Role: "assistant", Content: "hello"}}}})
+	}))
+	defer srv.Close()
+
+	cb := NewCircuitBreaker(CircuitBreakerConfig{
+		FailureThreshold: 1,
+		WindowDuration:   time.Minute,
+		ResetTimeout:     time.Hour,
+	})
+	cb.RecordFailure() // force open
+
+	c := testClient("key", srv)
+	c.cb = cb
+
+	_, err := c.Complete(context.Background(), council.CompletionRequest{Model: "m"})
+	if !errors.Is(err, council.ErrCircuitOpen) {
+		t.Errorf("want council.ErrCircuitOpen, got %v", err)
+	}
+	if called {
+		t.Error("HTTP server should not have been called when circuit is open")
+	}
+}
+
+// TestComplete_CircuitClosed_RecordsSuccess verifies a successful call transitions
+// the CB through half-open to closed.
+func TestComplete_CircuitClosed_RecordsSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, mockCompletion{Choices: []struct {
+			Message struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+		}{{Message: struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}{Role: "assistant", Content: "ok"}}}})
+	}))
+	defer srv.Close()
+
+	cb := NewCircuitBreaker(CircuitBreakerConfig{
+		FailureThreshold: 1,
+		WindowDuration:   time.Minute,
+		ResetTimeout:     10 * time.Millisecond,
+	})
+	cb.RecordFailure() // open
+	time.Sleep(20 * time.Millisecond)
+	// Now in half-open — one probe allowed.
+
+	c := testClient("key", srv)
+	c.cb = cb
+
+	_, err := c.Complete(context.Background(), council.CompletionRequest{Model: "m"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// CB should now be closed — allow a second call.
+	if !cb.Allow() {
+		t.Error("circuit should be closed after successful probe")
 	}
 }

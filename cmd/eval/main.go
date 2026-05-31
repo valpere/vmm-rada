@@ -191,7 +191,12 @@ func run() error {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}
 
-	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
+	cb := openrouter.NewCircuitBreaker(openrouter.CircuitBreakerConfig{
+		FailureThreshold: cfg.CBFailureThreshold,
+		WindowDuration:   time.Duration(cfg.CBWindowDurationSecs) * time.Second,
+		ResetTimeout:     time.Duration(cfg.CBResetTimeoutSecs) * time.Second,
+	})
+	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger, cb)
 	runner := council.NewCouncil(client, registry, logger)
 
 	// Honour SIGINT / SIGTERM mid-run — the harness is sequential, so

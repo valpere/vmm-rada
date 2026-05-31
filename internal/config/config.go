@@ -86,6 +86,14 @@ type Config struct {
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
 	LLMAPIMaxRetries int
+
+	// Circuit breaker parameters. Invalid values warn and fall back to defaults.
+	// CBFailureThreshold: consecutive terminal failures before opening. Default 5.
+	// CBWindowDurationSecs: sliding failure-count window in seconds. Default 60.
+	// CBResetTimeoutSecs: seconds in open state before a probe is allowed. Default 30.
+	CBFailureThreshold    int
+	CBWindowDurationSecs  int
+	CBResetTimeoutSecs    int
 }
 
 // Load reads configuration from environment variables and returns an error if
@@ -339,6 +347,36 @@ func Load() (*Config, error) {
 		}
 	}
 
+	cbFailureThreshold := 5
+	if raw := os.Getenv("LLM_CB_FAILURE_THRESHOLD"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			cbFailureThreshold = v
+		} else {
+			slog.Warn("LLM_CB_FAILURE_THRESHOLD is invalid; using fallback value",
+				"value", raw, "fallback", cbFailureThreshold)
+		}
+	}
+
+	cbWindowDurationSecs := 60
+	if raw := os.Getenv("LLM_CB_WINDOW_DURATION_SECS"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			cbWindowDurationSecs = v
+		} else {
+			slog.Warn("LLM_CB_WINDOW_DURATION_SECS is invalid; using fallback value",
+				"value", raw, "fallback", cbWindowDurationSecs)
+		}
+	}
+
+	cbResetTimeoutSecs := 30
+	if raw := os.Getenv("LLM_CB_RESET_TIMEOUT_SECS"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			cbResetTimeoutSecs = v
+		} else {
+			slog.Warn("LLM_CB_RESET_TIMEOUT_SECS is invalid; using fallback value",
+				"value", raw, "fallback", cbResetTimeoutSecs)
+		}
+	}
+
 	return &Config{
 		ProviderName:                providerName,
 		ProviderAPIKey:              apiKey,
@@ -376,5 +414,9 @@ func Load() (*Config, error) {
 		DelphiConvergenceThreshold: delphiConvergenceThreshold,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
+
+		CBFailureThreshold:   cbFailureThreshold,
+		CBWindowDurationSecs: cbWindowDurationSecs,
+		CBResetTimeoutSecs:   cbResetTimeoutSecs,
 	}, nil
 }

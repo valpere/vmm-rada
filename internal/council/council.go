@@ -1,28 +1,43 @@
 package council
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 )
 
+// ErrCircuitOpen is returned by LLMClient.Complete when the circuit breaker is
+// open and the call is rejected without an HTTP attempt. Defined here so both
+// the openrouter implementation and the council runner can reference it without
+// a circular import.
+var ErrCircuitOpen = errors.New("circuit breaker open")
+
 // QuorumError is returned when not enough council members responded successfully.
 type QuorumError struct {
-	Got  int
-	Need int
+	Got    int
+	Need   int
+	Reason string // "provider circuit open" when all failures are ErrCircuitOpen; empty otherwise
 }
 
 func (e *QuorumError) Error() string {
+	if e.Reason != "" {
+		return fmt.Sprintf("council quorum not met: got %d successful responses, need %d (%s)", e.Got, e.Need, e.Reason)
+	}
 	return fmt.Sprintf("council quorum not met: got %d successful responses, need %d", e.Got, e.Need)
 }
 
 // checkQuorum filters results to successful entries and verifies the minimum quorum.
 // M_min = max(2, ⌈N/2⌉+1) where N = len(results), unless minQuorum > 0 overrides it.
 // Returns the successful subset or *QuorumError if the threshold is not met.
+// QuorumError.Reason is set to "provider circuit open" when every failed member
+// returned ErrCircuitOpen.
 func checkQuorum(results []StageOneResult, minQuorum int) ([]StageOneResult, error) {
-	var successful []StageOneResult
+	var successful, failed []StageOneResult
 	for _, r := range results {
 		if r.Error == nil {
 			successful = append(successful, r)
+		} else {
+			failed = append(failed, r)
 		}
 	}
 	n := len(results)
@@ -31,9 +46,27 @@ func checkQuorum(results []StageOneResult, minQuorum int) ([]StageOneResult, err
 		need = max(2, (n+1)/2+1) // ⌈N/2⌉ = (N+1)/2 in integer arithmetic
 	}
 	if len(successful) < need {
-		return nil, &QuorumError{Got: len(successful), Need: need}
+		qe := &QuorumError{Got: len(successful), Need: need}
+		if allCircuitOpen(failed) {
+			qe.Reason = "provider circuit open"
+		}
+		return nil, qe
 	}
 	return successful, nil
+}
+
+// allCircuitOpen returns true when every entry in failed has ErrCircuitOpen as
+// its error. Returns false for an empty slice (no failures ≠ all circuit open).
+func allCircuitOpen(failed []StageOneResult) bool {
+	if len(failed) == 0 {
+		return false
+	}
+	for _, r := range failed {
+		if !errors.Is(r.Error, ErrCircuitOpen) {
+			return false
+		}
+	}
+	return true
 }
 
 // assignLabels assigns anonymous labels to models using a per-request random shuffle.

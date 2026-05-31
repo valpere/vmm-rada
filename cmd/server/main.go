@@ -146,7 +146,12 @@ func main() {
 		}
 	}
 
-	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger)
+	cb := openrouter.NewCircuitBreaker(openrouter.CircuitBreakerConfig{
+		FailureThreshold: cfg.CBFailureThreshold,
+		WindowDuration:   time.Duration(cfg.CBWindowDurationSecs) * time.Second,
+		ResetTimeout:     time.Duration(cfg.CBResetTimeoutSecs) * time.Second,
+	})
+	client := openrouter.NewClient(cfg.ProviderAPIKey, cfg.LLMBaseURL, 120*time.Second, cfg.LLMAPIMaxRetries, logger, cb)
 	runner := council.NewCouncil(client, registry, logger)
 
 	store, err := storage.NewStore(cfg.DataDir, logger)
