@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Implement a GitHub issue end-to-end — branch, code, tests, PR, Copilot review (once), merge, resolve. Without args: shows top 5 unblocked issues to select from. With issue number or title: ships that issue directly.
+description: Implement a GitHub issue end-to-end — branch, code, tests, PR, /fix-review, merge, resolve. Without args: shows top 5 unblocked issues to select from. With issue number or title: ships that issue directly.
 user-invocable: true
 argument-hint: "[issue-number | issue-title]"
 metadata:
@@ -14,14 +14,14 @@ metadata:
 Implement one GitHub issue from selection to merged PR, then present the next.
 
 ```
-select issue → read issue + files → resolve uncertainties → branch → implement → pre-flight → PR → Copilot (once) → address → merge → Resolved → next
+select issue → read issue + files → resolve uncertainties → branch → implement → pre-flight → PR → /fix-review → merge → Resolved → next
 ```
 
 ## Rules
 
 - **One issue at a time.** Never work on multiple issues in parallel.
 - **Branch protection** — no direct pushes to `main`. Always use a PR.
-- **Copilot review once.** Poll for it yourself. Address comments if any. Then merge. Do not wait for a second review.
+- **Run `/fix-review` after PR creation.** Three-round review (security + simplifier + tech-lead) then arbiter. Address findings in one commit. Then merge.
 - Only ship PRs created by Claude or explicitly named by the user. Never touch Dependabot PRs.
 - After merge: checkout main, pull, then present the next unblocked issue.
 
@@ -105,7 +105,7 @@ Before touching any code, identify everything that is ambiguous or has more than
 | Multiple valid options with real trade-offs | List them numbered. **Stop and wait for user selection.** |
 | No solution found — spec is genuinely incomplete | State what is missing. **Stop and ask for clarification.** |
 
-Do not branch until all uncertainties are resolved. A question answered before implementation costs nothing; a question discovered during Copilot review costs a round-trip.
+Do not branch until all uncertainties are resolved. A question answered before implementation costs nothing; a question discovered during /fix-review costs a round-trip.
 
 ---
 
@@ -175,46 +175,22 @@ Debt emoji: `⚡` quick-fix · `⚖️` balanced · `🏗️` proper-refactor
 
 ---
 
-## Step 7: Wait for Copilot review (poll yourself)
+## Step 7: Run /fix-review
 
-Check review status yourself — do not ask the user:
+Invoke `/fix-review <number>` to run the three-round review pipeline:
+1. Round 1 — `go-security-reviewer` (security vulnerabilities)
+2. Round 2 — `code-simplifier` (complexity, redundancy)
+3. Round 3 — `tech-lead` (architectural compliance)
+4. Round 4 — Arbiter: CONFIRM / DISMISS / DEFER each finding
 
-```bash
-# Poll until a review appears or 5 minutes pass
-gh pr view <number> --repo valpere/vmm-rada --json reviews,statusCheckRollup
-```
-
-Or watch checks:
-```bash
-gh pr checks <number> --watch --interval 30
-```
-
-Once Copilot has posted its review (or 5 minutes have elapsed with no review), proceed.
+Address all CONFIRM findings in one commit; push. `/fix-review` merges when no blockers remain.
 
 ---
 
-## Step 8: Address Copilot comments (if any)
+## Step 8: (handled by /fix-review)
 
-Fetch the review comments:
-
-```bash
-gh pr view <number> --repo valpere/vmm-rada --json reviews \
-  --jq '.reviews[] | select(.author.login == "copilot-pull-request-reviewer") | .body'
-
-gh api repos/valpere/vmm-rada/pulls/<number>/comments \
-  --jq '.[] | "[\(.path):\(.line)] \(.body)"'
-```
-
-- If **no comments**: skip to Step 9.
-- If **there are comments**: address each one, commit the fixes, push.
-
-```bash
-git add <files>
-git commit -m "address Copilot review comments"
-git push
-```
-
-**One round only.** Do not wait for re-review after pushing fixes.
+`/fix-review` posts a PR comment summarising all rounds and merges once clean.
+No manual polling or comment-fetching needed.
 
 ---
 
@@ -240,7 +216,7 @@ If not closed automatically:
 gh issue close <number> --repo valpere/vmm-rada --comment "Resolved in PR #<pr-number>."
 ```
 
-Report: issue closed, PR merged, what Copilot flagged (if anything).
+Report: issue closed, PR merged, what /fix-review found and addressed.
 
 ---
 
@@ -257,4 +233,4 @@ Show the next unblocked issue from the queue (same query as Step 0, skip already
 - Do not bump version numbers or update changelogs unless asked.
 - Do not open follow-up issues unless review reveals a real bug outside PR scope.
 - Do not run `go mod tidy` unless the PR adds/removes dependencies.
-- Do not invoke `/fix-review` — this skill handles the review loop itself.
+- Do not skip `/fix-review` — it is the required review gate before merge.
