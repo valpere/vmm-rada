@@ -36,10 +36,11 @@ post_summary_to_pr: true
 telemetry_enabled: true
 
 pricing:
-  "qwen3-coder-next:cloud":  { input: 0.00, output: 0.00 }
-  "deepseek-v4-flash:cloud": { input: 0.00, output: 0.00 }
-  "glm-5.1:cloud":           { input: 0.00, output: 0.00 }
-  # Local failover models
+  # Active cloud reviewers (reviewers.openrouter.round_1/2/3)
+  "qwen3-coder-next:cloud":    { input: 0.00, output: 0.00 }
+  "minimax-m2.7:cloud":        { input: 0.00, output: 0.00 }
+  "devstral-small-2:24b-cloud": { input: 0.00, output: 0.00 }
+  # Local failover models (reviewers.cli)
   "qwen3-coder:30b":  { input: 0.00, output: 0.00 }
   "qwen2.5-coder:7b": { input: 0.00, output: 0.00 }
   "granite3.3:8b":    { input: 0.00, output: 0.00 }
