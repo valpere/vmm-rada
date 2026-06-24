@@ -82,27 +82,37 @@ Read `.claude/skills/fix-review/config.yaml`. Extract:
 - `openrouter_api_url` — Ollama endpoint (`http://localhost:11434/v1/chat/completions`)
 - `reviewers.cli` — local failover models (used if cloud endpoint unreachable)
 
-Probe the endpoint and verify at least one configured model is loaded:
+First, extract the actual model names you just read from `config.yaml`:
 ```bash
-AVAILABLE=$(curl -sf --max-time 5 http://localhost:11434/v1/models 2>/dev/null \
-  | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+# Use the exact model name strings from reviewers.openrouter.round_1/2/3
+ROUND1="<exact round_1 model string>"   # e.g. qwen3-coder-next:cloud
+ROUND2="<exact round_2 model string>"   # e.g. minimax-m2.7:cloud
+ROUND3="<exact round_3 model string>"   # e.g. devstral-small-2:24b-cloud
+```
 
-# Check if any of the three configured round models are in the available list
-ROUND1_MODEL="<round_1 model from config>"
-ROUND2_MODEL="<round_2 model from config>"
-ROUND3_MODEL="<round_3 model from config>"
+Then probe the endpoint:
+```bash
+MODELS_JSON=$(curl -sf --max-time 5 http://localhost:11434/v1/models 2>/dev/null)
 
-if echo "$AVAILABLE" | grep -qF "$ROUND1_MODEL" \
-   || echo "$AVAILABLE" | grep -qF "$ROUND2_MODEL" \
-   || echo "$AVAILABLE" | grep -qF "$ROUND3_MODEL"; then
-  TIER="cloud"
+if [ -z "$MODELS_JSON" ]; then
+  TIER="cli"
+  echo "⚠️  Ollama endpoint unreachable — using CLI tier"
 else
-  TIER="cli"   # endpoint up but no configured models loaded
-  echo "⚠️  Ollama online but no configured reviewer models available — falling back to CLI tier"
+  # Extract model IDs robustly (handles spaces after colon in JSON)
+  AVAILABLE=$(echo "$MODELS_JSON" | grep -oP '"id"\s*:\s*"\K[^"]+')
+  if echo "$AVAILABLE" | grep -qF "$ROUND1" \
+     || echo "$AVAILABLE" | grep -qF "$ROUND2" \
+     || echo "$AVAILABLE" | grep -qF "$ROUND3"; then
+    TIER="cloud"
+  else
+    TIER="cli"
+    echo "⚠️  Ollama online but none of the configured models loaded — using CLI tier"
+    echo "    Expected one of: $ROUND1 | $ROUND2 | $ROUND3"
+  fi
 fi
 ```
 
-If endpoint unreachable OR no configured models loaded → use CLI failover tier (`reviewers.cli`).
+If `TIER="cli"` for any reason → use CLI failover tier (`reviewers.cli`).
 
 ### 3. Concurrent review dispatch
 
