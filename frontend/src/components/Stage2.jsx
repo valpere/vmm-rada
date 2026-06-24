@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './Stage2.css';
+import Markdown from './Markdown';
 
 function modelShortName(model) {
   return model.split('/')[1] || model;
@@ -134,8 +135,8 @@ function VoteCluster({ cluster, isWinner, totalVotes }) {
           {cluster.votes} {cluster.votes === 1 ? 'vote' : 'votes'}
         </div>
       </div>
-      <div className={`vote-representative${longText && !expanded ? ' collapsed' : ''}`}>
-        {cluster.representative}
+      <div className={`vote-representative markdown-content${longText && !expanded ? ' collapsed' : ''}`}>
+        <Markdown>{cluster.representative}</Markdown>
       </div>
       {longText && (
         <button
@@ -234,8 +235,8 @@ function RankRefineCandidate({ candidate, criteria, candidateContent }) {
       </div>
       {candidateContent && (
         <>
-          <div className={`rank-candidate-content${longText && !expanded ? ' collapsed' : ''}`}>
-            {candidateContent}
+          <div className={`rank-candidate-content markdown-content${longText && !expanded ? ' collapsed' : ''}`}>
+            <Markdown>{candidateContent}</Markdown>
           </div>
           {longText && (
             <button
@@ -329,11 +330,11 @@ function DebaterRow({ revision, isDropout }) {
       {revision.critique && (
         <div className="debate-critique">
           <span className="debate-critique-label">Critique:</span>
-          <span className="debate-critique-text">{revision.critique}</span>
+          <div className="debate-critique-text markdown-content"><Markdown>{revision.critique}</Markdown></div>
         </div>
       )}
-      <div className={`debate-revision${longText && !expanded ? ' collapsed' : ''}`}>
-        {revision.content}
+      <div className={`debate-revision markdown-content${longText && !expanded ? ' collapsed' : ''}`}>
+        <Markdown>{revision.content}</Markdown>
       </div>
       {longText && (
         <button
@@ -422,8 +423,8 @@ function MoaProposerRow({ result }) {
       <div className="moa-row-header">
         <span className="moa-row-label">{result.label}</span>
       </div>
-      <div className={`moa-row-content${longText && !expanded ? ' collapsed' : ''}`}>
-        {result.content}
+      <div className={`moa-row-content markdown-content${longText && !expanded ? ' collapsed' : ''}`}>
+        <Markdown>{result.content}</Markdown>
       </div>
       {longText && (
         <button
@@ -451,8 +452,8 @@ function MoaAggregatorRow({ aggregator }) {
           <span className="moa-sources">Sources: {sources.join(', ')}</span>
         )}
       </div>
-      <div className={`moa-row-content${longText && !expanded ? ' collapsed' : ''}`}>
-        {aggregator.content}
+      <div className={`moa-row-content markdown-content${longText && !expanded ? ' collapsed' : ''}`}>
+        <Markdown>{aggregator.content}</Markdown>
       </div>
       {longText && (
         <button
