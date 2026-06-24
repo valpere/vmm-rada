@@ -1,10 +1,10 @@
 ---
 name: fix-review
-description: Multi-model PR review pipeline. Runs 3 sequential reviewer rounds (each on the delta since the previous round), then an arbiter pass that confirms, dismisses, or defers each finding, then merges. Replaces the single-round GitHub Copilot loop with a deeper review cycle. Invoke with an optional PR number (defaults to the current branch's open PR).
+description: Multi-model PR review pipeline. Dispatches the diff concurrently to 3 reviewer models (config.yaml), tallies vote counts per finding (informational), then Claude acts as arbiter (CONFIRM / DISMISS / DEFER) and merges when clean. Invoke with an optional PR number (defaults to the current branch's open PR).
 user-invocable: true
 argument-hint: "[pr-number]"
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
   domain: code-review
   scope: quality-gate
   debt-level: balanced
@@ -14,7 +14,7 @@ metadata:
 
 Multi-model PR review pipeline for vmm-rada.
 
-## Code Review Pyramid (fix in this order — base first)
+## Code Review Pyramid (arbiter evaluates in this order — base first)
 
 ```
         ▲
@@ -34,15 +34,28 @@ Multi-model PR review pipeline for vmm-rada.
 ## Pipeline
 
 ```
-Round 1: go-security-reviewer  — full diff  → fix → commit+push
-Round 2: code-simplifier       — delta diff → fix → commit+push
-Round 3: tech-lead             — delta diff → fix → commit+push
-Round 4: Arbiter (you)         — full diff + all round findings
-                                 → CONFIRM / DISMISS / DEFER each finding
-                                 → merge if no blockers remain
+Concurrent dispatch (config.yaml reviewers.openrouter.*):
+  Reviewer model 1 (round_1) ──┐
+  Reviewer model 2 (round_2) ──┼──→ JSON findings arrays
+  Reviewer model 3 (round_3) ──┘
+       ↓
+  Vote tally: group by file:line, attach count N/3 (informational only)
+  All findings reach the arbiter — votes do not gate
+       ↓
+  Arbiter (Claude, main instance)
+    → full diff + all findings with vote metadata
+    → CONFIRM / DISMISS / DEFER each finding
+    → fix CONFIRM findings → commit+push
+    → post PR comment with vote table
+    → merge if no CONFIRM blockers remain
 ```
 
-**Loop detection:** if round N flags ≥ 80% of the same file:line pairs as round N-1, stop — the reviewers are cycling. Proceed to arbiter.
+Note: `config.yaml` uses `round_1/round_2/round_3` keys for historical reasons — these
+are concurrent dispatches, not sequential rounds. The models to use are always read from
+`config.yaml`; do not hardcode model names here.
+
+CLI failover tier (config.yaml `reviewers.cli`) engages automatically when the Ollama
+cloud endpoint probe fails — same flow, local models instead of cloud.
 
 ## Step-by-step execution
 
@@ -60,126 +73,104 @@ Confirm the PR is open. Store the PR number as `$PR`.
 gh pr diff $PR
 ```
 
-Store it as the **baseline diff** (used in Round 1 and Round 4).
+Store it as the **baseline diff** (used in dispatch and arbiter pass).
 
-### 2. Round 1 — Security review (go-security-reviewer agent)
+### 2. Load reviewer config
 
-Launch the `go-security-reviewer` agent with the full baseline diff as context.
+Read `.claude/skills/fix-review/config.yaml`. Extract:
+- `reviewers.openrouter.round_1/2/3` — cloud reviewer models
+- `openrouter_api_url` — Ollama endpoint (`http://localhost:11434/v1/chat/completions`)
+- `reviewers.cli` — local failover models (used if cloud endpoint unreachable)
 
-Prompt: "Review this PR diff for security vulnerabilities (OWASP Top 10, injection, hardcoded secrets, unsafe API usage, insecure config). Report only actionable findings ranked by severity. Do not flag style."
-
-For each High/Medium finding:
-1. Apply the fix using Edit.
-2. Stage + commit: `git commit -m "fix(pr#$PR): address review comments — round 1"`
-3. Push: `git push`
-
-After all fixes, capture the **Round 1 findings list** (file:line + severity + description) for loop detection.
-
-### 3. Round 2 — Simplification (code-simplifier agent)
-
-Fetch the delta since Round 1 baseline:
+Probe the endpoint:
 ```bash
-git diff origin/main...HEAD
+curl -sf --max-time 5 http://localhost:11434/v1/models > /dev/null 2>&1 && echo "cloud" || echo "cli"
 ```
 
-Launch the `code-simplifier` agent with that delta diff.
+If probe fails → use CLI failover tier (`ollama-review.sh` scripts from `reviewers.cli`).
 
-Prompt: "Review only the changed code in this diff for unnecessary complexity, redundancy, or readability issues. Focus on implementation quality. Do not flag style."
+### 3. Concurrent review dispatch
 
-For each finding:
-1. Apply simplification.
-2. Commit: `git commit -m "fix(pr#$PR): address review comments — round 2"`
-3. Push.
+Build the review prompt combining the baseline diff with instructions:
 
-Capture **Round 2 findings list** for loop detection. Compare against Round 1 — if ≥ 80% overlap on file:line, skip Round 3.
+> "Review this PR diff. Return ONLY a raw JSON array of findings — no prose, no markdown
+> fences. Each finding: `{\"file\": \"path\", \"line\": N, \"layer\": 1-5, \"severity\":
+> \"error|warn|sugg\", \"description\": \"...\"}`. Flag only real issues per the Code
+> Review Pyramid. Layer 5 (style) is never flagged."
 
-### 4. Round 3 — Architecture review (tech-lead agent)
+Send the prompt to each reviewer model via `ollama-review.sh`:
 
-Fetch the delta since Round 2:
 ```bash
-git diff origin/main...HEAD
+PROMPT="<diff + instructions>"
+
+R1=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_1_model>)
+R2=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_2_model>)
+R3=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_3_model>)
 ```
 
-Launch the `tech-lead` agent with that delta diff.
+Each call returns a JSON array (empty `[]` on parse failure — safe degradation).
 
-Prompt: "Review the changed code for architectural violations: layer breaches, dependency inversion violations, missing interfaces, incorrect responsibility assignment. Focus on architecture and API design. Do not flag style."
+### 4. Tally findings
 
-For each finding:
-1. Apply the fix.
-2. Commit: `git commit -m "fix(pr#$PR): address review comments — round 3"`
-3. Push.
+Merge all three arrays. Group findings by `file:line`. For each unique `file:line`,
+count how many of the 3 models flagged it.
 
-Capture **Round 3 findings list**.
+Attach `votes: N/3` to each finding as **informational metadata only**. All findings
+(even `votes: 1/3`) are passed to the arbiter — vote counts are a confidence signal,
+not a gate. The arbiter's dismiss rate (~80%) is the actual filter.
 
-### 5. Round 4 — Arbiter (you, as main Claude instance)
+### 5. Arbiter pass (Claude, main instance)
 
-Fetch the full PR diff again (post all fixes):
+Re-fetch the full diff post-dispatch (should be unchanged, but confirms branch state):
 ```bash
 gh pr diff $PR
 ```
 
-Consolidate all findings from Rounds 1–3. For each unique finding (de-duped by file:line),
-apply the Code Review Pyramid — Layer 1 issues first:
+For each finding (ordered Layer 1 first), apply the Code Review Pyramid:
 
 | Ruling | Meaning | Action |
 |--------|---------|--------|
 | **CONFIRM** | Real issue, correctly identified | Fix it |
-| **ESCALATE** | Real issue, more severe than flagged (e.g., warning → security error) | Fix it, note severity upgrade |
-| **DISMISS** | False positive or conflicts with project patterns (often Layer 5 / style) | Skip, note reason |
+| **ESCALATE** | Real issue, more severe than flagged | Fix it, note severity upgrade |
+| **DISMISS** | False positive or conflicts with project patterns | Skip, note reason |
 | **DEFER** | Valid concern, out of scope for this PR | Create a GitHub issue |
 
-Also run an **independent scan** of the full diff — look for anything rounds 1–3 missed.
+Also run an **independent scan** of the full diff — look for anything the models missed.
 
-For any fix commits in the arbiter round:
+For CONFIRM/ESCALATE findings:
+1. Apply the fix using Edit.
+2. Commit + push:
 ```bash
-git commit -m "fix(pr#$PR): arbiter round — confirm, escalate, and independent findings"
+git add <files>
+git commit -m "fix(pr#$PR): arbiter — address confirmed findings"
+git push
 ```
 
-Post a single PR comment summarising all rounds using collapsible blocks:
-
-```
-<details>
-<summary>Round 1 — go-security-reviewer (N issues found, N fixed)</summary>
-
-| File | Line | Layer | Severity | Status | Issue |
-|------|------|-------|----------|--------|-------|
-| internal/api/handler.go | 82 | 2 | error | fixed | ... |
-
-</details>
-
-<details>
-<summary>Round 2 — code-simplifier (N issues found, N fixed)</summary>
-
-| File | Line | Layer | Severity | Status | Issue |
-|------|------|-------|----------|--------|-------|
-
-</details>
-
-<details>
-<summary>Round 3 — tech-lead (N issues found, N fixed)</summary>
-
-| File | Line | Layer | Severity | Status | Issue |
-|------|------|-------|----------|--------|-------|
-
-</details>
-
-<details>
-<summary>Round 4 — Arbiter (Claude) · N confirmed · N escalated · N dismissed · N deferred</summary>
-
-| File | Line | Layer | Ruling | Issue |
-|------|------|-------|--------|-------|
-| internal/council/council.go | 130 | 2 | CONFIRM | ... |
-| internal/api/handler.go | 45 | 5 | DISMISS | style preference, not flagged by pyramid |
-
-</details>
-```
-
-For any DEFER items, create a GitHub issue:
+For DEFER findings:
 ```bash
 gh issue create --title "..." --body "..."
 ```
 
-### 6. Merge decision
+### 6. Post PR comment
+
+Post a single collapsible summary:
+
+```
+<details>
+<summary>/fix-review — parallel pass · N findings · N confirmed · N dismissed · N deferred</summary>
+
+| File:Line | Votes | Layer | Sev | Ruling | Note |
+|-----------|-------|-------|-----|--------|------|
+| path/file.go:42 | 2/3 | 2 | error | CONFIRM | nil dereference on empty slice |
+| path/file.go:87 | 1/3 | 5 | sugg | DISMISS | style — not flagged by pyramid |
+
+Models: <round_1_model>, <round_2_model>, <round_3_model> (from config.yaml)
+Arbiter: Claude Sonnet 4.6
+
+</details>
+```
+
+### 7. Merge decision
 
 If the diff contains files under `frontend/`, run:
 ```bash
@@ -208,8 +199,9 @@ git checkout main && git pull
 
 | State | Action |
 |-------|--------|
-| All rounds complete, no blockers | Merge |
-| Loop detected (≥80% overlap) | Skip to arbiter |
+| All findings arbitrated, no blockers | Merge |
+| Cloud endpoint unreachable | Fall back to CLI tier, proceed |
+| Model returns non-JSON | Treat as 0 findings for that model, proceed |
 | Round fails to push | Stop, report error to user |
 | PR already merged | Report and exit |
 | PR has merge conflicts | Stop, ask user to resolve |

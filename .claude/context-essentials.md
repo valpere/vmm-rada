@@ -37,7 +37,7 @@ contract and require Tech Lead override.
   github_issue). After issue creation, delete the plan file.
 - **Tech Lead approval** is the gate before any code generation.
 - **PRs** are squash-merged. Never merge commits or rebase-merge.
-- **`/fix-review`** runs 3 rounds: security + simplifier + tech-lead → arbiter.
+- **`/fix-review`** runs parallel multi-model review (see `config.yaml`) + Claude arbiter.
 
 ## Docs discipline
 
