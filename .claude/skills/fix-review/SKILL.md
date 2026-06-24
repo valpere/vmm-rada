@@ -82,12 +82,27 @@ Read `.claude/skills/fix-review/config.yaml`. Extract:
 - `openrouter_api_url` — Ollama endpoint (`http://localhost:11434/v1/chat/completions`)
 - `reviewers.cli` — local failover models (used if cloud endpoint unreachable)
 
-Probe the endpoint:
+Probe the endpoint and verify at least one configured model is loaded:
 ```bash
-curl -sf --max-time 5 http://localhost:11434/v1/models > /dev/null 2>&1 && echo "cloud" || echo "cli"
+AVAILABLE=$(curl -sf --max-time 5 http://localhost:11434/v1/models 2>/dev/null \
+  | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+
+# Check if any of the three configured round models are in the available list
+ROUND1_MODEL="<round_1 model from config>"
+ROUND2_MODEL="<round_2 model from config>"
+ROUND3_MODEL="<round_3 model from config>"
+
+if echo "$AVAILABLE" | grep -qF "$ROUND1_MODEL" \
+   || echo "$AVAILABLE" | grep -qF "$ROUND2_MODEL" \
+   || echo "$AVAILABLE" | grep -qF "$ROUND3_MODEL"; then
+  TIER="cloud"
+else
+  TIER="cli"   # endpoint up but no configured models loaded
+  echo "⚠️  Ollama online but no configured reviewer models available — falling back to CLI tier"
+fi
 ```
 
-If probe fails → use CLI failover tier (`ollama-review.sh` scripts from `reviewers.cli`).
+If endpoint unreachable OR no configured models loaded → use CLI failover tier (`reviewers.cli`).
 
 ### 3. Concurrent review dispatch
 
