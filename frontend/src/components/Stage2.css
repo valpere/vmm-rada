@@ -198,14 +198,11 @@
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.4;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .vote-representative.collapsed {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  max-height: 4em;
   overflow: hidden;
 }
 
@@ -330,14 +327,11 @@
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.4;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .rank-candidate-content.collapsed {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  max-height: 4em;
   overflow: hidden;
 }
 
@@ -424,14 +418,11 @@
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.4;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .debate-revision.collapsed {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  max-height: 4em;
   overflow: hidden;
 }
 
@@ -495,14 +486,11 @@
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.4;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .moa-row-content.collapsed {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  max-height: 4em;
   overflow: hidden;
 }
 
