@@ -1,6 +1,6 @@
 ---
 name: housekeeping
-description: "VMM Rada recurring repo health check. Runs 7 checks (stale branches, fmt.Println leaks, tracked .env, tracked backups, TODO/FIXME count, go vet, CI test delta) and outputs a pass/fail table. Usage: /housekeeping"
+description: "VMM Rada recurring repo health check. Runs 8 checks (stale branches, fmt.Println leaks, tracked .env, tracked backups, TODO/FIXME count, go vet, CI test delta, govulncheck) and outputs a pass/fail table. Usage: /housekeeping"
 ---
 
 # Skill: /housekeeping
@@ -11,7 +11,7 @@ description: "VMM Rada recurring repo health check. Runs 7 checks (stale branche
 ## OVERVIEW
 
 ```
-/housekeeping  →  7 checks  →  Markdown table: Check | Status | Detail
+/housekeeping  →  8 checks  →  Markdown table: Check | Status | Detail
                             →  Summary: N passed, M failed
 ```
 
@@ -115,6 +115,22 @@ If CI run log available, extract test count and compare:
 - `DELTA >= 0`: Pass — "N tests (delta: +M)"
 - `DELTA < 0`: Fail — "N tests (delta: -M — tests were removed)"
 - Unable to compare: SKIP — "CI test count not available in artifacts"
+
+---
+
+### Check 8 — govulncheck
+
+**Goal:** No known vulnerabilities in the Go module graph or toolchain.
+
+```bash
+go run golang.org/x/vuln/cmd/govulncheck@latest ./... 2>&1
+```
+
+**Pass:** exit 0 — no vulnerabilities found
+**Fail:** list CVE IDs and affected packages
+**Skip:** if network unavailable or `go run` fails (offline environment)
+
+Note: findings in transitive deps unrelated to the current toolchain pin are informational — flag them but do not block the report.
 
 ---
 
