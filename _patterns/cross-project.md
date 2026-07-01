@@ -11,3 +11,13 @@ A `govulncheck` hook wired into the pre-PR pipeline (e.g. as a PreToolUse:Bash h
 **Confirmed in:** vmm-rada `/fix-review` pipeline (PR #185 — caught GO-2026-4971 + GO-2026-4918 in go1.26.2, fixed by bumping to go1.26.3)
 
 **Applies to:** any Go project with a CI or pre-merge review pipeline.
+
+---
+
+## Batched /apply-dreaming cycles clear technical debt without context overload (2026-06-24)
+
+Grouping dreaming-report findings into one-issue-per-PR `/backlog → /ship` cycles (rather than one massive PR) keeps each change reviewable, CI green, and the session focused. 9 PRs shipped in one session with zero kitchen-sink contamination.
+
+**Confirmed in:** vmm-rada W25 apply-dreaming session (2026-06-24 — PRs #252, #254, #257, #259, #260)
+
+**Applies to:** all projects with dreaming reports; weekly `/apply-dreaming` sessions across `~/wrk/projects/` and `~/wrk/oblabz/`.
