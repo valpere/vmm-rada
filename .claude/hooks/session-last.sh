@@ -1,7 +1,8 @@
 #!/bin/bash
 # SessionStart hook: injects the most recent entry from .claude/session-log.md.
 #
-# Skips if the file doesn't exist or the last entry is older than 30 days.
+# Skips if the file doesn't exist or is empty. Rotation is count-based
+# (last 10 entries) — no age filtering here.
 
 set -euo pipefail
 
@@ -38,17 +39,12 @@ if [[ -z "$LAST_ENTRY" ]]; then
   exit 0
 fi
 
-# Parse date from entry header (## YYYY-MM-DD)
+# Parse date from entry header (## YYYY-MM-DD) — used only for the age label
 ENTRY_DATE=$(echo "$LAST_ENTRY" | grep -oP '^## \K\d{4}-\d{2}-\d{2}' || echo "")
 if [[ -n "$ENTRY_DATE" ]]; then
   ENTRY_TS=$(date -d "$ENTRY_DATE" +%s 2>/dev/null || echo 0)
   NOW=$(date +%s)
   AGE=$(( NOW - ENTRY_TS ))
-  MAX_AGE=$(( 30 * 24 * 3600 ))
-  if [[ $AGE -gt $MAX_AGE ]]; then
-    echo "[$(date -Iseconds)] session-last: last entry is >30d old, skipping" >> "$LOG_FILE"
-    exit 0
-  fi
   AGE_DAYS=$(( AGE / 86400 ))
   AGE_HOURS=$(( (AGE % 86400) / 3600 ))
   AGE_LABEL="${AGE_DAYS}d ${AGE_HOURS}h ago"

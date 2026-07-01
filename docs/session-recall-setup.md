@@ -181,7 +181,8 @@ Previous session context (2d 3h ago):
 - ...
 ```
 
-Injection is skipped if the last entry is older than 30 days.
+Injection is skipped only if `session-log.md` doesn't exist. Rotation is
+count-based (last 10 entries kept) — no age filtering.
 
 ---
 
