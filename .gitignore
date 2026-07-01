@@ -68,5 +68,12 @@ chromium/
 # fix-review operational telemetry (local, not shared)
 .claude/skills/fix-review/telemetry.jsonl
 
+# Session recall — per-project, local-only context log
+.claude/session-log.md
+.claude/last-session.md
+
 # Eval batch run output
 runs/
+
+# Session recall index — per-project, local-only
+.claude/sessions.db
