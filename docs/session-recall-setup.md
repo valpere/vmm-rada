@@ -181,8 +181,11 @@ Previous session context (2d 3h ago):
 - ...
 ```
 
-Injection is skipped only if `session-log.md` doesn't exist. Rotation is
-count-based (last 10 entries kept) — no age filtering.
+Injection is skipped if `session-log.md` doesn't exist or contains no
+`## YYYY-MM-DD` entries (e.g. an empty file). No age filtering — the age
+label is always shown so you can judge staleness yourself. Rotation
+(last 10 entries kept) is enforced by `session-end.sh` on write, not by
+this read-only injection hook.
 
 ---
 
