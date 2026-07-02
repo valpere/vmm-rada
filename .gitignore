@@ -77,3 +77,4 @@ runs/
 
 # Session recall index — per-project, local-only
 .claude/sessions.db
+.claude/sessions.db-*
