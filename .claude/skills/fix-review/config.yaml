@@ -11,9 +11,9 @@ api_key_env: AI_PROVIDER_API_KEY
 
 reviewers:
   openrouter:
-    round_1: { model: qwen3-coder-next:cloud }    # coding-focused, cloud quality
+    round_1: { model: qwen3.5:cloud }               # coding-focused, cloud quality
     round_2: { model: minimax-m2.7:cloud }          # MiniMax, non-thinking, long-ctx
-    round_3: { model: devstral-small-2:24b-cloud } # Mistral code model, non-thinking
+    round_3: { model: gemma4:31b-cloud }            # Gemma code model, non-thinking
 
   # Local failover tier — tools-capable models, no network dependency.
   # Engages automatically when the Ollama cloud endpoint probe fails.
@@ -37,9 +37,9 @@ telemetry_enabled: true
 
 pricing:
   # Active cloud reviewers (reviewers.openrouter.round_1/2/3)
-  "qwen3-coder-next:cloud":    { input: 0.00, output: 0.00 }
-  "minimax-m2.7:cloud":        { input: 0.00, output: 0.00 }
-  "devstral-small-2:24b-cloud": { input: 0.00, output: 0.00 }
+  "qwen3.5:cloud":       { input: 0.00, output: 0.00 }
+  "minimax-m2.7:cloud":  { input: 0.00, output: 0.00 }
+  "gemma4:31b-cloud":    { input: 0.00, output: 0.00 }
   # Local failover models (reviewers.cli)
   "qwen3-coder:30b":  { input: 0.00, output: 0.00 }
   "qwen2.5-coder:7b": { input: 0.00, output: 0.00 }

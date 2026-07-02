@@ -149,10 +149,10 @@ Rules: 10-20 bullets total, Ukrainian for content, English for code/file names."
 
 try_opencode() {
   local models=(
-    "ollama/glm-5:cloud"
-    "ollama/kimi-k2.5:cloud"
-    "ollama/minimax-m2.5:cloud"
-    "ollama/qwen3-coder-next:cloud"
+    "ollama/glm-5.2:cloud"
+    "ollama/kimi-k2.7-code:cloud"
+    "ollama/minimax-m3:cloud"
+    "ollama/qwen3.5:cloud"
   )
   command -v opencode &>/dev/null || return 1
   for model in "${models[@]}"; do
