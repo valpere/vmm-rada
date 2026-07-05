@@ -81,3 +81,10 @@ runs/
 
 # Playwright MCP scratch artifacts (console logs, page snapshots)
 .playwright-mcp/
+
+# Local .env diff scratch — contains real secret values, never commit
+.env.diff
+
+# MCP config — machine-specific, no secrets but per-machine server addresses
+.mcp.json
+frontend/.mcp.json
