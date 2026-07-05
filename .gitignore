@@ -78,3 +78,6 @@ runs/
 # Session recall index — per-project, local-only
 .claude/sessions.db
 .claude/sessions.db-*
+
+# Playwright MCP scratch artifacts (console logs, page snapshots)
+.playwright-mcp/
