@@ -132,6 +132,13 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./... 2>&1
 
 Note: findings in transitive deps unrelated to the current toolchain pin are informational — flag them but do not block the report.
 
+Backstopped by `.github/workflows/govulncheck.yml` (daily scheduled scan,
+auto-opens a `p1`/`security` issue on new findings) — this manual check
+is now a spot-check, not the only detection mechanism. Keep both: the
+scheduled workflow catches drift when nobody runs `/housekeeping` for
+weeks (the gap that let GO-2026-5856 sit undetected W25→W28); this
+check is still useful for an immediate pre-push read.
+
 ---
 
 ## OUTPUT FORMAT
