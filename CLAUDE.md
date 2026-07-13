@@ -25,7 +25,7 @@ configuration.
 
 ## Stack
 
-- **Backend:** Go 1.26.3
+- **Backend:** Go 1.26.5
 - **Frontend:** React 19 + Vite 8, plain JavaScript (no TypeScript) — lives in `frontend/`
 - **LLM Gateway:** configurable provider via `AI_PROVIDER_NAME` (default `openrouter`); URL override via `LLM_API_BASE_URL` for Ollama / vLLM
 - **API key:** `.env` → `AI_PROVIDER_API_KEY=<key>` (use any non-empty placeholder for keyless providers)
