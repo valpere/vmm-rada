@@ -1,7 +1,7 @@
 ---
 name: code-generator
 description: Use to implement a GitHub issue from start to finish — branch, code, tests, build verification, PR. Requires a tech-lead-approved plan before starting. Never writes documentation or modifies files outside the agreed plan scope.
-tools: Bash, Glob, Grep, Read, Edit, Write, LSP
+tools: Bash, Glob, Grep, Read, Edit, Write, LSP, Agent
 model: sonnet
 memory: project
 ---
