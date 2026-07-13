@@ -1,0 +1,90 @@
+name: govulncheck
+
+# Scheduled (not PR-gating) by design: the gap this closes is `main`
+# going quiet for weeks with no pushes to trigger a scan — a
+# push/PR-triggered check would never fire during exactly that dormant
+# window. See .claude/dreaming/reports/2026-W28.md §6 and issue #283.
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily, offset from dreaming.sh's Sunday 04:00 timer
+  workflow_dispatch: {} # allow manual runs (e.g. a dry-run test)
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run govulncheck
+        id: govulncheck
+        run: |
+          set +e
+          go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 -json ./... > govulncheck-output.json 2> govulncheck-stderr.log
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Report tool error (not a vulnerability finding)
+        if: steps.govulncheck.outputs.exit_code == '1'
+        run: |
+          echo "::error::govulncheck itself failed (exit 1) — see govulncheck-stderr.log"
+          cat govulncheck-stderr.log
+          exit 1
+
+      # govulncheck exit codes: 0 = clean, 3 = vulnerabilities found
+      # (reachable in the call graph), 1 = tool error.
+      - name: Create or update issues for new findings
+        if: steps.govulncheck.outputs.exit_code == '3'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CVE_IDS=$(jq -r 'select(.finding != null) | .finding.osv' govulncheck-output.json | sort -u)
+
+          if [ -z "$CVE_IDS" ]; then
+            echo "::error::govulncheck exited 3 (vulnerabilities found) but no .finding entries parsed — check govulncheck-output.json"
+            exit 1
+          fi
+
+          while IFS= read -r CVE; do
+            EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open \
+              --search "$CVE in:title" --json number --jq 'length')
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "Issue for $CVE already open — skipping (dedup by CVE ID)"
+              continue
+            fi
+
+            TRACE=$(jq -r --arg cve "$CVE" \
+              'select(.finding.osv == $cve) | .finding.trace[0] |
+               "- \(.package // "unknown package"): \(.function // .receiver // "")"' \
+              govulncheck-output.json | sort -u)
+
+            RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+            BODY_FILE=$(mktemp)
+            {
+              printf '## Summary\n\n'
+              printf 'Scheduled `govulncheck` run flagged **%s** as reachable in the call graph.\n\n' "$CVE"
+              printf 'Affected package(s)/call site(s):\n%s\n\n' "$TRACE"
+              printf 'Full JSON output: see the [workflow run](%s) logs.\n\n' "$RUN_URL"
+              printf '## Acceptance Criteria\n\n'
+              printf '- Toolchain or module bumped to a version where `govulncheck ./...` no longer flags %s\n' "$CVE"
+              printf '- `go build ./...` and `go test ./...` pass after the bump\n'
+            } > "$BODY_FILE"
+
+            gh issue create --repo "${{ github.repository }}" \
+              --title "security(tooling): $CVE flagged by govulncheck" \
+              --label "task" --label "p1: high" --label "security" \
+              --body-file "$BODY_FILE"
+          done <<< "$CVE_IDS"
