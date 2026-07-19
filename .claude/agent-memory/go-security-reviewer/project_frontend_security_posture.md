@@ -1,8 +1,8 @@
 ---
 name: Frontend security posture
-description: Security architecture decisions and known issues for vmm-rada frontend (updated 2026-07-13)
+description: Security architecture decisions and known issues for vmm-rada frontend (updated 2026-07-19)
 type: project
-last-verified: 2026-07-13
+last-verified: 2026-07-19
 ---
 
 Frontend was originally merged into monorepo in PR #52 (2026-03-31).
@@ -24,14 +24,17 @@ The codebase underwent a v2 clean-slate rewrite. This memory was refreshed
 
 **Known open security items:**
 - No CSP / security headers on Go backend responses (low severity, no issue tracked).
-- Go toolchain — `1.26.3` CVEs (GO-2026-5039/5037) were fixed by the bump to
-  `1.26.4` (PR #254). A new CVE surfaced 2026-07-12: **GO-2026-5856**
-  (crypto/tls ECH privacy leak), fixed in `1.26.5`, currently un-patched.
-  Rolling target — see dreaming report `2026-W28.md` §6 for trace sites
-  (`cmd/server/main.go:192`, `internal/openrouter/client.go:202,228`,
-  `internal/council/prompts.go:749`). Whether this warrants a `p1` is a
-  Tech Lead call (ECH privacy-leak exploitability for this server's threat
-  model), not yet decided as of 2026-07-13.
+
+**Resolved (Go toolchain CVE treadmill):**
+- `1.26.3` CVEs (GO-2026-5039/5037) fixed by the bump to `1.26.4` (PR #254).
+  `1.26.4`'s own **GO-2026-5856** (crypto/tls ECH privacy leak) fixed by the
+  bump to `1.26.5` (PR #285, issue #282) — Tech Lead confirmed `p2` (server
+  terminates no inbound TLS, ECH never configured). `go.mod` currently pins
+  `1.26.5`.
+- This recurring manual-detection gap is now closed structurally: a
+  scheduled daily `govulncheck.yml` CI gate (PR #286, issue #283) opens a
+  `p1`/`security` issue automatically on future toolchain CVEs — no longer
+  dependent on a dreaming pass noticing.
 
 **How to apply:** When reviewing `frontend/src/components/`, confirm no component
 uses `fetch()` directly or renders LLM content without the `<Markdown>` wrapper.
