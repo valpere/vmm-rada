@@ -26,11 +26,13 @@ configuration.
 ## Stack
 
 - **Backend:** Go 1.26.5
-- **Frontend:** React 19 + Vite 8, plain JavaScript (no TypeScript) — lives in `frontend/`
+- **Frontend:** React 19 + Vite 8, plain JavaScript (no TypeScript). **`frontend/` is deprecated** (2026-07-19) — active frontend development moved to [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui); this copy is a historical snapshot, not a place for new changes.
 - **LLM Gateway:** configurable provider via `AI_PROVIDER_NAME` (default `openrouter`); URL override via `LLM_API_BASE_URL` for Ollama / vLLM
 - **API key:** `.env` → `AI_PROVIDER_API_KEY=<key>` (use any non-empty placeholder for keyless providers)
 
 ## Frontend architecture rules (immutable)
+
+> **`frontend/` is deprecated** — see [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui) for active development. These rules still apply to this snapshot's code but new work does not belong here.
 
 These constraints are enforced by the `tech-lead` agent and must not be violated:
 

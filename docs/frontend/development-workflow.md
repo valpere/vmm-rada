@@ -1,5 +1,10 @@
 # Development Workflow
 
+> **⚠️ `frontend/` is deprecated.** Active frontend development moved to
+> [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui)
+> (2026-07-19). This document describes the workflow for the historical
+> snapshot in this monorepo, not the current active repo.
+
 This document describes the full development process for the VMM Rada frontend — from idea to merged code. It covers the roles of humans, skills, and agents, how they interact, and which tool to reach for in each situation.
 
 ---

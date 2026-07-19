@@ -1,5 +1,9 @@
 # VMM Rada — User Guide
 
+> **⚠️ `frontend/` is deprecated.** Active frontend development moved to
+> [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui)
+> (2026-07-19), which has its own up-to-date user guide.
+
 VMM Rada is a deliberation tool that asks several AI models the same question, has them peer-review each other's answers, then produces a synthesized final answer. The goal is a response that is more considered, more balanced, and less prone to a single model's blind spots than any individual model could produce alone.
 
 ---
