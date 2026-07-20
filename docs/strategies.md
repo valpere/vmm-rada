@@ -13,12 +13,22 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | Strategy | Status | Pipeline file | Implementation PR |
 |----------|--------|---------------|-------------------|
 | `PeerReview` | shipped | `runner.go:runPeerReview` | initial |
-| `RoleBased` | shipped | `rolebased.go:runRoleBased` | #177 |
+| `RoleBased` | implemented, **not registered** — see below | `rolebased.go:runRoleBased` | #177 |
 | `Majority` | shipped | `majority.go:runMajority` | #205 |
 | `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
 | `MultiAgentDebate` | shipped | `debate.go:runMultiAgentDebate` | #212 |
 | `MixtureOfAgents` | shipped | `moa.go:runMixtureOfAgents` | #214 |
 | `Delphi` | shipped | `delphi.go:runDelphi` | #216 |
+
+**`RoleBased` cannot be invoked today.** `RunFull` dispatches to `runRoleBased` and the
+pipeline is real and tested, but no `CouncilType{Strategy: RoleBased}` is ever registered
+in `cmd/server/main.go` — unlike every other strategy, it has no env var family to opt
+in with. This traces back to PR #199, which removed the dedicated `/review*` endpoints
+and their `review_roles.go` helper (see [What's not here](#whats-not-here) below): code
+review is slated to return "rebuilt on top of `Majority` or `MixtureOfAgents`," which
+reads as RoleBased itself being a superseded design rather than a strategy pending
+registration. Treat it as dead code until that decision is made explicit — see
+[`requirements.md`](./requirements.md#gap-analysis).
 
 ### LLM-call cost (per request, ignoring Stage 0)
 
@@ -105,7 +115,7 @@ Stage 2 is polymorphic. The on-the-wire envelope carries a `kind` discriminator 
 
 The `kind` field is **added** to the existing `Stage2CompleteData` shape — no field renames or removals — so today's clients keep working.
 
-PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. **Multi-round strategies** (`MultiAgentDebate` shipped; `Delphi` planned) fire a `stage2_round_complete` event per round followed by a terminal `stage2_complete` summary. The per-round event has a **required** `round: N` field (not omitempty); the terminal event omits `round` when zero. The terminal event's `metadata.debate` carries the canonical transcript across all rounds, so a client that misses round events can still render the full debate from the terminal event alone.
+PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's stub corresponds to `kind: "role_stub"`. **Multi-round strategies** (`MultiAgentDebate` and `Delphi`, both shipped) fire a `stage2_round_complete` event per round followed by a terminal `stage2_complete` summary. The per-round event has a **required** `round: N` field (not omitempty); the terminal event omits `round` when zero. The terminal event's `metadata.debate` carries the canonical transcript across all rounds, so a client that misses round events can still render the full debate from the terminal event alone.
 
 ### Stage 2 `kind` values
 
@@ -119,7 +129,9 @@ PeerReview's existing payload corresponds to `kind: "peer_ranking"`; RoleBased's
 | `moa_aggregator` | `MixtureOfAgents` | **shipped** | `metadata.moa_aggregator` is a `MoaAggregator` (`{aggregators: AggregatorOutput[]}`); `data` is `[]` (the aggregator drafts live in metadata, not per-reviewer). `AggregatorOutput` is `{label, model, content, sources: string[], duration_ms}`. `sources` lists the Layer-1 proposer labels fed into that aggregator (today: all-to-all, so every aggregator's `sources` lists every successful proposer). Aggregators are sorted by `label` asc. `metadata.label_to_model` is a single flat map containing both proposer (`Response A → …`) and aggregator (`Aggregator A → …`) entries. | always `0` (single aggregator pass; no `stage2_round_complete` events) |
 | `delphi_round` | `Delphi` | **shipped** | `metadata.delphi` is a `DelphiPanel` (`{rounds: DelphiRound[], final_round: int, converged: bool, criteria: string[]}`); `data` is `[]` (the rating transcript lives in metadata, not per-reviewer). `DelphiRound` is `{round, ratings: DelphiRating[], stats: DelphiStats}`. `DelphiRating` is `{label, model, scores: map<string, float64>, summary, duration_ms}` — scores clamped to `[0.0, 1.0]` per criterion. `DelphiStats` is `{mean, std_dev, delta_mean (omitempty)}` — `delta_mean` absent on round 1; on round R≥2, present only for criteria in BOTH the current and prior round. Round events fire as `stage2_round_complete` per round (carrying just that round's `DelphiRound`); the terminal `stage2_complete` carries the full transcript. NO `DelphiDropout` type — dropped raters are simply absent from subsequent `ratings` slices. | `1..R`; one `stage2_round_complete` per round, then a terminal `stage2_complete`. Strategy may exit early when `max(delta_mean) < threshold` across all criteria. |
 
-All seven kinds are now shipped. The frontend `Stage2.jsx` dispatcher renders any unknown kind via a fallback view (`Stage 2 — kind: <X> (view not implemented yet)`) so a future strategy in flight does not crash the UI; the dispatcher's unknown-kind test uses a synthetic sentinel (`__bogus_kind__`) since no real reserved kind remains.
+All seven kinds are now shipped. The `kind` discriminator exists so a client-side
+dispatcher can fall back gracefully on an unrecognised value instead of crashing when a
+future strategy ships ahead of that client's support for it.
 
 ---
 

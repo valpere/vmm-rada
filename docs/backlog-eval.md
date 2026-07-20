@@ -1,5 +1,13 @@
 # Eval Harness — Backlog
 
+> **SUPERSEDED.** This design was not built as specified. What actually shipped
+> (`internal/eval/`, `cmd/eval/`) is a leaner blinded pairwise-preference regression
+> detector with cost/token metering and a YAML-batch mode — no 0–10 meta-judge, no
+> cost-optimization loop, no `/improve-council` skill. See
+> [`testing-strategy.md §7`](./testing-strategy.md) for what's current. This document is
+> kept for its still-unbuilt ideas (meta-judge scoring, an iterate/archive/revert
+> workflow), not as a description of present behaviour.
+
 Archived from GitHub issues #141–#151. These issues describe the full design of an
 automated evaluation and optimization loop for VMM Rada.
 

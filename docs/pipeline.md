@@ -5,16 +5,12 @@ pipeline — from the HTTP request landing on the Go server to the final SSE `co
 event being flushed to the browser. It is a code-anchored walkthrough; every step
 references the function and file responsible for it.
 
-Two pipeline strategies are implemented, selected by `CouncilType.Strategy`:
-
-- **`PeerReview`** (default) — N council members independently answer, then anonymously
-  rank each other, and a chairman synthesises the result. Three external-model stages.
-- **`RoleBased` / `RoleBasedReview`** — M specialised roles run in parallel (Stage 1),
-  Stage 2 is skipped, and a chairman synthesises all role outputs (Stage 3). Used by the
-  `/review` endpoints for code review.
-
-For the PeerReview pipeline: **N council members** (Stage 1 generators + Stage 2 peer
-reviewers) and **1 chairman** (Stage 3 synthesiser).
+This walkthrough traces the `PeerReview` strategy in depth — **N council members**
+(Stage 1 generators + Stage 2 peer reviewers) and **1 chairman** (Stage 3 synthesiser).
+`RoleBased`'s pipeline is summarised separately below (§ RoleBased pipeline); the other
+five strategies (`Majority`, `GenerateRankRefine`, `MultiAgentDebate`, `MixtureOfAgents`,
+`Delphi`) are documented in [`strategies.md`](./strategies.md), which is the canonical
+per-strategy reference for cost, quorum, and SSE `kind` values.
 
 ---
 
@@ -135,12 +131,15 @@ For both endpoints (`POST /api/conversations/{id}/message` and
    at 1 MiB before `json.NewDecoder(r.Body).Decode(&req)`.
 4. **Path parameter validation** — `{id}` is matched against the UUID v4 regex
    `^[0-9a-f]{8}-...-4...-[89ab]...$` before any storage call. Mismatch → `400`.
-5. **Body decoding** — request shape (current):
+5. **Body decoding** — round-1 shape:
    ```json
    { "content": "...", "council_type": "default" }
    ```
-   Planned (issue #154): XOR — `content` for round-1, `answers:[{id,text}]` for round-N.
-   `council_type` defaults to the `DEFAULT_RADA_TYPE` env var if missing/empty.
+   The body is XOR — exactly one of `content` (round 1) or `answers:[{id,text}]`
+   (round 2+, answering a Stage 0 clarification round) is required; both or neither
+   returns `400`. `council_type` is only read on round 1 and defaults to the
+   `DEFAULT_RADA_TYPE` env var if missing/empty; round 2+ reuses the council type
+   loaded from storage.
 6. **Content non-empty check** — empty `content` → `400`.
 7. **Conversation lookup** — `store.Get(id)` returns `*Conversation` or `ErrNotFound`
    (→ `404`).
@@ -449,10 +448,16 @@ After `RunFull` returns successfully:
 2. **Spawn title goroutine** (only if title is still `"New Conversation"`):
    ```go
    titleCh := make(chan string, 1)
-   go func() { titleCh <- deriveTitle(stage3.Content) }()
+   go func() {
+       content := msg.Stage3.Content
+       if utf8.RuneCountInString(content) > maxTitleRunes {
+           content = string([]rune(content)[:maxTitleRunes])
+       }
+       titleCh <- content
+   }()
    ```
-   `deriveTitle` truncates to the first **50 bytes** of the Stage 3 response (may cut
-   mid-character on multi-byte UTF-8).
+   Truncates to the first **50 runes** of the Stage 3 response — rune-safe, so
+   multi-byte UTF-8 characters are never split.
 
 3. **Wait with 30-second deadline**:
    ```go
@@ -472,12 +477,8 @@ After `RunFull` returns successfully:
    { "type": "complete" }
    ```
 
-### Streaming vs non-streaming title difference
-
-| Endpoint | Truncation |
-|----------|-----------|
-| `POST /message` | First 50 **runes** (`utf8.RuneCountInString`) |
-| `POST /message/stream` | First 50 **bytes** — may cut mid-character |
+Both `/message` and `/message/stream` truncate identically — first 50 runes
+(`utf8.RuneCountInString`), rune-safe.
 
 ---
 
@@ -514,138 +515,28 @@ in the SSE payload.
 
 ---
 
-## 10. Frontend state transitions
-
-The frontend (`frontend/src/App.jsx`) maintains a state machine driven entirely by the
-SSE events emitted by the pipeline above.
-
-### States
-
-| State | Description |
-|-------|-------------|
-| `idle` | No message in flight; input enabled |
-| `sending` | User message added to UI; assistant placeholder created; SSE connection open |
-| `stage1_running` | Rada models generating answers in parallel |
-| `stage1_done` | All Stage 1 results received; peer-review beginning |
-| `stage2_running` | All models peer-reviewing concurrently |
-| `stage2_done` | Rankings and Kendall's W computed |
-| `stage3_running` | Chairman model synthesising final answer |
-| `complete` | All stages done; input re-enabled |
-| `error` | Pipeline failed at any stage; input re-enabled |
-
-### State diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-
-    idle --> sending : user submits message
-
-    sending --> stage1_running : SSE connection established\n(loading.stage1 = true already)
-
-    stage1_running --> stage1_done : stage1_complete event
-    stage1_running --> error : error event
-
-    stage1_done --> stage2_running : (immediate — no event boundary)
-    stage2_running --> stage2_done : stage2_complete event
-    stage2_running --> error : error event
-
-    stage2_done --> stage3_running : (immediate — no event boundary)
-    stage3_running --> complete : stage3_complete → [title_complete] → complete events
-    stage3_running --> error : error event
-
-    complete --> idle : setIsLoading(false)
-    error --> idle : setIsLoading(false)
-```
-
-### SSE event → state transition map
-
-| SSE event | Frontend handler | State after |
-|-----------|-----------------|-------------|
-| *(connection open)* | assistant placeholder added; `loading.stage1=true` | `stage1_running` |
-| `stage1_complete` | `msg.stage1 = data`; `loading.stage1 = false` | `stage1_done` / `stage2_running` |
-| `stage2_complete` | `msg.stage2 = data`; `msg.metadata = metadata`; `loading.stage2 = false` | `stage2_done` / `stage3_running` |
-| `stage3_complete` | `msg.stage3 = data`; `loading.stage3 = false` | `stage3_running` → done |
-| `title_complete` | `loadConversations()` (sidebar refresh) | *(no stage change)* |
-| `complete` | `loadConversations()`; `setIsLoading(false)` | `complete` → `idle` |
-| `error` | `msg.error = message`; all `loading.*` → `false`; `setIsLoading(false)` | `error` → `idle` |
-
-The backend emits **only `*_complete` events** — there are no `*_start` events over the wire.
-`App.jsx` has handler entries for `stage2_start` and `stage3_start` but they are never
-received; `loading.stage2` and `loading.stage3` are therefore always `false` in practice.
-
-### Frontend loading flags
-
-The assistant message carries three boolean flags that drive UI rendering:
-
-```js
-loading: {
-  stage1: true,   // pre-initialised to true — spinner shows immediately on message send
-  stage2: false,
-  stage3: false,
-}
-```
-
-`loading.stage1` starts as `true` when the assistant message is first created (before any
-SSE events) so the Stage 1 spinner renders immediately. The backend does not emit a
-`stage1_start` event — without this pre-initialisation the UI would appear frozen during
-the several seconds while council models are running.
-
-| Flag | `true` | `false` (with data) | `false` (no data) |
-|------|--------|--------------------|--------------------|
-| `loading.stage1` | Stage 1 spinner | Stage 1 accordion with model count | Stage 1 hidden |
-| `loading.stage2` | *(never set to true in practice)* | Stage 2 rankings + consensus badge | Stage 2 hidden |
-| `loading.stage3` | *(never set to true in practice)* | Stage 3 hero card | Stage 3 hidden |
-
-### Assistant message shape at each state
-
-```js
-// sending — just created, before any SSE event
-{ role:'assistant', stage1:null, stage2:null, stage3:null, metadata:null,
-  loading:{stage1:true, stage2:false, stage3:false}, error:null }
-
-// stage1_done — after stage1_complete
-{ stage1:[{label,content,model,duration_ms},…],
-  loading:{stage1:false, stage2:false, stage3:false} }
-
-// stage2_done — after stage2_complete
-{ stage1:[…], stage2:[{reviewer_label,rankings},…],
-  metadata:{council_type,label_to_model,aggregate_rankings,consensus_w},
-  loading:{stage1:false, stage2:false, stage3:false} }
-
-// complete — after stage3_complete
-{ stage1:[…], stage2:[…], stage3:{content,model,duration_ms},
-  metadata:{…}, loading:{stage1:false,stage2:false,stage3:false}, error:null }
-
-// error — at any stage
-{ stage1:null|[…], stage2:null|[…], stage3:null, metadata:null|{…},
-  loading:{stage1:false,stage2:false,stage3:false},
-  error:"human-readable message" }
-```
-
----
-
----
-
-## RoleBased pipeline (RoleBased / RoleBasedReview)
+## RoleBased pipeline (implemented, not registered — see Known Gaps in `requirements.md`)
 
 **File:** `internal/council/rolebased.go` — `runRoleBased`
 
-`RunFull` dispatches to `runRoleBased` when `ct.Strategy == RoleBased || RoleBasedReview`.
+`RunFull` dispatches to `runRoleBased` when `ct.Strategy == RoleBased`. The dispatch case
+and the pipeline logic below are real and tested (`rolebased_test.go`), but **nothing in
+`cmd/server/main.go` or `internal/config/config.go` ever constructs a `CouncilType` with
+`Strategy: RoleBased`** — there is no env var family for it, unlike every other strategy.
+It cannot be invoked through the running server today. There is also no `/review`
+endpoint — `RegisterRoutes` in `internal/api/handler.go` only registers the
+strategy-agnostic `/message` and `/message/stream` routes (the earlier dedicated
+`/review*` endpoints and their `review_roles.go` helper — `DefaultReviewRoles` /
+`NewCodeReviewCouncilType` — were removed in PR #199; see
+[`strategies.md`](./strategies.md#whats-not-here)). Registering RoleBased today would
+mean adding a `CouncilType{Strategy: RoleBased, Roles: [...]}` entry to the registry the
+same way `Majority` or `MultiAgentDebate` are registered — see [`strategies.md`](./strategies.md)
+for that pattern.
 
-### High-level flow
+### High-level flow (if registered)
 
 ```
-POST /api/conversations/{id}/review[/stream]
-    │
-    ▼
-api.Handler.sendReview / sendReviewStream        [internal/api/handler.go]
-    │   1. validate UUID, body size, content non-empty
-    │   2. persist user message
-    │
-    ▼
-council.Rada.RunFull("code-review")            [internal/council/runner.go]
-    │   resolves ct = NewCodeReviewCouncilType(...)
+council.Rada.RunFull("<some-registered-name>")   [internal/council/runner.go]
     │   dispatches to runRoleBased
     │
     ▼
@@ -661,13 +552,6 @@ council.runRoleBased                              [internal/council/rolebased.go
     │
     └── Stage 3: runRoleBasedStage3 (single chairman call)
           └── emit stage3_complete
-    │
-    ▼
-api.Handler:
-    3. persist assistant message
-    4. spawn title goroutine; select on 30s deadline
-    5. emit title_complete (if title generated in time)
-    6. emit complete
 ```
 
 ### Stage 1 — parallel role execution
@@ -693,9 +577,11 @@ One model handles all roles; 4 models give one per role; any count wraps round-r
 The `StageOneResult.Label` is set to the role's `Name` (`"security"`, `"logic"`, etc.),
 not an anonymous `Response X` label.
 
-**Quorum:** `checkQuorum(results, ct.QuorumMin)` with `QuorumMin = len(DefaultReviewRoles)` (4 for
-`code-review`). Every role must succeed — unlike `PeerReview` where partial success is
-allowed, each role covers a unique concern and a missing role silently drops coverage.
+**Quorum:** `checkQuorum(results, ct.QuorumMin)`. The intended pattern (were this
+registered) is `QuorumMin = len(ct.Roles)` — every role must succeed, unlike `PeerReview`
+where partial success is allowed, since each role covers a unique concern and a missing
+role silently drops coverage. This is a registration-time choice; the runner does not
+enforce it.
 
 ### Stage 2 — skipped
 
@@ -742,15 +628,12 @@ Based on all reviewer findings above, produce a consolidated code review.
 
 | File | Key symbols |
 |------|------------|
-| `internal/api/handler.go` | `sendMessage`, `sendMessageStream`, `sendReview`, `sendReviewStream` |
+| `internal/api/handler.go` | `sendMessage`, `sendMessageStream` |
 | `internal/council/runner.go` | `Rada.RunFull`, `runStage1`, `runStage2`, `runStage3` |
-| `internal/council/rolebased.go` | `runRoleBased`, `runRoleBasedStage1`, `runRoleBasedStage3` |
-| `internal/council/review_roles.go` | `DefaultReviewRoles`, `NewCodeReviewCouncilType` |
+| `internal/council/rolebased.go` | `runRoleBased`, `runRoleBasedStage1`, `runRoleBasedStage3` (implemented, unregistered) |
 | `internal/council/council.go` | `checkQuorum`, `assignLabels`, `QuorumError` |
 | `internal/council/rankings.go` | `CalculateAggregateRankings` |
 | `internal/council/prompts.go` | `BuildStage1Prompt`, `BuildStage2Prompt`, `BuildStage3Prompt`, `BuildRoleStage1Prompt`, `BuildRoleChairmanPrompt` |
 | `internal/council/types.go` | `CouncilType`, `Strategy`, `Role`, `StageOneResult`, `StageTwoResult`, `StageThreeResult`, `Metadata`, `EventFunc` |
 | `internal/openrouter/client.go` | `Client.Complete` |
 | `internal/storage/storage.go` | `Store.Get`, `AppendMessage`, `SaveTitle` |
-| `frontend/src/api.js` | `sendMessageStream` |
-| `frontend/src/App.jsx` | `sseHandlers` |

@@ -6,23 +6,29 @@ The server listens on port `PORT` (default `8001`) and binds on all interfaces (
 by default. For local development: `http://localhost:{PORT}`. From other machines:
 `http://<host>:{PORT}`.
 
-The frontend dev server (Vite at `:5173`) proxies `/api` requests to the backend, so no
-additional CORS headers are needed during development when using that proxy.
+The reference frontend ([`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui))
+runs its own dev server and proxies `/api` requests to this backend, so no CORS headers
+are needed for that local-dev path.
 
 ---
 
 ## CORS
 
-Allowed origins (hardcoded):
+Allowed origins (hardcoded) — both are `localhost` development origins:
 
 - `http://localhost:5173`
 - `http://localhost:3000`
+
+**Known gap:** these are the frontend's former in-monorepo dev-server origins, carried
+over unchanged since `frontend/` was extracted to `vmm-rada-web-ui` (2026-07-19). There is
+no origin covering a non-localhost deployment of that frontend, and no env var to add
+one — see [`requirements.md`](./requirements.md#gap-analysis).
 
 When the request `Origin` header matches, the server reflects it and sets:
 
 ```
 Access-Control-Allow-Origin: <origin>
-Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 Vary: Origin
 ```
@@ -56,7 +62,6 @@ is written), so a proper HTTP status code is always possible.
 | Malformed or missing request body | `400` | `"invalid request body"` |
 | Conversation not found | `404` | `"not found"` |
 | Rada quorum not met | `503` | `"council quorum not met"` |
-| Review: one or more roles failed (all 4 required) | `503` | `"council quorum not met"` |
 | Storage failure (pre-pipeline) | `500` | `"internal server error"` |
 | SSE streaming not supported by server | `500` | `"streaming not supported"` |
 | Round-N with already-answered round | `409` | `"clarification round already answered"` |
@@ -185,6 +190,43 @@ Fetch a conversation with its full message history.
 
 ---
 
+### `PATCH /api/conversations/{id}`
+
+Rename a conversation.
+
+**Path parameter** — `id`: UUID v4.
+
+**Request body**
+
+```json
+{ "title": "New title" }
+```
+
+Titles longer than 50 runes are truncated (rune-safe — multi-byte characters are never
+split). Empty `title` is rejected.
+
+**Response `200 OK`**
+
+```json
+{ "id": "550e8400-e29b-41d4-a716-446655440000", "title": "New title" }
+```
+
+**Errors:** `400` (invalid UUID, invalid body, or empty title), `404` (not found).
+
+---
+
+### `DELETE /api/conversations/{id}`
+
+Delete a conversation.
+
+**Path parameter** — `id`: UUID v4.
+
+**Response `204 No Content`** — empty body.
+
+**Errors:** `400` (invalid UUID), `404` (not found).
+
+---
+
 ### `POST /api/conversations/{id}/message`
 
 Send a message and receive the full deliberation result in a single JSON response (blocking — waits for all three stages to complete).
@@ -205,7 +247,7 @@ Send a message and receive the full deliberation result in a single JSON respons
 | `content` | string | yes | The user's message |
 | `council_type` | string | no | Rada strategy name; defaults to `DEFAULT_RADA_TYPE` env var |
 
-> **Planned (issue #154):** When Stage 0 clarification is enabled, the request body is XOR — supply exactly one of `content` (round 1) or `answers` (round 2+). Both present, or neither, returns `400`. The `council_type` for round 2+ is loaded from storage; do not re-send it.
+> When Stage 0 clarification is enabled, the request body is XOR — supply exactly one of `content` (round 1) or `answers` (round 2+). Both present, or neither, returns `400`. The `council_type` for round 2+ is loaded from storage; do not re-send it.
 >
 > ```json
 > // Round 2+ (answering clarification questions)
@@ -295,11 +337,12 @@ data: {"type":"title_complete","data":{"title":"..."}}     ← may be absent if 
 data: {"type":"complete"}
 ```
 
-When Stage 0 is disabled (`CLARIFICATION_MAX_ROUNDS=0`, the default), no `stage0_*` events are emitted and the sequence is unchanged.
+Stage 0 is on by default (`CLARIFICATION_MAX_ROUNDS=2`). Set `CLARIFICATION_MAX_ROUNDS=0`
+to disable it — no `stage0_*` events are then emitted and the sequence is unchanged.
 
 #### Multi-round strategies — `stage2_round_complete`
 
-Multi-round strategies (currently `MultiAgentDebate`; `Delphi` planned) fire one `stage2_round_complete` event per debate round, then a terminal `stage2_complete` carrying the full transcript:
+Multi-round strategies (`MultiAgentDebate` and `Delphi`, both shipped) fire one `stage2_round_complete` event per round, then a terminal `stage2_complete` carrying the full transcript:
 
 ```
 data: {"type":"stage1_complete","data":[...StageOneResult]}
@@ -428,8 +471,8 @@ Emitted when the Chairman model has synthesised the final answer.
 
 Emitted after `stage3_complete` when title generation succeeds. May be **absent** if
 title generation times out (30-second deadline). The title is derived from the first
-50 **bytes** of the Stage 3 response — responses containing multi-byte UTF-8 characters
-may be cut mid-character.
+50 **runes** of the Stage 3 response (rune-safe truncation — multi-byte UTF-8 characters
+are never split).
 
 ```json
 {
@@ -502,7 +545,7 @@ Emitted when the pipeline fails. Stream ends after this event.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `title` | string | First 50 bytes of the Stage 3 response, used as the conversation title |
+| `title` | string | First 50 runes of the Stage 3 response, used as the conversation title |
 
 ### `ClarificationQuestion`
 

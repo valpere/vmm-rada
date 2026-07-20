@@ -732,8 +732,9 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 	titleCh := make(chan string, 1)
 	go func() {
 		content := msg.Stage3.Content
-		if len(content) > 50 {
-			content = content[:50]
+		if utf8.RuneCountInString(content) > maxTitleRunes {
+			runes := []rune(content)
+			content = string(runes[:maxTitleRunes])
 		}
 		titleCh <- content
 	}()

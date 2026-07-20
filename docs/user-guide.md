@@ -38,13 +38,17 @@ echo "AI_PROVIDER_API_KEY=sk-or-v1-..." > .env
 go run ./cmd/server
 ```
 
-The server starts on port **8001** by default. The frontend (in the `frontend/` directory) connects to this port.
+The server starts on port **8001** by default. This is a backend API only — see
+[`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui) for the reference
+frontend, or call the API directly (see [API Reference](#api-reference) below).
 
 ---
 
 ## Configuration
 
-All configuration is via environment variables. The server reads from `.env` at startup via the shell — there is no built-in `.env` loader; use `source .env` or a runner that handles it (the frontend dev proxy sets this up automatically).
+All configuration is via environment variables. The server loads `.env` at startup via
+`godotenv` — no manual `source .env` needed; just have the file present in the working
+directory the server is started from.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -212,9 +216,9 @@ The streaming endpoint emits [Server-Sent Events](https://developer.mozilla.org/
 ```
 → POST /api/conversations/{id}/message/stream
 
-← data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}   ← planned; stream closes
-  → POST /api/conversations/{id}/message/stream  {"answers":[...]}              ← planned; client re-opens
-← data: {"type":"stage0_done"}                                                  ← planned; Stage 1 follows
+← data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}   ← default-on; stream closes
+  → POST /api/conversations/{id}/message/stream  {"answers":[...]}              ← client re-opens
+← data: {"type":"stage0_done"}                                                  ← Stage 1 follows
 
 ← data: {"type":"stage1_complete","data":[...]}
 
@@ -226,7 +230,9 @@ The streaming endpoint emits [Server-Sent Events](https://developer.mozilla.org/
 ← data: {"type":"complete"}
 ```
 
-The `stage0_*` events are only emitted when `CLARIFICATION_MAX_ROUNDS > 0`, which is the case under the default (`CLARIFICATION_MAX_ROUNDS=2`). Set the variable to `0` to skip Stage 0 entirely; the sequence then starts at `stage1_complete`.
+The `stage0_*` events fire whenever `CLARIFICATION_MAX_ROUNDS > 0` — which is the default
+(`CLARIFICATION_MAX_ROUNDS=2`), so a fresh install sees them out of the box. Set the
+variable to `0` to skip Stage 0 entirely; the sequence then starts at `stage1_complete`.
 
 There are no `*_start` events — the client receives each stage result only when it is fully complete.
 
@@ -294,7 +300,7 @@ Labels (`Response A`, `Response B`, …) are randomly assigned per request — t
 { "type": "title_complete", "data": { "title": "The Fermi paradox, named after phys" } }
 ```
 
-The title is the first 50 bytes of the Stage 3 response. It may be absent if generation does not complete within the 30-second deadline.
+The title is the first 50 runes of the Stage 3 response. It may be absent if generation does not complete within the 30-second deadline.
 
 #### `error`
 
@@ -454,10 +460,13 @@ The directory is created automatically on first use with permissions `0700`.
 
 The server allows cross-origin requests from these hardcoded origins:
 
-- `http://localhost:5173` (Vite dev server)
+- `http://localhost:5173` (the reference frontend's dev server)
 - `http://localhost:3000`
 
-CORS origins are not configurable via environment variable. For production deployments on a different origin, modify `allowedOrigins` in `internal/api/handler.go`.
+CORS origins are not configurable via environment variable. Both origins are
+`localhost`-only — a production deployment of any frontend on a different origin
+currently requires modifying `allowedOrigins` in `internal/api/handler.go` directly. See
+[`requirements.md`](./requirements.md#gap-analysis) for this known gap.
 
 Preflight `OPTIONS` requests are handled automatically.
 
