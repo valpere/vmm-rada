@@ -63,15 +63,18 @@ User query
 | LLM gateway | [OpenRouter](https://openrouter.ai) REST API |
 | Config | Environment variables + `godotenv` |
 | ID generation | `crypto/rand` (stdlib) |
-| Frontend | React 19 + Vite 8 (`frontend/` directory) |
+
+This repo is the backend API only. The frontend (React 19 + Vite 8) lives
+in a separate repo: [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui).
 
 ---
 
 ## Prerequisites
 
 - **Go 1.26+**
-- **Node.js 20+** (for the frontend)
 - An **[OpenRouter](https://openrouter.ai) API key**
+
+For frontend prerequisites, see [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui).
 
 ---
 
@@ -91,19 +94,9 @@ make dev
 # → VMM Rada API listening on :8001
 ```
 
-In a second terminal, start the frontend:
-
-```bash
-# 4. Install frontend deps (first time only)
-cd frontend && npm ci
-
-# 5. Start the frontend dev server
-make fr-dev
-# → http://localhost:5173
-```
-
-The Vite dev server proxies all `/api` requests to the backend at `:8001`
-automatically — no extra config needed.
+For the frontend, clone [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui)
+separately and follow its own README — its dev server proxies `/api`
+requests to this backend at `:8001` automatically.
 
 ---
 
@@ -127,24 +120,16 @@ All configuration is done via environment variables. Copy `.env.example` to
 and falls back to small, inexpensive models suitable for local development only.
 See `.env.example` for recommended production values.
 
-For the frontend, see `frontend/.env.example`.
-
 ---
 
 ## Development
 
 ```bash
-# Backend
 make build      # Compile to bin/vmm-rada
 make dev        # Run without compiling (go run ./cmd/server)
 make lint       # go vet + staticcheck
 make test       # go test -race -count=1 ./...
 make clean      # Remove bin/vmm-rada
-
-# Frontend
-make fr-dev     # Vite dev server on localhost:5173
-make fr-build   # Production build to frontend/dist/
-make fr-lint    # ESLint
 ```
 
 > Always run `make` commands from the **project root**.
@@ -216,7 +201,6 @@ vmm-rada/
 │   │   └── types.go              Result types: CouncilType, Strategy, Role, StageOneResult, etc.
 │   ├── storage/storage.go        JSON file persistence with atomic writes and per-conv locks
 │   └── api/handler.go            HTTP handlers, CORS middleware, SSE streaming
-├── frontend/                     React 19 + Vite 8 single-page app (see below)
 ├── docs/                         Architecture, stage logic, and implementation notes
 ├── data/conversations/           Created at runtime — one JSON file per conversation
 ├── Makefile
@@ -224,27 +208,7 @@ vmm-rada/
 └── go.mod                        Module: vmm-rada, Go 1.26+
 ```
 
-### Frontend structure
-
-```
-frontend/
-├── src/
-│   ├── api.js                    API adapter — all fetch/SSE calls; only file that talks to the backend
-│   ├── App.jsx                   Root component; owns all application state
-│   ├── theme.css                 CSS design tokens (dark/light themes via data-theme attribute)
-│   ├── index.css                 Global styles and typography
-│   └── components/
-│       ├── ChatInterface.jsx/css  Main chat view + always-visible input
-│       ├── Sidebar.jsx/css        Collapsible conversation list with theme toggle
-│       ├── Stage1.jsx/css         Individual responses — collapsed accordion
-│       ├── Stage2.jsx/css         Peer rankings — collapsed accordion with consensus score
-│       ├── Stage3.jsx/css         Final answer — always-expanded hero card
-│       ├── EmptyState.jsx/css     Welcome screen with suggested prompt chips
-│       └── Markdown.jsx           react-markdown + rehype-highlight wrapper
-├── index.html
-├── vite.config.js
-└── package.json
-```
+For the frontend's structure, see [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui).
 
 ---
 
@@ -266,10 +230,6 @@ request and returned in the API response, but never persisted.
 **Graceful degradation.** If one council model fails in Stage 1 or Stage 2, the
 pipeline continues with the successful responses. On total Stage 1 failure the
 streaming endpoint emits a `{"type":"error",...}` SSE event and closes the stream.
-
-**Frontend architecture rules.** Components are pure UI — no `fetch` calls
-inside components. `api.js` is the sole adapter layer. `App.jsx` owns all state.
-`react-markdown` is the only renderer for LLM output (XSS risk with raw HTML).
 
 ---
 

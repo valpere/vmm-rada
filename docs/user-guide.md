@@ -484,4 +484,6 @@ The server logs to stdout as structured JSON using `log/slog`. Log level is `INF
 
 ## Frontend Usage
 
-See [`docs/frontend/user-guide.md`](frontend/user-guide.md) for the end-user UI walkthrough.
+The frontend lives in a separate repo — see
+[`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui)'s own
+`docs/user-guide.md` for the end-user UI walkthrough.

@@ -1,4 +1,4 @@
-.PHONY: build dev lint test clean fr-dev fr-build fr-lint eval-single eval-batch help
+.PHONY: build dev lint test clean eval-single eval-batch help
 
 BIN := bin/vmm-rada
 
@@ -9,11 +9,6 @@ help:
 	@echo "  make lint       go vet + staticcheck"
 	@echo "  make test       go test -race ./..."
 	@echo "  make clean      remove bin/vmm-rada"
-	@echo ""
-	@echo "Frontend:"
-	@echo "  make fr-dev     vite dev server (localhost:5173)"
-	@echo "  make fr-build   production build"
-	@echo "  make fr-lint    eslint"
 	@echo ""
 	@echo "Eval:"
 	@echo "  make eval-single Q=\"...\"                  run a single ad-hoc question"
@@ -34,15 +29,6 @@ test:
 
 clean:
 	rm -f $(BIN)
-
-fr-dev:
-	cd frontend && npm run dev
-
-fr-build:
-	cd frontend && npm run build
-
-fr-lint:
-	cd frontend && npm run lint
 
 eval-single:
 	go run ./cmd/eval -question "$(Q)" -baseline-model "$(BASELINE)" -council-type "$(or $(COUNCIL),default)"

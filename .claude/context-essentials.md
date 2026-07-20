@@ -7,23 +7,15 @@
 > Keep this file under ~60 lines — every line costs tokens on each
 > re-injection.
 
-## Frontend architecture (immutable)
+## Frontend
 
-These four rules are **load-bearing**. Violations break the architecture
-contract and require Tech Lead override.
-
-1. **Components are pure UI.** No `fetch` or `api.js` calls from any component.
-2. **`src/api.js` is the adapter boundary.** `onEvent(type, event)` is the only
-   interface `App.jsx` sees. Raw SSE lines and HTTP status codes never leak.
-3. **`App.jsx` owns all state.** Only `App.jsx` writes the assistant message
-   shape via `setCurrentConversation`.
-4. **`react-markdown` is the only renderer for LLM output.** Inserting raw
-   HTML is forbidden — XSS risk with LLM-generated content.
+`frontend/` was removed from this repo (2026-07-19) — active frontend
+development is at [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui).
+This repo is the backend API only.
 
 ## Stack constraints
 
 - Backend: **Go**. Run `go build`, `go vet`, `go test ./...` before `/ship`.
-- Frontend: **React 19 + Vite 8, plain JavaScript**. No TypeScript.
 - LLM Gateway: configurable (`AI_PROVIDER_NAME`, default `openrouter`). Key in `.env` as `AI_PROVIDER_API_KEY`.
 
 ## Workflow gates
@@ -52,9 +44,5 @@ contract and require Tech Lead override.
 ## Banned patterns
 
 - No `--no-verify` on git operations.
-- No direct `fetch` in components — must go through `src/api.js`.
-- No raw HTML rendering of LLM output — `react-markdown` only.
-- No state writes outside `App.jsx`.
-- No TypeScript in `frontend/`.
 - No commits skipping pre-commit hooks unless user explicitly requests.
 - No `fmt.Println` in `cmd/` packages — use the configured logger.
