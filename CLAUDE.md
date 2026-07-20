@@ -26,22 +26,18 @@ configuration.
 ## Stack
 
 - **Backend:** Go 1.26.5
-- **Frontend:** React 19 + Vite 8, plain JavaScript (no TypeScript). **`frontend/` is deprecated** (2026-07-19) — active frontend development moved to [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui); this copy is a historical snapshot, not a place for new changes.
+- **Frontend:** removed from this repo (2026-07-19) — active development is at [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui) (React 19 + Vite 8, plain JavaScript). This repo is the backend API only.
 - **LLM Gateway:** configurable provider via `AI_PROVIDER_NAME` (default `openrouter`); URL override via `LLM_API_BASE_URL` for Ollama / vLLM
 - **API key:** `.env` → `AI_PROVIDER_API_KEY=<key>` (use any non-empty placeholder for keyless providers)
 
-## Frontend architecture rules (immutable)
+## Frontend (moved out)
 
-> **`frontend/` is deprecated** — see [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui) for active development. These rules still apply to this snapshot's code but new work does not belong here.
+`frontend/` was removed from this repo (2026-07-19) — see
+[`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui) for the
+current codebase, architecture rules, and its own CLAUDE.md.
 
-These constraints are enforced by the `tech-lead` agent and must not be violated:
-
-1. **Components are pure UI.** No direct `fetch` or `api.js` calls from any component.
-2. **`src/api.js` is the adapter boundary.** `onEvent(type, event)` is the only interface `App.jsx` sees. Raw SSE lines and HTTP status codes never leak past this layer.
-3. **`App.jsx` owns all state.** Only `App.jsx` writes the assistant message shape via `setCurrentConversation`.
-4. **`react-markdown` is the only renderer for LLM output.** Inserting raw HTML is forbidden — it is an XSS risk with LLM-generated content.
-
-See `docs/frontend/` for the API contract, SSE streaming spec, component architecture, and user guide.
+`docs/api.md` remains the authoritative REST + SSE contract this backend
+serves, regardless of which frontend consumes it.
 
 ## Workflow
 

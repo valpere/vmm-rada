@@ -250,3 +250,4 @@ After applying doubt-driven development:
 - [ ] In interactive mode, cross-model was **explicitly offered** to the user (regardless of artifact stakes) and the response was acknowledged in the output
 - [ ] In non-interactive mode, cross-model was skipped and the skip was announced
 - [ ] Any external CLI invocation was preceded by a PATH check, a working-binary test, syntax confirmation with the user, and explicit authorization to run
+- [ ] Any external CLI invocation used a read-only/plan-mode sandbox flag (e.g. `--sandbox read-only`, `--approval-mode plan`), not a full-write mode

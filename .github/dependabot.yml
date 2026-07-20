@@ -28,17 +28,3 @@ updates:
       - "dependencies"
     commit-message:
       prefix: "chore(deps)"
-
-  # npm (frontend)
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore(deps)"
