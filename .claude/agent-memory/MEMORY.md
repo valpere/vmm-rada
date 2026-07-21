@@ -8,4 +8,6 @@ Each entry below is a link to a memory file with a one-line description.
 - [cors-allowed-methods.md](cors-allowed-methods.md) — CORS Access-Control-Allow-Methods must include every verb used by browser fetch (DELETE, PATCH); missing verbs cause preflight 405
 - [storage-title-handling.md](storage-title-handling.md) — SaveTitle already on Storer; maxTitleRunes=50 truncates (not rejects); no RenameConversation needed
 
+- [rolebased-strategy-orphan.md](rolebased-strategy-orphan.md) — RoleBased strategy is implemented but unregistered; two-phase guard-then-extract plan (invariant test must derive enum via AST, not a hand list)
+
 <!-- Add pointers here as agents write memories. Keep under 200 lines. -->
