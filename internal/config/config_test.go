@@ -446,6 +446,73 @@ func TestLoad_DebateModels_BothUnset(t *testing.T) {
 	}
 }
 
+// ── TestLoad_RoleBasedModels ────────────────────────────────────────────────
+//
+// Both ROLE_BASED_MODELS and ROLE_BASED_CHAIRMAN_MODEL must be set for the
+// council type to register (Stage 3 chairman always runs; no no-LLM path).
+// Role content (names/instructions) is fixed as council.DefaultRoles, not
+// env-configurable — nothing to test here beyond the models/chairman parse.
+
+func TestLoad_RoleBasedModels_BothSet(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "ROLE_BASED_MODELS", "openai/gpt-4o-mini, anthropic/claude-haiku-4-5, google/gemini-flash-1.5, qwen/qwen3.6-plus")
+	setenv(t, "ROLE_BASED_CHAIRMAN_MODEL", "anthropic/claude-sonnet-4-5")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"openai/gpt-4o-mini", "anthropic/claude-haiku-4-5", "google/gemini-flash-1.5", "qwen/qwen3.6-plus"}
+	if len(cfg.RoleBasedModels) != len(want) {
+		t.Fatalf("RoleBasedModels: got %v, want %v", cfg.RoleBasedModels, want)
+	}
+	for i, m := range want {
+		if cfg.RoleBasedModels[i] != m {
+			t.Errorf("RoleBasedModels[%d]: got %q, want %q", i, cfg.RoleBasedModels[i], m)
+		}
+	}
+	if cfg.RoleBasedChairmanModel != "anthropic/claude-sonnet-4-5" {
+		t.Errorf("RoleBasedChairmanModel: got %q, want %q", cfg.RoleBasedChairmanModel, "anthropic/claude-sonnet-4-5")
+	}
+}
+
+func TestLoad_RoleBasedModels_ModelsOnly_ChairmanEmpty(t *testing.T) {
+	baseEnv(t)
+	setenv(t, "ROLE_BASED_MODELS", "openai/gpt-4o-mini")
+	unsetenv(t, "ROLE_BASED_CHAIRMAN_MODEL")
+	// Loader does NOT pre-fill from CHAIRMAN_MODEL — the registration site
+	// at cmd/server/main.go decides whether the partial config is enough.
+	setenv(t, "CHAIRMAN_MODEL", "global-chairman")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.RoleBasedModels) != 1 || cfg.RoleBasedModels[0] != "openai/gpt-4o-mini" {
+		t.Errorf("RoleBasedModels: got %v, want [openai/gpt-4o-mini]", cfg.RoleBasedModels)
+	}
+	if cfg.RoleBasedChairmanModel != "" {
+		t.Errorf("RoleBasedChairmanModel: got %q, want empty (loader does not pre-fill from CHAIRMAN_MODEL)", cfg.RoleBasedChairmanModel)
+	}
+}
+
+func TestLoad_RoleBasedModels_BothUnset(t *testing.T) {
+	baseEnv(t)
+	unsetenv(t, "ROLE_BASED_MODELS")
+	unsetenv(t, "ROLE_BASED_CHAIRMAN_MODEL")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.RoleBasedModels) != 0 {
+		t.Errorf("RoleBasedModels: got %v, want empty", cfg.RoleBasedModels)
+	}
+	if cfg.RoleBasedChairmanModel != "" {
+		t.Errorf("RoleBasedChairmanModel: got %q, want empty", cfg.RoleBasedChairmanModel)
+	}
+}
+
 func TestLoad_DebateMaxRounds_Invalid_DefaultsToZero(t *testing.T) {
 	// Invalid DEBATE_MAX_ROUNDS warns and falls back to 0 (which the runner
 	// treats as the default 2). Mirrors how CLARIFICATION_MAX_* handle bad input.

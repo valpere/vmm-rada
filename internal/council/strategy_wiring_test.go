@@ -12,12 +12,10 @@ import (
 // registrationExemptions lists Strategy names that are intentionally
 // implemented but not registered in cmd/server/main.go, with the reason.
 // TestAllStrategiesRegisteredOrExempted treats these as satisfied without
-// requiring a main.go registration path.
-var registrationExemptions = map[string]string{
-	"RoleBased": "implemented but intentionally unregistered pending extraction " +
-		"into MixtureOfAgents as a role-assignment mode; see " +
-		"docs/requirements.md#gap-analysis and docs/strategies.md",
-}
+// requiring a main.go registration path. Empty today — RoleBased was the
+// only entry and is now registered (see cmd/server/main.go's "role-based"
+// registration block).
+var registrationExemptions = map[string]string{}
 
 // TestAllStrategiesRegisteredOrExempted fails if a Strategy constant declared
 // in types.go has neither a registration path in cmd/server/main.go nor an

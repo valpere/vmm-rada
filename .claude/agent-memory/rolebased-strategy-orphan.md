@@ -1,27 +1,40 @@
 ---
 name: rolebased-strategy-orphan
-description: RoleBased Strategy is implemented+tested but has no registration path; two-phase plan to guard then extract it
+description: RoleBased resolved — registered as a standalone opt-in strategy (extraction-into-MoA plan overruled)
 type: project
 ---
 
 `council.RoleBased` (enum in `internal/council/types.go`, impl `rolebased.go`,
-dispatched `runner.go`) is implemented and tested but is **never registered** in
-`cmd/server/main.go` — no env-var family constructs `CouncilType{Strategy: RoleBased}`,
-so it is unreachable in production. Tracked as a gap in `docs/requirements.md#6-gap-analysis`
-and `docs/strategies.md` (issue #177).
+dispatched via `runner.go`) is a real, tested 2-stage pipeline (parallel specialist
+roles → chairman; Stage 2 skipped, `role_stub` SSE event). It was orphaned — no env-var
+family constructed `CouncilType{Strategy: RoleBased}`, so it was unreachable in
+production.
 
-**Why:** Came out of an ideation session on what to do with the orphaned strategy.
-Decision is a two-phase plan:
-- Phase 1 (issue for plan `2-strategy-registration-invariant-test.md`): a test-only
-  build-time invariant — every `Strategy` constant must be registered in `main.go` or
-  explicitly exempted with a reason. `RoleBased` gets the sole exemption.
-- Phase 2 (not yet planned): extract RoleBased's mechanism into `MixtureOfAgents` as a
-  role-assignment mode and delete the standalone enum value; the exemption entry is
-  removed then.
+**Resolution (decided 2026-07-21, phased):**
+- Phase 1 (#301, merged): build-time invariant `TestAllStrategiesRegisteredOrExempted`
+  in `strategy_wiring_test.go` — every `Strategy` const must be registered in
+  `cmd/server/main.go` or listed in `registrationExemptions`. RoleBased got the sole
+  exemption pending Phase 2. The test derives the enum via AST (not a hand list).
+- Phase 2 (plan `2-register-rolebased-strategy.md`, tech-lead APPROVED 2026-07-21):
+  **register RoleBased standalone.** Adds `ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL`
+  config family (mirrors Debate/Delphi opt-in: both required, no no-LLM path, warn+skip
+  if only one set), a fixed in-code `council.DefaultRoles` (Generator/Critic/Verifier/
+  Simplifier per `docs/council-research-synthesis.md §2.7`), and registers with
+  `QuorumMin: len(DefaultRoles)`. Removes the RoleBased `registrationExemptions` entry.
 
-**How to apply:** When reviewing Phase-1 code, the invariant test must derive the strategy
-set from the enum via AST (parse the `Strategy = iota` block in types.go), NOT a
-hand-maintained slice — a hand list reintroduces the same drift the test exists to prevent.
-When Phase 2 lands, expect the `RoleBased` const and its exemption entry to be removed
-together. See [[usage-cost-aggregation]] for the layering rule that council impl details
-stay out of the handler/main wiring.
+**Why standalone (NOT extracted into MixtureOfAgents):** An earlier ideation pass
+proposed folding RoleBased's mechanism into MoA as a role-assignment mode. The user
+explicitly reviewed and **overruled** that, citing external research contrasting
+Role-Based vs MoA vs Majority: Role-Based fits "heavy contextual data / complex
+multi-step workflows," which does not overlap with MoA's creative-synthesis strength or
+Majority's exact-answer strength. RoleBased stays a distinct strategy.
+
+**How to apply:** The extraction-into-MoA path is dead — do not resurrect it. Role
+*content* (names/instructions) is fixed in code, intentionally NOT env-configurable
+(YAGNI, no requester). `QuorumMin = len(DefaultRoles)` is deliberate: every role is a
+unique concern, so RoleBased has zero fault tolerance (one role's model failure fails the
+whole deliberation) — documented intent (`docs/pipeline.md`, `strategies.md` quorum
+table: "all roles"), not a bug. Separate from the removed `/review*` code-review feature
+(PR #199), which will be rebuilt on Majority/MoA independently — do not conflate. See
+[[usage-cost-aggregation]] for the layering rule keeping council impl details out of
+handler/main wiring.

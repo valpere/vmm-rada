@@ -69,6 +69,14 @@ type Config struct {
 	MoaAggregatorModels []string
 	MoaRefinerModel     string
 
+	// RoleBased strategy registration. BOTH RoleBasedModels AND
+	// RoleBasedChairmanModel must be set for the council type to be
+	// registered — no no-LLM path (Stage 3 chairman always runs). Role
+	// content (names/instructions) is fixed in code as council.DefaultRoles,
+	// not env-configurable.
+	RoleBasedModels        []string
+	RoleBasedChairmanModel string
+
 	// Delphi strategy registration. BOTH DelphiModels AND DelphiChairmanModel
 	// must be set for the council type to be registered (Stage 3 chairman
 	// always runs; no no-LLM path). DelphiMaxRounds and
@@ -299,6 +307,21 @@ func Load() (*Config, error) {
 	// accidentally-spaced value doesn't bypass the registration gate.
 	moaRefinerModel := strings.TrimSpace(os.Getenv("MOA_REFINER_MODEL"))
 
+	// RoleBased specialist pool. Empty when unset — registration requires both
+	// this AND the chairman var (Stage 3 chairman always runs). Role content
+	// (names/instructions) is fixed as council.DefaultRoles, not env-configurable.
+	var roleBasedModels []string
+	if raw := os.Getenv("ROLE_BASED_MODELS"); raw != "" {
+		for _, m := range strings.Split(raw, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				roleBasedModels = append(roleBasedModels, m)
+			}
+		}
+	}
+
+	// RoleBased chairman (required when models are set; whitespace-trim).
+	roleBasedChairmanModel := strings.TrimSpace(os.Getenv("ROLE_BASED_CHAIRMAN_MODEL"))
+
 	// Delphi rater pool. Empty when unset — registration requires both this
 	// AND the chairman var (Stage 3 chairman always runs).
 	var delphiModels []string
@@ -407,6 +430,9 @@ func Load() (*Config, error) {
 		MoaProposerModels:   moaProposerModels,
 		MoaAggregatorModels: moaAggregatorModels,
 		MoaRefinerModel:     moaRefinerModel,
+
+		RoleBasedModels:        roleBasedModels,
+		RoleBasedChairmanModel: roleBasedChairmanModel,
 
 		DelphiModels:               delphiModels,
 		DelphiChairmanModel:        delphiChairmanModel,
