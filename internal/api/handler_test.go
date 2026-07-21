@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/valpere/vmm-rada/internal/council"
 	"github.com/valpere/vmm-rada/internal/storage"
@@ -1119,6 +1120,53 @@ func TestSendMessageStream(t *testing.T) {
 				if !sawTerminalMoa {
 					t.Errorf("terminal stage2_complete with moa_aggregator not seen on the wire:\n%s", body)
 				}
+			},
+		},
+		{
+			name:   "title truncated to 50 runes on multi-byte content",
+			body:   `{"content":"test","council_type":"standard"}`,
+			storer: &mockStorer{
+				saveUserMessage:      func(string, string) error { return nil },
+				saveAssistantMessage: func(string, council.AssistantMessage) error { return nil },
+				saveTitle: func(_ string, title string) error {
+					wantTitle := string([]rune(strings.Repeat("あ", maxTitleRunes+5))[:maxTitleRunes])
+					if title != wantTitle {
+						t.Errorf("saved title: got %q, want %q", title, wantTitle)
+					}
+					return nil
+				},
+			},
+			runner: &mockRunner{
+				runFull: func(_ context.Context, _, _ string, onEvent council.EventFunc) error {
+					onEvent("stage3_complete", council.StageThreeResult{
+						Content: strings.Repeat("あ", maxTitleRunes+5),
+					})
+					return nil
+				},
+			},
+			wantCode: http.StatusOK,
+			checkSSE: func(t *testing.T, body string) {
+				wantTitle := string([]rune(strings.Repeat("あ", maxTitleRunes+5))[:maxTitleRunes])
+				for _, line := range strings.Split(body, "\n") {
+					if !strings.HasPrefix(line, "data: ") {
+						continue
+					}
+					var env struct {
+						Type string            `json:"type"`
+						Data map[string]string `json:"data"`
+					}
+					if err := json.Unmarshal([]byte(line[6:]), &env); err != nil || env.Type != "title_complete" {
+						continue
+					}
+					if env.Data["title"] != wantTitle {
+						t.Errorf("title_complete title: got %q, want %q", env.Data["title"], wantTitle)
+					}
+					if got := utf8.RuneCountInString(env.Data["title"]); got != maxTitleRunes {
+						t.Errorf("title_complete title rune count: got %d, want %d", got, maxTitleRunes)
+					}
+					return
+				}
+				t.Errorf("expected 'title_complete' event, got:\n%s", body)
 			},
 		},
 		{

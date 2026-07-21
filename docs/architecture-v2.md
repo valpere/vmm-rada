@@ -8,10 +8,12 @@
 
 VMM Rada is a multi-LLM deliberation system. A set of council models independently
 answer a user query, anonymously peer-review each other's answers, and a Chairman model
-synthesises a final response. The result streams to the browser over Server-Sent Events.
+synthesises a final response. This repo is the backend API only — it streams the result
+to any HTTP client over Server-Sent Events. The reference frontend lives in a separate
+repo, [`vmm-rada-web-ui`](https://github.com/valpere/vmm-rada-web-ui).
 
 ```
-Browser (React + Vite)
+API client (any HTTP/SSE-capable consumer)
     │  SSE / JSON over HTTP
     ▼
 Go HTTP server  (:8001)
@@ -90,12 +92,18 @@ var _ council.Runner    = (*council.Rada)(nil)
 
 ```
 config.Load()
-    → openrouter.NewClient(apiKey, baseURL, timeout)
+    → openrouter.NewCircuitBreaker(failureThreshold, windowDuration, resetTimeout)
+    → openrouter.NewClient(apiKey, baseURL, timeout, maxRetries, logger, circuitBreaker)
     → council.NewCouncil(client, registry, logger)
     → storage.NewStore(dataDir, logger)
-    → api.NewHandler(runner, store, logger, councilType)
+    → council.ClarificationConfig{maxRounds, maxTotalQuestions, maxQuestionsPerRound, models, arbiterModel}
+    → api.NewHandler(runner, runner, store, logger, defaultCouncilType, clarificationCfg)
     → http.Server{Addr, Handler: mux}
 ```
+
+`runner` is passed twice to `NewHandler` — `council.Rada` implements both the
+`council.Runner` interface (Stage 1-3 dispatch) and the `council.Stage0Runner` interface
+(clarification), so the same concrete value satisfies both handler dependencies.
 
 This keeps all dependency injection in one place and makes each package independently testable.
 
@@ -221,9 +229,11 @@ Implemented in `internal/council/debate.go`. Best for reasoning, ethics, and str
 
 **Anonymisation contract:** the per-round prompt MUST NOT contain model names — only labels. The Stage 3 chairman prompt does include the `LabelToModel` map so the chairman can attribute provenance in its synthesis.
 
-**Single source of truth on the frontend:** `msg.metadata.debate`. The `stage2_round_complete` handler appends to `metadata.debate.rounds`; the terminal `stage2_complete` overwrites with the canonical state (which includes any dropouts populated by the runner). On replay, only `metadata.debate` is available — the same render path applies.
-
-**Round 0 is not in `Debate.Rounds`.** It lives on `AssistantMessage.Stage1` (backend) and `msg.stage1` (frontend). Single source of truth per layer; the schema doesn't lie about what a "debate round" is.
+**Round 0 is not in `Debate.Rounds`.** It lives on `AssistantMessage.Stage1`. Single source
+of truth per layer; the schema doesn't lie about what a "debate round" is. A client
+rendering progressive rounds should append `stage2_round_complete` events to its own
+`debate.rounds` state and let the terminal `stage2_complete` overwrite with the canonical
+state (which includes any dropouts populated by the runner).
 
 Registration is opt-in AND requires both `DEBATE_MODELS` and `DEBATE_CHAIRMAN_MODEL`. `DEBATE_MAX_ROUNDS` is optional (default 2; invalid values warn and fall back to default).
 
@@ -242,7 +252,7 @@ Implemented in `internal/council/moa.go`. Modelled on the Together AI MoA paper.
 
 **Anonymisation contract:** the aggregator prompt MUST NOT contain proposer model names — only labels (`Response A`/…). The refiner prompt does include aggregator labels with model attribution.
 
-**Single source of truth on the frontend:** `msg.metadata.moa_aggregator`. The terminal `stage2_complete` is authoritative; `MoaView` reads `msg.metadata?.moa_aggregator?.aggregators` for Layer 2 and `msg.stage1` for Layer 1.
+The terminal `stage2_complete` event is authoritative — `metadata.moa_aggregator.aggregators` carries Layer 2 output, `stage1` carries Layer 1.
 
 **Out of scope (future variants):** round-robin aggregator fan-out (today is all-to-all per the MoA paper), aggregator role specialisation, refiner-as-pass-through, iterative MoA depth ≥ 2 aggregator layers.
 
@@ -262,9 +272,10 @@ Implemented in `internal/council/delphi.go`. Modelled on the Delphi method. Best
 
 **Cost:** `N + N×R + 1` worst case (no convergence). With defaults N=4 R=3: **17 calls**. Convergence at round 2 → 9 calls; at round 1 the strategy can't yet detect convergence.
 
-**No `DelphiDropout` type.** Dropped raters are simply absent from subsequent rounds' `Ratings` slices; chairman and frontend infer dropout by label-set diff between rounds. Delphi's transcript is a sample (smaller `n`), not a narrative — typed dropout markers would invite the chairman prompt to over-explain.
+**No `DelphiDropout` type.** Dropped raters are simply absent from subsequent rounds' `Ratings` slices; a client infers dropout by label-set diff between rounds. Delphi's transcript is a sample (smaller `n`), not a narrative — typed dropout markers would invite the chairman prompt to over-explain.
 
-**Single source of truth on the frontend:** `msg.metadata.delphi`. The `stage2_round_complete` handler (factored into `mergeRoundIntoMessage` in `App.jsx`) appends to `metadata.delphi.rounds` for `kind: "delphi_round"` events, mirroring how it handles `kind: "debate_round"` for Debate.
+The terminal `stage2_complete` event is authoritative — `metadata.delphi.rounds` carries
+the full transcript, mirroring how `metadata.debate.rounds` works for `MultiAgentDebate`.
 
 Registration is opt-in AND requires both `DELPHI_MODELS` and `DELPHI_CHAIRMAN_MODEL`. `DELPHI_MAX_ROUNDS` (default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (default 0.1; valid range `(0.0, 1.0)`) are optional; invalid values warn and fall back to defaults.
 
@@ -311,79 +322,8 @@ Key design constraints:
 | **Request body limit** | `http.MaxBytesReader(w, r.Body, 1<<20)` (1 MiB) applied before `json.Decode` |
 | **UUID validation** | Path parameter `{id}` validated against `^[0-9a-f]{8}-...-4...-[89ab]...$` before any storage call |
 | **SSE format** | `data: {...}\n\n` — no `event:` line; demux by `"type"` field |
-| **CORS** | Allowed origins hardcoded: `http://localhost:5173`, `http://localhost:3000`; `Vary: Origin` set when reflecting |
+| **CORS** | Allowed origins hardcoded: `http://localhost:5173`, `http://localhost:3000` — both localhost-only dev origins, vestigial since the frontend extraction; `Vary: Origin` set when reflecting. See [`requirements.md`](./requirements.md#gap-analysis). |
 | **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'` applied to every route |
-
----
-
-## Frontend
-
-**Stack:** React 19, Vite 8, plain JavaScript (no TypeScript).  
-**Directory:** `frontend/`
-
-### Architecture rules (immutable)
-
-These four rules are enforced in every code review — any violation must be flagged:
-
-1. **Components under `frontend/src/components/` are pure UI.** They must not call `fetch`, `XMLHttpRequest`, or import `api.js`.
-2. **`src/api.js` is the sole network boundary.** `App.jsx` is the only file that may import it. HTTP status codes and raw SSE lines never leak past this module. The only interface `App.jsx` sees is `onEvent(type, event)`.
-3. **`App.jsx` owns all state.** Only `App.jsx` calls `setCurrentConversation` / `setConversations`. State flows down via props; events flow up via callbacks.
-4. **`react-markdown` is the only renderer for LLM output.** Injecting raw HTML directly into the DOM is forbidden — LLM-generated content is untrusted and must go through the Markdown component.
-
-### Component hierarchy
-
-```
-App.jsx                     — root; owns all application state
-├── Sidebar.jsx             — conversation list, new-conversation button, theme toggle
-│   └── Sidebar.css
-└── ChatInterface.jsx       — message thread + always-visible input form
-    ├── EmptyState.jsx      — welcome screen with prompt chips (shown when no messages)
-    ├── Stage1.jsx          — accordion: individual model responses (collapsed by default)
-    ├── Stage2.jsx          — accordion: peer rankings + consensus badge (collapsed by default)
-    ├── Stage3.jsx          — hero card: chairman synthesis (always expanded)
-    └── Markdown.jsx        — shared react-markdown wrapper with rehype-highlight
-```
-
-### State shape (`App.jsx`)
-
-`currentConversation.messages` is a flat array. Each element is either a user message or
-an assistant message:
-
-```js
-// user message
-{ role: 'user', content: '...' }
-
-// assistant message (progressive — fields fill in as SSE events arrive)
-{
-  role: 'assistant',
-  stage1: null | StageOneResult[],
-  stage2: null | StageTwoResult[],
-  stage3: null | StageThreeResult,
-  metadata: null | Metadata,
-  loading: { stage1: true, stage2: false, stage3: false },
-  error: null | string,
-}
-```
-
-`loading.stage1` starts as `true` when the assistant message is first created (before any
-SSE events) so the Stage 1 spinner renders immediately. Each field is set by the
-corresponding SSE event handler in `App.jsx`.
-
-### Theme system
-
-Design tokens live in `frontend/src/theme.css` as CSS custom properties on `:root` (dark
-default) and `[data-theme="light"]`. No hardcoded colour values are permitted in component
-CSS files — use `var(--token)` only.
-
-The active theme is stored in `App.jsx` state, persisted in `localStorage`, and applied by
-setting `document.documentElement.dataset.theme` via `useEffect`.
-
-### Dev proxy
-
-`vite.config.js` reads `PORT` from the root `.env` via Vite's `loadEnv` and configures a
-proxy so `/api` requests from the browser are forwarded to `http://localhost:{PORT}`. This
-means CORS headers are not needed during local development. `VITE_API_BASE` is only used
-for cross-origin production deployments.
 
 ---
 
@@ -392,14 +332,10 @@ for cross-origin production deployments.
 ### Sending a message (streaming path)
 
 ```
-User types a message and presses Enter
+Client sends a message
     │
     ▼
-App.jsx: onSendMessage(content)
-    │  adds user message + empty assistant message (loading.stage1=true) to state
-    ▼
-api.js: sendMessageStream(conversationId, content, councilType, onEvent)
-    │  POST /api/conversations/{id}/message/stream
+POST /api/conversations/{id}/message/stream
     ▼
 handler.go: sendMessageStream
     │  saves user message to storage
@@ -409,16 +345,10 @@ handler.go: sendMessageStream
     │      ├── Stage 2 (parallel peer review) → emits stage2_complete → SSE flush
     │      └── Stage 3 (chairman synthesis) → emits stage3_complete → SSE flush
     │  saves assistant message to storage
-    │  emits title_complete (first 50 bytes of Stage 3) → SSE flush
+    │  emits title_complete (first 50 runes of Stage 3) → SSE flush
     │  emits complete → SSE flush
     ▼
-api.js: onEvent callback fires for each SSE event
-    ▼
-App.jsx: sseHandlers[eventType](event)
-    │  updates currentConversation.messages[last] in place via functional setState
-    │  loading.stage1/2/3 cleared as each *_complete arrives
-    ▼
-React re-render → Stage1/Stage2/Stage3 components receive new props
+Client's SSE handler processes each event as it arrives
 ```
 
 ### Conversation persistence
