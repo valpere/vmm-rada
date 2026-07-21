@@ -19,6 +19,15 @@ const (
 	maxTitleRunes       = 50
 )
 
+// truncateTitle rune-safely truncates s to at most maxTitleRunes runes, so
+// multi-byte UTF-8 characters are never split mid-codepoint.
+func truncateTitle(s string) string {
+	if utf8.RuneCountInString(s) > maxTitleRunes {
+		return string([]rune(s)[:maxTitleRunes])
+	}
+	return s
+}
+
 var uuidRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 var allowedOrigins = map[string]bool{
@@ -207,11 +216,7 @@ func (h *Handler) renameConversation(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "title is required")
 		return
 	}
-	title := req.Title
-	if utf8.RuneCountInString(title) > maxTitleRunes {
-		runes := []rune(title)
-		title = string(runes[:maxTitleRunes])
-	}
+	title := truncateTitle(req.Title)
 	if err := h.storage.SaveTitle(id, title); err != nil {
 		if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
 			h.writeError(w, http.StatusNotFound, "not found")
@@ -409,11 +414,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := msg.Stage3.Content
-	if utf8.RuneCountInString(title) > maxTitleRunes {
-		runes := []rune(title)
-		title = string(runes[:maxTitleRunes])
-	}
+	title := truncateTitle(msg.Stage3.Content)
 	if err := h.storage.SaveTitle(id, title); err != nil {
 		h.logger.Warn("save title", "id", id, "error", err)
 	}
@@ -731,12 +732,7 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 	// A buffered channel of size 1 prevents goroutine leak if the select times out.
 	titleCh := make(chan string, 1)
 	go func() {
-		content := msg.Stage3.Content
-		if utf8.RuneCountInString(content) > maxTitleRunes {
-			runes := []rune(content)
-			content = string(runes[:maxTitleRunes])
-		}
-		titleCh <- content
+		titleCh <- truncateTitle(msg.Stage3.Content)
 	}()
 
 	select {

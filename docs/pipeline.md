@@ -449,14 +449,11 @@ After `RunFull` returns successfully:
    ```go
    titleCh := make(chan string, 1)
    go func() {
-       content := msg.Stage3.Content
-       if utf8.RuneCountInString(content) > maxTitleRunes {
-           content = string([]rune(content)[:maxTitleRunes])
-       }
-       titleCh <- content
+       titleCh <- truncateTitle(msg.Stage3.Content)
    }()
    ```
-   Truncates to the first **50 runes** of the Stage 3 response — rune-safe, so
+   `truncateTitle` (shared by all three title-producing call sites — this one, `sendMessage`,
+   and `renameConversation`) truncates to the first **50 runes** — rune-safe, so
    multi-byte UTF-8 characters are never split.
 
 3. **Wait with 30-second deadline**:
