@@ -172,10 +172,21 @@ The `default` arm is unreachable today (every strategy has a case), but is retai
 
 #### `RoleBased` pipeline (2 stages, Stage 2 stub)
 
+Implemented in `internal/council/rolebased.go`. Best for questions that benefit from
+genuinely distinct cognitive lenses on the same prompt — broad exploration, self-critique,
+fact-checking rigor, and concision — rather than independent full-answer competition
+(that's `PeerReview`) or domain-specialist role assignment (roles are fixed generic
+lenses, not configurable per-domain personas).
+
 1. **Stage 1** — `runRoleBasedStage1`: roles run concurrently; model assignment is `ct.Models[i % len(ct.Models)]`. Labels are role names, not anonymised.
 2. **Quorum check** — same `checkQuorum`. `QuorumMin` is typically set to `len(Roles)` so every specialist must succeed; the runner does not enforce this — it's a registration-time choice.
 3. **Stage 2** — skipped. A minimal `Stage2CompleteData{Results:[], Metadata:{AggregateRankings:[], ConsensusW:1.0}}` event is emitted for SSE compatibility.
 4. **Stage 3** — `runRoleBasedStage3`: chairman synthesises across all role findings.
+
+Registration is opt-in AND requires both `ROLE_BASED_MODELS` and
+`ROLE_BASED_CHAIRMAN_MODEL`. Role content (names/instructions) is fixed as
+`council.DefaultRoles` — Generator, Critic, Verifier, Simplifier — not env-configurable;
+see [`strategies.md`](./strategies.md) for the registration contract.
 
 #### `Majority` pipeline (2 stages, no LLM Stage 2)
 
