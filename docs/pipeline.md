@@ -512,28 +512,28 @@ in the SSE payload.
 
 ---
 
-## RoleBased pipeline (implemented, not registered — see Known Gaps in `requirements.md`)
+## RoleBased pipeline
 
 **File:** `internal/council/rolebased.go` — `runRoleBased`
 
-`RunFull` dispatches to `runRoleBased` when `ct.Strategy == RoleBased`. The dispatch case
-and the pipeline logic below are real and tested (`rolebased_test.go`), but **nothing in
-`cmd/server/main.go` or `internal/config/config.go` ever constructs a `CouncilType` with
-`Strategy: RoleBased`** — there is no env var family for it, unlike every other strategy.
-It cannot be invoked through the running server today. There is also no `/review`
-endpoint — `RegisterRoutes` in `internal/api/handler.go` only registers the
-strategy-agnostic `/message` and `/message/stream` routes (the earlier dedicated
-`/review*` endpoints and their `review_roles.go` helper — `DefaultReviewRoles` /
-`NewCodeReviewCouncilType` — were removed in PR #199; see
-[`strategies.md`](./strategies.md#whats-not-here)). Registering RoleBased today would
-mean adding a `CouncilType{Strategy: RoleBased, Roles: [...]}` entry to the registry the
-same way `Majority` or `MultiAgentDebate` are registered — see [`strategies.md`](./strategies.md)
-for that pattern.
+`RunFull` dispatches to `runRoleBased` when `ct.Strategy == RoleBased`. Registered under
+the `"role-based"` council type name in `cmd/server/main.go`, opt-in via
+`ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL` (both required — see
+[`strategies.md`](./strategies.md) for the full registration contract). Role content
+(names/instructions) is fixed as `council.DefaultRoles` (`internal/council/roles.go`),
+not env-configurable. There is no dedicated `/review` endpoint — `RegisterRoutes` in
+`internal/api/handler.go` only registers the strategy-agnostic `/message` and
+`/message/stream` routes; RoleBased is reached the same way every other strategy is,
+via `council_type: "role-based"` in the request body. (The earlier dedicated `/review*`
+endpoints and their `review_roles.go` helper — `DefaultReviewRoles` /
+`NewCodeReviewCouncilType` — were a different, code-review-specific feature removed in
+PR #199; see [`strategies.md`](./strategies.md#whats-not-here). Unrelated to this
+registration.)
 
-### High-level flow (if registered)
+### High-level flow
 
 ```
-council.Rada.RunFull("<some-registered-name>")   [internal/council/runner.go]
+council.Rada.RunFull("role-based")   [internal/council/runner.go]
     │   dispatches to runRoleBased
     │
     ▼
@@ -571,14 +571,14 @@ One model handles all roles; 4 models give one per role; any count wraps round-r
   { "role": "user",   "content": query } ]
 ```
 
-The `StageOneResult.Label` is set to the role's `Name` (`"security"`, `"logic"`, etc.),
-not an anonymous `Response X` label.
+The `StageOneResult.Label` is set to the role's `Name` (`"Generator"`, `"Critic"`, etc.,
+per `council.DefaultRoles`), not an anonymous `Response X` label.
 
-**Quorum:** `checkQuorum(results, ct.QuorumMin)`. The intended pattern (were this
-registered) is `QuorumMin = len(ct.Roles)` — every role must succeed, unlike `PeerReview`
+**Quorum:** `checkQuorum(results, ct.QuorumMin)`. The `"role-based"` registration sets
+`QuorumMin = len(council.DefaultRoles)` — every role must succeed, unlike `PeerReview`
 where partial success is allowed, since each role covers a unique concern and a missing
-role silently drops coverage. This is a registration-time choice; the runner does not
-enforce it.
+role silently drops coverage. This is a registration-time choice; the runner itself does
+not enforce it (a different registration could set a lower `QuorumMin`).
 
 ### Stage 2 — skipped
 

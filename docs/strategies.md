@@ -13,22 +13,21 @@ Stage 0 (clarification) runs **before** strategy dispatch and is strategy-indepe
 | Strategy | Status | Pipeline file | Implementation PR |
 |----------|--------|---------------|-------------------|
 | `PeerReview` | shipped | `runner.go:runPeerReview` | initial |
-| `RoleBased` | implemented, **not registered** — see below | `rolebased.go:runRoleBased` | #177 |
+| `RoleBased` | shipped | `rolebased.go:runRoleBased` | #177, registration #302 |
 | `Majority` | shipped | `majority.go:runMajority` | #205 |
 | `GenerateRankRefine` | shipped | `generaterankrefine.go:runGenerateRankRefine` | #210 |
 | `MultiAgentDebate` | shipped | `debate.go:runMultiAgentDebate` | #212 |
 | `MixtureOfAgents` | shipped | `moa.go:runMixtureOfAgents` | #214 |
 | `Delphi` | shipped | `delphi.go:runDelphi` | #216 |
 
-**`RoleBased` cannot be invoked today.** `RunFull` dispatches to `runRoleBased` and the
-pipeline is real and tested, but no `CouncilType{Strategy: RoleBased}` is ever registered
-in `cmd/server/main.go` — unlike every other strategy, it has no env var family to opt
-in with. This traces back to PR #199, which removed the dedicated `/review*` endpoints
-and their `review_roles.go` helper (see [What's not here](#whats-not-here) below): code
-review is slated to return "rebuilt on top of `Majority` or `MixtureOfAgents`," which
-reads as RoleBased itself being a superseded design rather than a strategy pending
-registration. Treat it as dead code until that decision is made explicit — see
-[`requirements.md`](./requirements.md#gap-analysis).
+`RoleBased` was implemented and tested well before it was registered — see #302 for the
+gap and its resolution. It is registered under the `"role-based"` council type name with
+a fixed, generic role set (`council.DefaultRoles`: Generator, Critic, Verifier,
+Simplifier — see [`council-research-synthesis.md §2.7`](./council-research-synthesis.md)).
+This is unrelated to the old code-review-specific `/review*` endpoints removed in PR #199
+(see [What's not here](#whats-not-here) below) — that was a different, narrower
+4-role set behind dedicated routes; this is a generic strategy reachable through the
+same strategy-agnostic REST API as every other strategy.
 
 ### LLM-call cost (per request, ignoring Stage 0)
 
@@ -53,7 +52,7 @@ Each registration in `cmd/server/main.go` and `cmd/eval/main.go` carries its own
 | Strategy | What `Models` represents | What `ChairmanModel` represents | Env var family | Fall-through |
 |----------|--------------------------|---------------------------------|----------------|--------------|
 | `PeerReview` | Rada members (generators + reviewers) | Stage 3 synthesiser | `RADA_MODELS` / `CHAIRMAN_MODEL` | — (these are the defaults) |
-| `RoleBased` | Pool assigned to roles by `i % len(Models)` | Synthesiser across role findings | (none today; roles config is in code) | — |
+| `RoleBased` | Pool assigned to roles by `i % len(Models)` | Synthesiser across role findings (required) | `ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL` (both required) | none — registration is opt-in via both `ROLE_BASED_*` env vars; role content itself (`Roles []Role` — names/instructions) is fixed as `council.DefaultRoles`, not env-configurable |
 | `Majority` | Voters | Tiebreaker / polish (optional; `""` = no tiebreak, ties error) | `MAJORITY_MODELS` (required to register) / `MAJORITY_CHAIRMAN_MODEL` (optional) | none — registration is opt-in via `MAJORITY_MODELS`; chairman stays empty when unset (so the no-chairman path is reachable) |
 | `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
 | `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
