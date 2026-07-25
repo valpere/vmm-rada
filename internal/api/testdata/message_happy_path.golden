@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "aggregate_rankings": [
+      {
+        "model": "openai/gpt-4o-mini",
+        "score": 1
+      },
+      {
+        "model": "anthropic/claude-haiku-4-5",
+        "score": 2
+      }
+    ],
+    "consensus_w": 1,
+    "council_type": "standard",
+    "label_to_model": {
+      "Response A": "openai/gpt-4o-mini",
+      "Response B": "anthropic/claude-haiku-4-5"
+    }
+  },
+  "role": "assistant",
+  "stage1": [
+    {
+      "content": "Go is a compiled language.",
+      "duration_ms": 100,
+      "label": "Response A",
+      "model": "openai/gpt-4o-mini"
+    },
+    {
+      "content": "Go was created at Google.",
+      "duration_ms": 120,
+      "label": "Response B",
+      "model": "anthropic/claude-haiku-4-5"
+    }
+  ],
+  "stage2": [
+    {
+      "rankings": [
+        "Response A",
+        "Response B"
+      ],
+      "reviewer_label": "Response A"
+    },
+    {
+      "rankings": [
+        "Response A",
+        "Response B"
+      ],
+      "reviewer_label": "Response B"
+    }
+  ],
+  "stage3": {
+    "content": "Go is a compiled language created at Google.",
+    "duration_ms": 200,
+    "model": "openai/gpt-4o-mini"
+  }
+}

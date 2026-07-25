@@ -95,7 +95,8 @@ Every strategy emits the same event family:
 
 | Slot | Meaning | Mandatory? |
 |------|---------|------------|
-| `stage0_round_complete` / `stage0_done` | Clarification round-trips | No (skipped if `MaxRounds == 0`) |
+| `stage0_round_complete` | Clarification round-trips | No (skipped if `MaxRounds == 0`) |
+| `stage0_done` | Internal state marker only — **not sent on the wire**. Tracked by the handler to decide whether to proceed to Stage 1; a client never sees this event. | N/A |
 | `stage1_complete` | Initial generation results | Yes |
 | `stage2_complete` | Intermediate processing | Yes (may be a stub) |
 | `stage3_complete` | Final synthesis | Yes |

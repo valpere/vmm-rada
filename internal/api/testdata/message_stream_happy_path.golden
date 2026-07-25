@@ -1,0 +1,10 @@
+data: {"type":"stage1_complete","data":[{"label":"Response A","content":"Go is a compiled language.","model":"openai/gpt-4o-mini","duration_ms":100},{"label":"Response B","content":"Go was created at Google.","model":"anthropic/claude-haiku-4-5","duration_ms":120}]}
+
+data: {"type":"stage2_complete","kind":"peer_ranking","data":[{"reviewer_label":"Response A","rankings":["Response A","Response B"]},{"reviewer_label":"Response B","rankings":["Response A","Response B"]}],"metadata":{"council_type":"standard","label_to_model":{"Response A":"openai/gpt-4o-mini","Response B":"anthropic/claude-haiku-4-5"},"aggregate_rankings":[{"model":"openai/gpt-4o-mini","score":1},{"model":"anthropic/claude-haiku-4-5","score":2}],"consensus_w":1}}
+
+data: {"type":"stage3_complete","data":{"content":"Go is a compiled language created at Google.","model":"openai/gpt-4o-mini","duration_ms":200}}
+
+
+data: {"type":"complete"}
+
+

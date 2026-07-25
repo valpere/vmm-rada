@@ -8,6 +8,8 @@ Each entry below is a link to a memory file with a one-line description.
 - [cors-allowed-methods.md](cors-allowed-methods.md) — CORS Access-Control-Allow-Methods must include every verb used by browser fetch (DELETE, PATCH); missing verbs cause preflight 405
 - [storage-title-handling.md](storage-title-handling.md) — SaveTitle already on Storer; maxTitleRunes=50 truncates (not rejects); no RenameConversation needed
 
+- [stage0-done-not-on-wire.md](stage0-done-not-on-wire.md) — stage0_done is EventFunc-internal only, never on the SSE wire; recurring doc-drift trap across api.md/user-guide.md/strategies.md
+
 - [rolebased-strategy-orphan.md](rolebased-strategy-orphan.md) — RoleBased resolved: registered standalone (opt-in ROLE_BASED_* env family); extraction-into-MoA overruled by user
 
 <!-- Add pointers here as agents write memories. Keep under 200 lines. -->

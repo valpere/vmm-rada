@@ -66,6 +66,7 @@ is written), so a proper HTTP status code is always possible.
 | SSE streaming not supported by server | `500` | `"streaming not supported"` |
 | Round-N with already-answered round | `409` | `"clarification round already answered"` |
 | Round-N with no pending clarification round | `409` | `"no pending clarification round"` |
+| Message sent to a closed conversation | `409` | `"conversation is closed"` |
 
 ### SSE error events
 
@@ -254,7 +255,7 @@ Send a message and receive the full deliberation result in a single JSON respons
 > { "answers": [ {"id": "q1", "text": "MySQL 5.7"}, {"id": "q2", "text": ""} ] }
 > ```
 
-**Response `200 OK`** — `AssistantMessage`
+**Response `200 OK`** — `AssistantMessage`, once the pipeline reaches Stage 3:
 
 ```json
 {
@@ -289,7 +290,25 @@ Send a message and receive the full deliberation result in a single JSON respons
 }
 ```
 
-**Errors:** `400` (invalid body/UUID), `404` (not found), `503` (quorum not met), `500`.
+**Response `200 OK`** — different shape if Stage 0 fires (chairman has questions before
+generation): the pipeline pauses and this endpoint returns immediately with the round
+data instead of an `AssistantMessage`. Send another request to the same endpoint with
+`{"answers": [...]}` (not `content`) to continue.
+
+```json
+{
+  "stage0_round_complete": {
+    "round": 1,
+    "questions": [
+      {"id": "q1", "text": "What database are you currently using and at what scale?"}
+    ]
+  }
+}
+```
+
+**Errors:** `400` (invalid body/UUID), `404` (not found), `409` (conversation is closed,
+or round-N conflicts — see [error reference](#pre-sse-http-errors)), `503` (quorum not
+met), `500`.
 
 ---
 
@@ -326,10 +345,9 @@ There is no `event:` line — demux by the `"type"` field of the JSON payload.
 ## SSE event sequence
 
 ```
-data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}   ← stream closes here (Stage 0 enabled)
+data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}
+data: {"type":"complete"}                                                     ← stream ends here (Stage 0 enabled)
   … client submits answers via new POST …
-data: {"type":"stage0_done"}                                                  ← Stage 1 follows
-
 data: {"type":"stage1_complete","data":[...StageOneResult]}
 data: {"type":"stage2_complete","data":[...StageTwoResult],"metadata":{...Metadata}}
 data: {"type":"stage3_complete","data":{...StageThreeResult}}
@@ -370,7 +388,9 @@ After an error event the stream ends. No `complete` event follows.
 
 ### `stage0_round_complete`
 
-Emitted when the chairman has questions for the user. The SSE stream **closes** after this event. The client must open a new stream with `{answers:[...]}` to continue.
+Emitted when the chairman has questions for the user. A `complete` event is sent
+immediately after (no title — Stage 3 hasn't run yet), then the stream ends. The client
+must open a new stream with `{answers:[...]}` to continue.
 
 ```json
 {
@@ -385,13 +405,11 @@ Emitted when the chairman has questions for the user. The SSE stream **closes** 
 }
 ```
 
-### `stage0_done`
-
-Emitted when the Stage 0 loop ends — chairman said "enough", limits were reached, or the user submitted all-empty answers. `stage1_complete` follows immediately on the same stream.
-
-```json
-{ "type": "stage0_done" }
-```
+There is no `stage0_done` event on the wire. Internally, the Stage 0 loop tracks a
+"done" state (chairman said "enough", limits were reached, or the user submitted
+all-empty answers) to decide whether to proceed to Stage 1 — but that transition is
+silent from the client's perspective: the stream simply continues straight into
+`stage1_complete` with no event marking the boundary.
 
 ### `stage1_complete`
 
@@ -428,6 +446,7 @@ on the event object, not nested inside `data`.
 ```json
 {
   "type": "stage2_complete",
+  "kind": "peer_ranking",
   "data": [
     {
       "reviewer_label": "Response B",
@@ -448,6 +467,9 @@ on the event object, not nested inside `data`.
   }
 }
 ```
+
+`kind` is always present on the wire (no `omitempty`) — see [Stage 2 `kind`
+values](./strategies.md#stage-2-kind-values) for the full discriminator table.
 
 `aggregate_rankings` are sorted by `score` ascending (lower = better rank).
 `consensus_w` is a 0–1 weight indicating agreement across reviewers.

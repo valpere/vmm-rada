@@ -844,19 +844,19 @@ func TestSendMessageStream(t *testing.T) {
 			},
 			wantCode: http.StatusOK,
 			checkSSE: func(t *testing.T, body string) {
-				// 1. A stage2_round_complete event MUST appear with `round: 1`
-				//    present on the wire (not omitempty).
-				// 2. The terminal stage2_complete event MUST carry the full
-				//    transcript with metadata.debate populated.
+				// Narrow wire-contract invariants only — the full response shape
+				// (including the terminal stage2_complete transcript) is covered
+				// byte-for-byte by TestContract_SendMessageStream_MultiAgentDebate's
+				// golden file (contract_test.go). This check exists to document
+				// *why* `round` must stay required (not omitempty): it's a
+				// deliberate wire-contract decision, not incidental current
+				// behavior, and that intent doesn't show up in a raw diff.
 				var sawRoundEvent bool
-				var sawTerminalDebate bool
 				for _, line := range strings.Split(body, "\n") {
 					if !strings.HasPrefix(line, "data: ") {
 						continue
 					}
 					raw := []byte(line[6:])
-
-					// Detect round events by Type+Round-key presence in raw JSON.
 					var keys map[string]json.RawMessage
 					if err := json.Unmarshal(raw, &keys); err != nil {
 						continue
@@ -878,37 +878,9 @@ func TestSendMessageStream(t *testing.T) {
 							t.Errorf("stage2_round_complete kind: got %q, want %q", kind, "debate_round")
 						}
 					}
-
-					// Detect the terminal event with full transcript.
-					if err := json.Unmarshal(keys["type"], &typ); err == nil && typ == "stage2_complete" {
-						var env struct {
-							Kind     string           `json:"kind"`
-							Metadata council.Metadata `json:"metadata"`
-						}
-						if err := json.Unmarshal(raw, &env); err != nil {
-							continue
-						}
-						if env.Kind != "debate_round" {
-							t.Errorf("terminal kind: got %q, want %q", env.Kind, "debate_round")
-						}
-						if env.Metadata.Debate == nil {
-							t.Errorf("terminal stage2_complete: metadata.debate is nil")
-							continue
-						}
-						if env.Metadata.Debate.FinalRound != 2 {
-							t.Errorf("FinalRound: got %d, want 2", env.Metadata.Debate.FinalRound)
-						}
-						if len(env.Metadata.Debate.Rounds) != 2 {
-							t.Errorf("transcript rounds: got %d, want 2", len(env.Metadata.Debate.Rounds))
-						}
-						sawTerminalDebate = true
-					}
 				}
 				if !sawRoundEvent {
 					t.Error("stage2_round_complete event not seen on the wire")
-				}
-				if !sawTerminalDebate {
-					t.Error("terminal stage2_complete with debate transcript not seen on the wire")
 				}
 			},
 		},

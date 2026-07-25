@@ -358,12 +358,8 @@ func (c *Rada) RunClarificationRound(
 	}
 
 	// Emit questions to client.
-	type roundCompleteData struct {
-		Round     int                     `json:"round"`
-		Questions []ClarificationQuestion `json:"questions"`
-	}
 	if onEvent != nil {
-		onEvent("stage0_round_complete", roundCompleteData{Round: round, Questions: questions})
+		onEvent("stage0_round_complete", Stage0RoundData{Round: round, Questions: questions})
 	}
 	return nil
 }

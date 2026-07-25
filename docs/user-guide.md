@@ -216,9 +216,9 @@ The streaming endpoint emits [Server-Sent Events](https://developer.mozilla.org/
 ```
 → POST /api/conversations/{id}/message/stream
 
-← data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}   ← default-on; stream closes
+← data: {"type":"stage0_round_complete","data":{"round":1,"questions":[...]}}   ← default-on
+← data: {"type":"complete"}                                                     ← stream ends here
   → POST /api/conversations/{id}/message/stream  {"answers":[...]}              ← client re-opens
-← data: {"type":"stage0_done"}                                                  ← Stage 1 follows
 
 ← data: {"type":"stage1_complete","data":[...]}
 

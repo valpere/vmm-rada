@@ -368,6 +368,15 @@ type ClarificationQuestion struct {
 	Text string `json:"text"`
 }
 
+// Stage0RoundData is the payload passed to EventFunc for the
+// "stage0_round_complete" event. Must be an exported type — internal/api's
+// handlers type-assert against it directly to extract Round/Questions for
+// both the SSE wire payload and clarification-round persistence.
+type Stage0RoundData struct {
+	Round     int                     `json:"round"`
+	Questions []ClarificationQuestion `json:"questions"`
+}
+
 // ClarificationAnswer is the user's response to a single clarification question.
 type ClarificationAnswer struct {
 	ID   string `json:"id"`
