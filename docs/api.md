@@ -45,10 +45,20 @@ Preflight `OPTIONS` requests return `204 No Content`.
 
 ## Error reference
 
-### Pre-SSE HTTP errors
+`POST /message` (blocking) and `POST /message/stream` share request validation and
+storage errors — but **the pipeline-run failures do not have the same wire shape on both
+endpoints.** On the blocking endpoint, nothing is written until the full result is ready,
+so a pipeline failure (quorum not met, chairman failure, save-assistant-message failure)
+is always a real HTTP status. On the streaming endpoint, once SSE headers are written
+(`Content-Type: text/event-stream`, always before any pipeline call), the HTTP status is
+locked at `200` — the *same* pipeline failures can only be communicated as a post-SSE
+`error` event, never as an HTTP status. The two tables below are cross-referenced so you
+can look up "what does this failure look like on the endpoint I'm using."
 
-Returned before the SSE stream is established (before `Content-Type: text/event-stream`
-is written), so a proper HTTP status code is always possible.
+### Pre-response / pre-SSE errors — shared shape, per-endpoint applicability
+
+Returned as a real HTTP status with a JSON body on **both** endpoints (on streaming,
+always before `Content-Type: text/event-stream` is written).
 
 **Shape:**
 
@@ -56,46 +66,55 @@ is written), so a proper HTTP status code is always possible.
 { "error": "human-readable message" }
 ```
 
-| Failure | Status | `error` message |
-|---------|--------|----------------|
-| Invalid conversation ID format | `400` | `"invalid conversation id"` |
-| Malformed or missing request body | `400` | `"invalid request body"` |
-| Conversation not found | `404` | `"not found"` |
-| Rada quorum not met | `503` | `"council quorum not met"` |
-| Storage failure (pre-pipeline) | `500` | `"internal server error"` |
-| SSE streaming not supported by server | `500` | `"streaming not supported"` |
-| Round-N with already-answered round | `409` | `"clarification round already answered"` |
-| Round-N with no pending clarification round | `409` | `"no pending clarification round"` |
-| Message sent to a closed conversation | `409` | `"conversation is closed"` |
+| Failure | Status | `error` message | Applies to |
+|---------|--------|------------------|------------|
+| SSE streaming not supported by server | `500` | `"streaming not supported"` | streaming only |
+| Invalid conversation ID format | `400` | `"invalid conversation id"` | both |
+| Malformed or missing request body | `400` | `"invalid request body"` | both |
+| Neither `content` nor `answers` set, or both set | `400` | `"exactly one of content or answers is required"` | both |
+| Conversation not found | `404` | `"not found"` | both |
+| Round-N with no pending clarification round | `409` | `"no pending clarification round"` | both |
+| Round-N with already-answered round | `409` | `"clarification round already answered"` | both |
+| Message or answers sent to a closed conversation | `409` | `"conversation is closed"` | both |
+| Storage failure (pre-pipeline — save/update/lookup) | `500` | `"internal server error"` | both |
 
-### SSE error events
+### Pipeline-run failures — different wire shape per endpoint
 
-Once SSE is established (HTTP `200`, `Content-Type: text/event-stream`), the HTTP
-status code is locked. Errors are communicated as SSE events; the stream terminates
-immediately after the error event. No `complete` event follows.
+These all originate from the same underlying call (`RunFull` / `RunFullWithClarifications`
+/ `RunClarificationRound`), so the *condition* is identical on both endpoints — only the
+**wire shape** differs.
 
-**Shape:**
+| Failure | Blocking `POST /message` | Streaming `POST /message/stream` |
+|---------|---------------------------|-----------------------------------|
+| Stage 0 clarification round failure | `500` JSON, `"internal server error"` | post-SSE `error` event, `"internal server error"` |
+| Stage 1 quorum not met | `503` JSON, `"council quorum not met"` | post-SSE `error` event, `"council quorum not met"` |
+| Stage 3 Chairman LLM failure | `500` JSON, `"internal server error"` | post-SSE `error` event, `"internal server error"` |
+| Storage failure saving assistant message | `500` JSON, `"internal server error"` | post-SSE `error` event, `"internal server error"` |
+
+Blocking shape:
+
+```json
+{ "error": "human-readable message" }
+```
+
+Streaming shape — once SSE is established, the stream terminates immediately after this
+event; no `complete` event follows:
 
 ```json
 { "type": "error", "message": "human-readable message" }
 ```
 
-| Failure | `message` |
-|---------|-----------|
-| Stage 1 quorum not met | `"council quorum not met"` |
-| Stage 3 Chairman LLM failure | `"internal server error"` |
-| Storage failure saving assistant message | `"internal server error"` |
-
 When Stage 1 returns fewer than M_min successful responses, the handler logs
-`Got`/`Need` at `WARN` level and emits the error event. No `stage2_complete` or
-`stage3_complete` events are emitted before it. The user message may already have
-been persisted; no assistant message is saved.
+`Got`/`Need` at `WARN` level, then returns the failure in whichever shape the endpoint
+uses. No `stage2_complete` or `stage3_complete` events/data are produced. The user
+message (or round-N answers) may already have been persisted; no assistant message is
+saved.
 
 ### Partial results
 
 Not returned in the current implementation. On any pipeline failure the client
-receives only the SSE error event; no stage outputs from the failed run are
-persisted.
+receives only the error response (JSON on blocking, an SSE `error` event on
+streaming) — no stage outputs from the failed run are persisted.
 
 ---
 
@@ -307,7 +326,7 @@ data instead of an `AssistantMessage`. Send another request to the same endpoint
 ```
 
 **Errors:** `400` (invalid body/UUID), `404` (not found), `409` (conversation is closed,
-or round-N conflicts — see [error reference](#pre-sse-http-errors)), `503` (quorum not
+or round-N conflicts — see [error reference](#error-reference)), `503` (quorum not
 met), `500`.
 
 ---
