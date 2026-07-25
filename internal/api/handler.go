@@ -267,11 +267,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		switch eventType {
 		case "stage0_round_complete":
 			stage0Event = eventType
-			type roundData struct {
-				Round     int                            `json:"round"`
-				Questions []council.ClarificationQuestion `json:"questions"`
-			}
-			if d, ok := data.(roundData); ok {
+			if d, ok := data.(council.Stage0RoundData); ok {
 				stage0Round = d.Round
 				stage0Questions = d.Questions
 			}
@@ -298,6 +294,10 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	if isRound1 {
 		originalQuery = body.Content
 		if err := h.storage.SaveUserMessage(id, body.Content); err != nil {
+			if errors.Is(err, storage.ErrConversationClosed) {
+				h.writeError(w, http.StatusConflict, "conversation is closed")
+				return
+			}
 			if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
 				h.writeError(w, http.StatusNotFound, "not found")
 				return
@@ -635,11 +635,7 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 		switch eventType {
 		case "stage0_round_complete":
 			stage0Event = eventType
-			type roundData struct {
-				Round     int                             `json:"round"`
-				Questions []council.ClarificationQuestion `json:"questions"`
-			}
-			if d, ok := data.(roundData); ok {
+			if d, ok := data.(council.Stage0RoundData); ok {
 				stage0Round = d.Round
 				stage0Questions = d.Questions
 			}
@@ -690,7 +686,9 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 				sendErrorSSE("internal server error")
 				return
 			}
-			// Stream closes after stage0_round_complete — no complete event, no title.
+			// Stream closes after stage0_round_complete. A complete event IS still
+			// sent (the client needs it to know the stream ended cleanly) — but no
+			// title, since Stage 3 hasn't run yet.
 			fmt.Fprintf(w, "data: {\"type\":\"complete\"}\n\n")
 			flusher.Flush()
 			return

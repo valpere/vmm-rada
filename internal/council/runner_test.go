@@ -740,3 +740,60 @@ func TestRunClarificationRound_Resolution_NoGenerators_ReturnsLoudError(t *testi
 		t.Errorf("error message: got %q, want it to mention 'generator models'", err.Error())
 	}
 }
+
+// TestRunClarificationRound_EmitsStage0RoundData is a regression test for a
+// bug where "stage0_round_complete" carried a function-local type that
+// internal/api's onEvent closures could never successfully type-assert
+// against (Go requires exact named-type identity), silently zeroing
+// Round/Questions in both the blocking response body and the persisted
+// clarification round. The emitted value must be the exported
+// council.Stage0RoundData so cross-package type assertions actually work.
+func TestRunClarificationRound_EmitsStage0RoundData(t *testing.T) {
+	client := &mockLLMClient{
+		complete: func(_ context.Context, req CompletionRequest) (CompletionResponse, error) {
+			body := req.Messages[0].Content
+			if strings.Contains(body, "You are helping clarify") {
+				return makeResponse(`{"questions":[{"text":"What database are you using?"}]}`), nil
+			}
+			if strings.Contains(body, "You are deciding whether to ask") {
+				return makeResponse(`{"questions":[{"id":"q1","text":"What database are you using?"}],"enough":false}`), nil
+			}
+			return makeResponse("{}"), nil
+		},
+	}
+	registry := map[string]CouncilType{
+		"test": {Name: "test", Strategy: PeerReview, Models: []string{"gen-1"}, ChairmanModel: "chair-1", Temperature: 0.7},
+	}
+	c := NewCouncil(client, registry, nil)
+
+	cfg := ClarificationConfig{MaxRounds: 2, MaxTotalQuestions: 5, MaxQuestionsPerRound: 3}
+
+	var (
+		gotEventType string
+		gotData      any
+	)
+	onEvent := func(eventType string, data any) {
+		if eventType == "stage0_round_complete" {
+			gotEventType = eventType
+			gotData = data
+		}
+	}
+
+	if err := c.RunClarificationRound(context.Background(), "q", nil, cfg, "test", onEvent); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotEventType != "stage0_round_complete" {
+		t.Fatalf("stage0_round_complete event not emitted (chairman returned enough:false)")
+	}
+	d, ok := gotData.(Stage0RoundData)
+	if !ok {
+		t.Fatalf("event data type: got %T, want council.Stage0RoundData", gotData)
+	}
+	if d.Round != 1 {
+		t.Errorf("Round: got %d, want 1", d.Round)
+	}
+	if len(d.Questions) != 1 || d.Questions[0].Text != "What database are you using?" {
+		t.Errorf("Questions: got %+v, want one question with the chairman's text", d.Questions)
+	}
+}
