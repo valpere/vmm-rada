@@ -299,6 +299,9 @@ func (s *Store) UpdateClarificationAnswers(id string, round int, answers []counc
 	if err != nil {
 		return err
 	}
+	if c.Closed {
+		return ErrConversationClosed
+	}
 	// Find the last message with role="clarification" and matching round.
 	for i := len(c.Messages) - 1; i >= 0; i-- {
 		var cm clarificationMessage

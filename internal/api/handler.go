@@ -128,6 +128,19 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 	h.writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// handleClosedConversation writes a 409 "conversation is closed" response
+// and returns true if err wraps storage.ErrConversationClosed. Callers
+// return immediately when this reports true. Centralised so the four call
+// sites (round-1/round-N on both endpoints) can't drift the way the
+// original SaveUserMessage-only check did (see #309).
+func (h *Handler) handleClosedConversation(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, storage.ErrConversationClosed) {
+		h.writeError(w, http.StatusConflict, "conversation is closed")
+		return true
+	}
+	return false
+}
+
 func (h *Handler) healthLive(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
@@ -294,8 +307,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	if isRound1 {
 		originalQuery = body.Content
 		if err := h.storage.SaveUserMessage(id, body.Content); err != nil {
-			if errors.Is(err, storage.ErrConversationClosed) {
-				h.writeError(w, http.StatusConflict, "conversation is closed")
+			if h.handleClosedConversation(w, err) {
 				return
 			}
 			if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
@@ -357,6 +369,9 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.storage.UpdateClarificationAnswers(id, lastRound.Round, body.Answers); err != nil {
+			if h.handleClosedConversation(w, err) {
+				return
+			}
 			h.logger.Error("update clarification answers", "id", id, "error", err)
 			h.writeError(w, http.StatusInternalServerError, "internal server error")
 			return
@@ -481,6 +496,9 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.storage.UpdateClarificationAnswers(id, lastRound.Round, body.Answers); err != nil {
+			if h.handleClosedConversation(w, err) {
+				return
+			}
 			h.logger.Error("update clarification answers", "id", id, "error", err)
 			h.writeError(w, http.StatusInternalServerError, "internal server error")
 			return
@@ -498,8 +516,7 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		originalQuery = body.Content
 		if err := h.storage.SaveUserMessage(id, body.Content); err != nil {
-			if errors.Is(err, storage.ErrConversationClosed) {
-				h.writeError(w, http.StatusConflict, "conversation is closed")
+			if h.handleClosedConversation(w, err) {
 				return
 			}
 			if _, ok := errors.AsType[*storage.NotFoundError](err); ok {
