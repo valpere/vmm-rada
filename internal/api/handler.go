@@ -357,6 +357,10 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.storage.UpdateClarificationAnswers(id, lastRound.Round, body.Answers); err != nil {
+			if errors.Is(err, storage.ErrConversationClosed) {
+				h.writeError(w, http.StatusConflict, "conversation is closed")
+				return
+			}
 			h.logger.Error("update clarification answers", "id", id, "error", err)
 			h.writeError(w, http.StatusInternalServerError, "internal server error")
 			return
@@ -481,6 +485,10 @@ func (h *Handler) sendMessageStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.storage.UpdateClarificationAnswers(id, lastRound.Round, body.Answers); err != nil {
+			if errors.Is(err, storage.ErrConversationClosed) {
+				h.writeError(w, http.StatusConflict, "conversation is closed")
+				return
+			}
 			h.logger.Error("update clarification answers", "id", id, "error", err)
 			h.writeError(w, http.StatusInternalServerError, "internal server error")
 			return

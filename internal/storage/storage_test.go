@@ -431,6 +431,24 @@ func TestStore_SaveUserMessage_RejectsAfterClose(t *testing.T) {
 	}
 }
 
+func TestStore_UpdateClarificationAnswers_RejectsAfterClose(t *testing.T) {
+	s := newTestStore(t)
+	c, err := s.CreateConversation()
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	if err := s.SaveClarificationRound(c.ID, 1, []council.ClarificationQuestion{{ID: "q1", Text: "First?"}}, "default"); err != nil {
+		t.Fatalf("SaveClarificationRound: %v", err)
+	}
+	if err := s.CloseConversation(c.ID); err != nil {
+		t.Fatalf("CloseConversation: %v", err)
+	}
+	err = s.UpdateClarificationAnswers(c.ID, 1, []council.ClarificationAnswer{{ID: "q1", Text: "should fail"}})
+	if !errors.Is(err, storage.ErrConversationClosed) {
+		t.Errorf("expected ErrConversationClosed, got %v", err)
+	}
+}
+
 func TestStore_CloseConversation_RaceWithSaveUserMessage(t *testing.T) {
 	s := newTestStore(t)
 	c, err := s.CreateConversation()

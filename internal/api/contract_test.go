@@ -117,6 +117,24 @@ func closedConversationStorer() *mockStorer {
 	}
 }
 
+// roundNClosedConversationStorer returns a mockStorer simulating a
+// round-2+ answers submission against a closed conversation: a pending
+// clarification round exists, but UpdateClarificationAnswers reports the
+// conversation as closed (regression coverage for #309).
+func roundNClosedConversationStorer() *mockStorer {
+	return &mockStorer{
+		getLastClarificationRound: func(string) (*council.ClarificationRound, error) {
+			return &council.ClarificationRound{
+				Round:     1,
+				Questions: []council.ClarificationQuestion{{ID: "q1", Text: "What database?"}},
+			}, nil
+		},
+		updateClarificationAnswers: func(string, int, []council.ClarificationAnswer) error {
+			return storage.ErrConversationClosed
+		},
+	}
+}
+
 // ── POST /message ────────────────────────────────────────────────────────
 
 func TestContract_SendMessage_HappyPath(t *testing.T) {
@@ -150,6 +168,23 @@ func TestContract_SendMessage_Stage0Fires(t *testing.T) {
 func TestContract_SendMessage_ConversationClosed(t *testing.T) {
 	h := newTestHandler(closedConversationStorer(), &mockRunner{})
 	req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+testConvID+"/message", bytes.NewBufferString(`{"content":"hello"}`))
+	req.SetPathValue("id", testConvID)
+	w := httptest.NewRecorder()
+
+	h.sendMessage(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want 409; body: %s", w.Code, w.Body.String())
+	}
+	checkGolden(t, "message_conversation_closed", prettyJSON(t, w.Body.Bytes()))
+}
+
+// TestContract_SendMessage_RoundNConversationClosed is a regression test
+// for #309: round-N answers submissions must be rejected the same way
+// round-1 content submissions already are, not just silently accepted.
+func TestContract_SendMessage_RoundNConversationClosed(t *testing.T) {
+	h := newTestHandler(roundNClosedConversationStorer(), &mockRunner{})
+	req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+testConvID+"/message", bytes.NewBufferString(`{"answers":[{"id":"q1","text":"Postgres"}]}`))
 	req.SetPathValue("id", testConvID)
 	w := httptest.NewRecorder()
 
@@ -196,6 +231,22 @@ func TestContract_SendMessageStream_Stage0Fires(t *testing.T) {
 func TestContract_SendMessageStream_ConversationClosed(t *testing.T) {
 	h := newTestHandler(closedConversationStorer(), &mockRunner{})
 	req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+testConvID+"/message/stream", bytes.NewBufferString(`{"content":"hello"}`))
+	req.SetPathValue("id", testConvID)
+	w := httptest.NewRecorder()
+
+	h.sendMessageStream(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want 409; body: %s", w.Code, w.Body.String())
+	}
+	checkGolden(t, "message_stream_conversation_closed", prettyJSON(t, w.Body.Bytes()))
+}
+
+// TestContract_SendMessageStream_RoundNConversationClosed is the streaming
+// counterpart of TestContract_SendMessage_RoundNConversationClosed (#309).
+func TestContract_SendMessageStream_RoundNConversationClosed(t *testing.T) {
+	h := newTestHandler(roundNClosedConversationStorer(), &mockRunner{})
+	req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+testConvID+"/message/stream", bytes.NewBufferString(`{"answers":[{"id":"q1","text":"Postgres"}]}`))
 	req.SetPathValue("id", testConvID)
 	w := httptest.NewRecorder()
 
