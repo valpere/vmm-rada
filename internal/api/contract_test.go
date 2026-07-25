@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"net/http"
 	"net/http/httptest"
@@ -292,9 +291,6 @@ func TestContract_ConversationClosedParity(t *testing.T) {
 	}
 	if bw.Code != http.StatusConflict {
 		t.Errorf("blocking status: got %d, want 409", bw.Code)
-	}
-	if !errors.Is(storage.ErrConversationClosed, storage.ErrConversationClosed) {
-		t.Fatal("sanity: storage.ErrConversationClosed must be comparable via errors.Is")
 	}
 	var blockingBody, streamBody map[string]string
 	if err := json.Unmarshal(bw.Body.Bytes(), &blockingBody); err != nil {
