@@ -36,3 +36,15 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+      # Lint the OpenAPI 3.2 spec at docs/openapi.yaml. `npx` works
+      # without an explicit setup-node step because GitHub-hosted
+      # ubuntu-latest runners ship Node 20 pre-installed. continue-on-error
+      # is intentional — a tool failure (network down, npm registry
+      # hiccup, redocly crash) should not red-X the whole job; it emits a
+      # warning and lets the existing internal/api/spec_test.go catch
+      # the load-bearing drift class structurally.
+      - name: Lint OpenAPI spec
+        if: hashFiles('docs/openapi.yaml')
+        continue-on-error: true
+        run: npx -y @redocly/cli@latest lint docs/openapi.yaml
