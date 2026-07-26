@@ -880,10 +880,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/MoaAggregator'
           description: 'Present only for `kind: "moa_aggregator"` (MixtureOfAgents strategy).'
-        delphi_panel:
+        delphi:
           allOf:
             - $ref: '#/components/schemas/DelphiPanel'
-          description: 'Present only for `kind: "delphi_round"` (Delphi strategy). Field name on the wire is `delphi`, not `delphi_panel` — see `Metadata` `delphi` field.'
+          description: 'Present only for `kind: "delphi_round"` (Delphi strategy). Field name on the wire is `delphi` — see `Metadata` `delphi` field.'
 
     Stage2CompleteData:
       type: object
