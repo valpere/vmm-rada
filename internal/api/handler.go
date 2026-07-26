@@ -83,16 +83,77 @@ func (req messageRequest) validate() (isRound1 bool, err error) {
 }
 
 // RegisterRoutes attaches all API routes to mux wrapped with CORS and security middleware.
+// route defines one HTTP route — a single source of truth used by both
+// RegisterRoutes (to register with the mux) and the OpenAPI spec test (to
+// assert every route has a corresponding entry in docs/openapi.yaml).
+// stdlib http.ServeMux exposes no public route-iteration API, so this
+// hand-maintained slice is what the project uses for declarative
+// route-level invariants.
+type route struct {
+	method  string
+	pattern string
+	opID    string
+}
+
+// routes is the canonical list of every endpoint this server exposes.
+// Keep in lock-step with docs/openapi.yaml — internal/api/spec_test.go
+// fails when a route registered here has no matching `paths` entry (and
+// vice-versa).
+var routes = []route{
+	{"GET", "/health/live", "healthLive"},
+	{"GET", "/health/ready", "healthReady"},
+	{"GET", "/api/conversations", "listConversations"},
+	{"POST", "/api/conversations", "createConversation"},
+	{"GET", "/api/conversations/{id}", "getConversation"},
+	{"DELETE", "/api/conversations/{id}", "deleteConversation"},
+	{"PATCH", "/api/conversations/{id}", "renameConversation"},
+	{"POST", "/api/conversations/{id}/message", "sendMessage"},
+	{"POST", "/api/conversations/{id}/message/stream", "sendMessageStream"},
+}
+
+// RegisteredRoutes returns a copy of the canonical route list (read-only;
+// safe to range from tests).
+func RegisteredRoutes() []route {
+	r := make([]route, len(routes))
+	copy(r, routes)
+	return r
+}
+
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /health/live", h.wrap(h.healthLive))
-	mux.Handle("GET /health/ready", h.wrap(h.healthReady))
-	mux.Handle("GET /api/conversations", h.wrap(h.listConversations))
-	mux.Handle("POST /api/conversations", h.wrap(h.createConversation))
-	mux.Handle("GET /api/conversations/{id}", h.wrap(h.getConversation))
-	mux.Handle("DELETE /api/conversations/{id}", h.wrap(h.deleteConversation))
-	mux.Handle("PATCH /api/conversations/{id}", h.wrap(h.renameConversation))
-	mux.Handle("POST /api/conversations/{id}/message", h.wrap(h.sendMessage))
-	mux.Handle("POST /api/conversations/{id}/message/stream", h.wrap(h.sendMessageStream))
+	for _, rt := range routes {
+		mux.Handle(rt.method+" "+rt.pattern, h.wrap(handlerByOp(rt.opID, h)))
+	}
+}
+
+// handlerByOp routes an operationId from the OpenAPI spec to the
+// corresponding Handler method — single dispatch table that
+// internal/api/spec_test.go also walks to check nothing is registered in
+// the mux without a matching opID (and vice-versa from routes[]).
+func handlerByOp(opID string, h *Handler) http.HandlerFunc {
+	switch opID {
+	case "healthLive":
+		return h.healthLive
+	case "healthReady":
+		return h.healthReady
+	case "listConversations":
+		return h.listConversations
+	case "createConversation":
+		return h.createConversation
+	case "getConversation":
+		return h.getConversation
+	case "deleteConversation":
+		return h.deleteConversation
+	case "renameConversation":
+		return h.renameConversation
+	case "sendMessage":
+		return h.sendMessage
+	case "sendMessageStream":
+		return h.sendMessageStream
+	}
+	// Unreachable when routes[] stays in lock-step with RegisterRoutes — but a
+	// defensive default lets a missing dispatch surface as a runtime panic
+	// during testing rather than silently mis-routing traffic.
+	panic("internal/api: route op " + opID + " has no handler")
 }
 
 // wrap applies CORS and security headers to every route.
