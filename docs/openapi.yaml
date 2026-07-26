@@ -1,0 +1,1056 @@
+openapi: 3.2.0
+info:
+  title: VMM Rada API
+  version: 0.1.0
+  summary: Multi-LLM deliberation HTTP + SSE surface.
+  description: |
+    Backend API for the VMM Rada multi-LLM deliberation system.
+
+    Nine endpoints total: two health probes, five conversation-CRUD
+    routes, and two message endpoints (`message` blocking + `message/stream`
+    SSE). Of the message endpoints, the SSE stream is the load-bearing one —
+    the whole Stage 1 → Stage 2 → Stage 3 progression is delivered as a
+    `text/event-stream` typed event union (see the `discriminator` on the
+    oneOf in `paths./api/conversations/{id}/message/stream.responses.200`).
+
+    The reference consumer is `vmm-rada-web-ui` (React + Vite, separate
+    repo), but this is the API server — third-party consumers are an
+    expected use case, not an accident.
+
+    **Wire-format note.** The current SSE stream emits only `data:` lines;
+    the `type` field is buried in the JSON payload. The OpenAPI contract
+    uses the SSE `event:` field as the discriminator forward-compatibly,
+    so if/when `event:` lines are added later (a separate, optional PR),
+    this spec stays correct with zero edits.
+  license:
+    name: MIT
+    url: https://github.com/valpere/vmm-rada/blob/main/LICENSE
+
+servers:
+  - url: http://localhost:8001
+    description: Local development (matches backend PORT env var default)
+
+tags:
+  - name: health
+    description: Liveness and readiness probes used by container orchestration.
+  - name: conversations
+    description: Conversation CRUD plus the two message endpoints.
+
+paths:
+  /health/live:
+    get:
+      tags: [health]
+      operationId: healthLive
+      summary: Liveness probe.
+      description: Always returns 204 if the process is up. No dependencies checked.
+      responses:
+        '204':
+          description: Process is alive.
+
+  /health/ready:
+    get:
+      tags: [health]
+      operationId: healthReady
+      summary: Readiness probe.
+      description: |
+        Always returns 204 (intentionally unconditional — this is a documented
+        gap in `docs/requirements.md` §6, not a contract error).
+      responses:
+        '204':
+          description: Process is alive.
+
+  /api/conversations:
+    get:
+      tags: [conversations]
+      operationId: listConversations
+      summary: List conversations newest-first.
+      responses:
+        '200':
+          description: Conversation metadata list (newest first).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConversationMeta'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [conversations]
+      operationId: createConversation
+      summary: Create an empty conversation.
+      description: |
+        Request body is ignored (no body required). Returns the new
+        conversation with `messages: []` and the default title
+        `"New Conversation"`.
+      responses:
+        '201':
+          description: New conversation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/conversations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ConversationID'
+    get:
+      tags: [conversations]
+      operationId: getConversation
+      summary: Get a conversation including its message history.
+      description: |
+        `messages[]` is a heterogeneous array — demux by the `role` field
+        (one of `"user"`, `"assistant"`, `"clarification"`). All three
+        shapes are in `Message` (oneOf by role).
+      responses:
+        '200':
+          description: Conversation found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          $ref: '#/components/responses/BadUUID'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [conversations]
+      operationId: renameConversation
+      summary: Rename a conversation.
+      description: Titles longer than 50 runes are truncated rune-safely.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameRequest'
+      responses:
+        '200':
+          description: Renamed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenameResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestOrUUIDOrTitle'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [conversations]
+      operationId: deleteConversation
+      summary: Delete a conversation.
+      responses:
+        '204':
+          description: Deleted (idempotent — already-gone returns 404).
+        '400':
+          $ref: '#/components/responses/BadUUID'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/conversations/{id}/message:
+    parameters:
+      - $ref: '#/components/parameters/ConversationID'
+    post:
+      tags: [conversations]
+      operationId: sendMessage
+      summary: Send a message; receive the full deliberation result in one JSON response.
+      description: |
+        When Stage 0 is enabled and the chairman has questions, the pipeline
+        pauses and this endpoint returns immediately with a `Stage 0 round`
+        response (`Stage0RoundResponse`) instead of an `AssistantMessage` —
+        the client sends another request with `{"answers": [...]}` to
+        continue. Otherwise, returns the full `AssistantMessage`.
+
+        XOR body: supply exactly one of `content` (round 1) or `answers`
+        (round 2+). Both or neither returns `400`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+      responses:
+        '200':
+          description: |
+            Either the full deliberation result (`AssistantMessage`) or,
+            if Stage 0 fired and the chairman had questions, the round data
+            (`Stage0RoundResponse`) asking the client to send answers next.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AssistantMessage'
+                  - $ref: '#/components/schemas/Stage0RoundResponse'
+                discriminator:
+                  propertyName: response_kind
+                  mapping:
+                    full_result: '#/components/schemas/AssistantMessage'
+                    stage0_pending: '#/components/schemas/Stage0RoundResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestOrUUID'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: "Conversation closed, or round-N conflict (`clarification round already answered` / `no pending clarification round`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: "Stage 1 quorum not met (`council quorum not met`). Blocking-endpoint-only — on the streaming endpoint this surfaces as a post-SSE `error` event with the same `message`."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/conversations/{id}/message/stream:
+    parameters:
+      - $ref: '#/components/parameters/ConversationID'
+    post:
+      tags: [conversations]
+      operationId: sendMessageStream
+      summary: Send a message; receive the deliberation result as a Server-Sent Events stream.
+      description: |
+        Same XOR body contract as `sendMessage`. The response is a
+        `text/event-stream` whose events are typed by the discriminator
+        on `SSEEvent.oneOf` below.
+
+        **Pre-SSE vs post-SSE errors.** Errors reachable before
+        `Content-Type: text/event-stream` is written (bad UUID, malformed
+        body, conflict on round-N, conversation closed, streaming not
+        supported) come back as pre-SSE HTTP JSON errors — see the
+        `ErrorResponse` shape. Errors that can only surface AFTER SSE
+        headers are written (Stage 1 quorum not met, Stage 3 chairman
+        failure, save-assistant-message failure) come back as an SSE
+        `error` event and terminate the stream — see `ErrorEvent`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+      responses:
+        '200':
+          description: "SSE stream opened. Each emitted item is a typed event per the `SSEEvent` schema below."
+          content:
+            text/event-stream:
+              itemSchema:
+                $ref: '#/components/schemas/SSEEvent'
+        '400':
+          $ref: '#/components/responses/BadRequestOrUUID'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: "Streaming not supported (response writer is not an `http.Flusher`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes: {}
+  parameters:
+    ConversationID:
+      name: id
+      in: path
+      required: true
+      description: UUID v4 of the conversation.
+      schema:
+        type: string
+        format: uuid
+        pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        example: 550e8400-e29b-41d4-a716-446655440000
+  responses:
+    BadUUID:
+      description: Invalid conversation ID (not UUID v4).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: "Conversation does not exist (`{\"error\":\"not found\"}`)."
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequestOrUUID:
+      description: "Bad request (malformed body or neither `content` nor `answers` set, or both set)."
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequestOrUUIDOrTitle:
+      description: Bad request, missing title, or invalid UUID.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Server-side storage or pipeline failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable message.
+      example:
+        error: conversation is closed
+
+    RenameRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: New title; truncated to 50 runes if longer.
+
+    RenameResponse:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          $ref: '#/components/schemas/Conversation/properties/id'
+        title:
+          type: string
+
+    MessageRequest:
+      type: object
+      description: |
+        XOR validation: exactly one of `content` or `answers` must be set.
+        Both or neither returns 400 from `sendMessage` / 400 via pre-SSE
+        error on `sendMessageStream`.
+      properties:
+        content:
+          type: string
+          description: "Round-1 message text. Mutually exclusive with `answers`."
+          minLength: 1
+        answers:
+          type: array
+          description: "Round-2+ answers to a Stage 0 clarification round. Mutually exclusive with `content`."
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ClarificationAnswer'
+        council_type:
+          type: string
+          description: |
+            Council type name from the server-side registry. Defaults to
+            `DEFAULT_RADA_TYPE` env var when omitted on round 1; ignored
+            on round 2+ (loaded from storage).
+          example: default
+      examples:
+        round1:
+          summary: Round 1
+          value: { council_type: default, content: "What is Go?" }
+        round2plus:
+          summary: Round 2 (answering Stage 0 questions)
+          value:
+            answers:
+              - { id: q1, text: PostgreSQL 14 }
+              - { id: q2, text: '' }
+
+    ConversationMeta:
+      type: object
+      required: [id, created_at, title, message_count, closed]
+      properties:
+        id:
+          $ref: '#/components/schemas/Conversation/properties/id'
+        created_at:
+          type: string
+          format: date-time
+        title:
+          type: string
+        message_count:
+          type: integer
+          minimum: 0
+        closed:
+          type: boolean
+
+    Conversation:
+      type: object
+      required: [id, created_at, title, closed, messages]
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        created_at:
+          type: string
+          format: date-time
+        title:
+          type: string
+        closed:
+          type: boolean
+          description: "When `true`, `sendMessage` and `sendMessageStream` both return `409 \"conversation is closed\"` for round-1 content and round-2 answers submissions."
+        messages:
+          type: array
+          description: "Heterogeneous, demux by the `role` field."
+          items:
+            $ref: '#/components/schemas/Message'
+
+    ClarificationQuestion:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: string
+          description: "Stable identifier (e.g. `\"q1\"`); the client echoes this back in `clarification answers`."
+        text:
+          type: string
+
+    ClarificationAnswer:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: string
+          description: "Matches the `id` of the `ClarificationQuestion` being answered."
+        text:
+          type: string
+          description: Free-form answer. Empty string is allowed ("no preference").
+
+    ClarificationRound:
+      type: object
+      description: "Internal Stage 0 round record. Appears in `Conversation.messages[]` with `role: \"clarification\"`."
+      required: [round, questions, answers]
+      properties:
+        round:
+          type: integer
+          minimum: 1
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClarificationQuestion'
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClarificationAnswer'
+          description: Empty until the user submits a response.
+        council_type:
+          type: string
+          description: Persisted on round 1 only; empty on round 2+.
+
+    Message:
+      oneOf:
+        - $ref: '#/components/schemas/UserMessage'
+        - $ref: '#/components/schemas/AssistantMessage'
+        - $ref: '#/components/schemas/ClarificationRound'
+      discriminator:
+        propertyName: role
+        mapping:
+          user: '#/components/schemas/UserMessage'
+          assistant: '#/components/schemas/AssistantMessage'
+          clarification: '#/components/schemas/ClarificationRound'
+
+    UserMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user]
+        content:
+          type: string
+
+    StageOneResult:
+      type: object
+      required: [label, model, duration_ms]
+      properties:
+        label:
+          type: string
+          description: "Anonymised label, e.g. `\"Response A\"`. Same label reappears in Stage 2 rankings."
+          example: Response A
+        content:
+          type: string
+          description: "The model's response. Absent on per-stage-error responses (caller treats `content: null` as retryable)."
+        model:
+          type: string
+          description: OpenRouter model ID.
+          example: openai/gpt-4o-mini
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Wall-clock time for this model's response.
+
+    StageTwoResult:
+      type: object
+      required: [reviewer_label, rankings]
+      properties:
+        reviewer_label:
+          type: string
+          description: "Label of the reviewing model (matches a `StageOneResult.label`)."
+        rankings:
+          type: array
+          description: Ordered labels, best first.
+          items:
+            type: string
+
+    StageThreeResult:
+      type: object
+      required: [content, model, duration_ms]
+      properties:
+        content:
+          type: string
+        model:
+          type: string
+          description: OpenRouter ID of the synthesising model. Empty string for strategies whose Stage 3 emits a result without an LLM call (e.g. Majority plurality winner when no chairman is configured). Frontend renderers must handle this gracefully.
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 0
+
+    RankedModel:
+      type: object
+      required: [model, score]
+      properties:
+        model:
+          type: string
+        score:
+          type: number
+          format: double
+          description: Aggregate rank score; lower is better.
+
+    AssistanceReference:
+      type: object
+      description: |
+        A single `Stage1`/`Stage2` message on the wire — heterogeneous,
+        demux by the `role` field. Same `Message` schema is used
+        inside `Conversation.messages[]` and in `sendMessage`'s top-level
+        `AssistantMessage`; only the dispatcher is different.
+      oneOf:
+        - $ref: '#/components/schemas/Message'
+
+    AssistantMessage:
+      type: object
+      required: [role, stage1, stage2, stage3, metadata]
+      properties:
+        role:
+          type: string
+          enum: [assistant]
+        stage1:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageOneResult'
+        stage2:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageTwoResult'
+        stage3:
+          $ref: '#/components/schemas/StageThreeResult'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+
+    Stage0RoundResponse:
+      type: object
+      description: |
+        Returned by `sendMessage` when Stage 0 fired and the chairman has
+        questions for the user. Distinct from `AssistantMessage`; the client
+        sends another `POST /message` with `{"answers": [...]}` to continue.
+      required: [response_kind, stage0_round_complete]
+      properties:
+        response_kind:
+          type: string
+          enum: [stage0_pending]
+          description: "Mirrors the discriminator on `sendMessage`'s 200 response. Always `\"stage0_pending\"` here."
+        stage0_round_complete:
+          type: object
+          required: [round, questions]
+          properties:
+            round:
+              type: integer
+              minimum: 1
+            questions:
+              type: array
+              items:
+                $ref: '#/components/schemas/ClarificationQuestion'
+
+    AssistantMessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssistantMessage'
+        - type: object
+          properties:
+            response_kind:
+              type: string
+              enum: [full_result]
+              description: "Discriminator for `sendMessage`'s 200 response. Always `\"full_result\"` when this is the only branch."
+          required: [response_kind]
+
+    Role:
+      type: object
+      required: [name, instruction]
+      properties:
+        name:
+          type: string
+        instruction:
+          type: string
+          description: System-level prompt for this role.
+
+    VoteCluster:
+      type: object
+      required: [members, representative, votes]
+      properties:
+        members:
+          type: array
+          items:
+            type: string
+        representative:
+          type: string
+        votes:
+          type: integer
+          minimum: 1
+
+    VoteTally:
+      type: object
+      required: [clusters, winner_label]
+      properties:
+        clusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoteCluster'
+        winner_label:
+          type: string
+
+    RankedCandidate:
+      type: object
+      required: [label, scores, advancing]
+      properties:
+        label:
+          type: string
+        scores:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        total_score:
+          type: number
+          description: "Sum across `criteria[]`. Default strategy is sum; range depends on criterion count."
+        advancing:
+          type: boolean
+
+    RankRefine:
+      type: object
+      required: [rankings, top_k, criteria]
+      properties:
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankedCandidate'
+        top_k:
+          type: integer
+          minimum: 1
+        criteria:
+          type: array
+          items:
+            type: string
+
+    DebaterRevision:
+      type: object
+      required: [label, content, model, duration_ms]
+      properties:
+        label:
+          type: string
+        critique:
+          type: string
+          description: Empty critiques may be omitted (omitempty).
+        content:
+          type: string
+        model:
+          type: string
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 0
+
+    DebateRound:
+      type: object
+      required: [round, revisions]
+      properties:
+        round:
+          type: integer
+          minimum: 1
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebaterRevision'
+
+    DebaterDropout:
+      type: object
+      required: [label, last_round, reason]
+      properties:
+        label:
+          type: string
+        last_round:
+          type: integer
+          minimum: 0
+          description: "Last round in which the debater produced a successful revision. `0` if they only participated in round 0 (Stage 1)."
+        reason:
+          type: string
+          enum: [error, json_parse, empty_revision]
+
+    Debate:
+      type: object
+      required: [rounds, final_round]
+      properties:
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateRound'
+        final_round:
+          type: integer
+          minimum: 1
+        dropouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebaterDropout'
+          description: Absent when no debater dropped.
+
+    AggregatorOutput:
+      type: object
+      required: [label, model, content, sources, duration_ms]
+      properties:
+        label:
+          type: string
+          example: Aggregator A
+        model:
+          type: string
+        content:
+          type: string
+        sources:
+          type: array
+          description: Labels of the Layer 1 proposers fed into this aggregator.
+          items:
+            type: string
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 0
+
+    MoaAggregator:
+      type: object
+      required: [aggregators]
+      properties:
+        aggregators:
+          type: array
+          items:
+            $ref: '#/components/schemas/AggregatorOutput'
+
+    DelphiRating:
+      type: object
+      required: [label, model, scores, duration_ms]
+      properties:
+        label:
+          type: string
+        model:
+          type: string
+        scores:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        summary:
+          type: string
+          description: "1-2 sentence summary. `omitempty`."
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 0
+
+    DelphiStats:
+      type: object
+      required: [mean, std_dev]
+      properties:
+        mean:
+          type: object
+          additionalProperties:
+            type: number
+        std_dev:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+        delta_mean:
+          type: object
+          additionalProperties:
+            type: number
+          description: Round 1 omits this entirely (omitempty).
+
+    DelphiRound:
+      type: object
+      required: [round, ratings, stats]
+      properties:
+        round:
+          type: integer
+          minimum: 1
+        ratings:
+          type: array
+          items:
+            $ref: '#/components/schemas/DelphiRating'
+        stats:
+          $ref: '#/components/schemas/DelphiStats'
+
+    DelphiPanel:
+      type: object
+      required: [rounds, final_round, converged, criteria]
+      properties:
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/DelphiRound'
+        final_round:
+          type: integer
+          minimum: 1
+        converged:
+          type: boolean
+          description: "`true` when the strategy exited early because max(DeltaMean) fell below the configured threshold across all criteria."
+        criteria:
+          type: array
+          items:
+            type: string
+
+    Stage2OneOfPayload:
+      oneOf:
+        - $ref: '#/components/schemas/MetadataOnly'
+      description: |
+        Disambiguates the conditional fields on `Metadata` (vote_tally,
+        rank_refine, debate, moa_aggregator, delphi_panel). The actual
+        Metadata schema remains flat with `omitempty` — these are the
+        `discriminator` mappings so consumers know which field is populated
+        for which strategy. See `Metadata` for the canonical schema.
+
+    MetadataOnly:
+      type: object
+      description: "Marker schema used solely for the Metadata discriminator mapping. See `Metadata` for the actual fields."
+      properties: {}
+
+    Metadata:
+      type: object
+      required: [council_type, label_to_model, aggregate_rankings, consensus_w]
+      properties:
+        council_type:
+          type: string
+        label_to_model:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Map from anonymised label (`\"Response A\"`, `\"Aggregator A\"`) to OpenRouter model ID."
+        aggregate_rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankedModel'
+        consensus_w:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: "Kendall's W (0–1). Only meaningful for `peer_ranking`; other strategies omit."
+        vote_tally:
+          allOf:
+            - $ref: '#/components/schemas/VoteTally'
+          description: 'Present only for `kind: "vote_tally"` (Majority strategy).'
+        rank_refine:
+          allOf:
+            - $ref: '#/components/schemas/RankRefine'
+          description: 'Present only for `kind: "rank_refine"` (GenerateRankRefine strategy).'
+        debate:
+          allOf:
+            - $ref: '#/components/schemas/Debate'
+          description: 'Present only for `kind: "debate_round"` (MultiAgentDebate strategy).'
+        moa_aggregator:
+          allOf:
+            - $ref: '#/components/schemas/MoaAggregator'
+          description: 'Present only for `kind: "moa_aggregator"` (MixtureOfAgents strategy).'
+        delphi_panel:
+          allOf:
+            - $ref: '#/components/schemas/DelphiPanel'
+          description: 'Present only for `kind: "delphi_round"` (Delphi strategy). Field name on the wire is `delphi`, not `delphi_panel` — see `Metadata` `delphi` field.'
+
+    Stage2CompleteData:
+      type: object
+      description: |
+        Stage 2 event payload. `data` is non-null for `peer_ranking` (the
+        array of per-reviewer rankings) and `null` for all other kinds
+        (the strategy-specific payload lives in `metadata.<kind_field>`).
+        `round` is present only on per-round events for MultiAgentDebate
+        and Delphi; zero/absent on the terminal `stage2_complete` event.
+      required: [kind, results, metadata]
+      properties:
+        kind:
+          type: string
+          enum: [peer_ranking, vote_tally, rank_refine, debate_round, moa_aggregator, delphi_round, role_stub]
+        round:
+          type: integer
+          minimum: 0
+          description: Required on per-round events for MultiAgentDebate/Delphi; absent on terminal events.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageTwoResult'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+
+    Stage0RoundData:
+      type: object
+      required: [round, questions]
+      properties:
+        round:
+          type: integer
+          minimum: 1
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClarificationQuestion'
+
+    Stage0RoundCompleteEvent:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [stage0_round_complete]
+        data:
+          $ref: '#/components/schemas/Stage0RoundData'
+
+    Stage1CompleteEvent:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [stage1_complete]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageOneResult'
+
+    Stage2RoundCompleteEvent:
+      type: object
+      required: [type, data, metadata]
+      properties:
+        type:
+          type: string
+          enum: [stage2_round_complete]
+        round:
+          type: integer
+          minimum: 1
+          description: Required on per-round events (MultiAgentDebate / Delphi).
+        kind:
+          type: string
+          enum: [debate_round, delphi_round]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageTwoResult'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+
+    Stage2CompleteEvent:
+      type: object
+      required: [type, data, metadata]
+      properties:
+        type:
+          type: string
+          enum: [stage2_complete]
+        kind:
+          type: string
+          enum: [peer_ranking, vote_tally, rank_refine, debate_round, moa_aggregator, delphi_round, role_stub]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageTwoResult'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+
+    Stage3CompleteEvent:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [stage3_complete]
+        data:
+          $ref: '#/components/schemas/StageThreeResult'
+
+    TitleCompleteEvent:
+      type: object
+      required: [type, data]
+      description: May be absent if the 30-second title-generation timer wins.
+      properties:
+        type:
+          type: string
+          enum: [title_complete]
+        data:
+          type: object
+          required: [title]
+          properties:
+            title:
+              type: string
+
+    CompleteEvent:
+      type: object
+      required: [type]
+      description: |
+        Always sent last on a successful stream. Emitted even on the
+        Stage-0-pauses-here path (Round 1 fire-then-pause), with no title
+        (that path returns before title generation runs).
+      properties:
+        type:
+          type: string
+          enum: [complete]
+
+    ErrorEvent:
+      type: object
+      required: [type, message]
+      description: |
+        Sent post-SSE (streaming only); the stream terminates immediately
+        after this event. Pre-SSE errors instead return as the standard
+        `Error` JSON shape with the appropriate HTTP status.
+      properties:
+        type:
+          type: string
+          enum: [error]
+        message:
+          type: string
+
+    SSEEvent:
+      oneOf:
+        - $ref: '#/components/schemas/Stage0RoundCompleteEvent'
+        - $ref: '#/components/schemas/Stage1CompleteEvent'
+        - $ref: '#/components/schemas/Stage2RoundCompleteEvent'
+        - $ref: '#/components/schemas/Stage2CompleteEvent'
+        - $ref: '#/components/schemas/Stage3CompleteEvent'
+        - $ref: '#/components/schemas/TitleCompleteEvent'
+        - $ref: '#/components/schemas/CompleteEvent'
+        - $ref: '#/components/schemas/ErrorEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          stage0_round_complete: '#/components/schemas/Stage0RoundCompleteEvent'
+          stage1_complete: '#/components/schemas/Stage1CompleteEvent'
+          stage2_round_complete: '#/components/schemas/Stage2RoundCompleteEvent'
+          stage2_complete: '#/components/schemas/Stage2CompleteEvent'
+          stage3_complete: '#/components/schemas/Stage3CompleteEvent'
+          title_complete: '#/components/schemas/TitleCompleteEvent'
+          complete: '#/components/schemas/CompleteEvent'
+          error: '#/components/schemas/ErrorEvent'
+
