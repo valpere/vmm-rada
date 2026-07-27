@@ -191,9 +191,8 @@ Plans pending: <list>
 Backup: /tmp/dreaming-W##-vmm-rada-backup-HHMM/
 
 Next steps:
-1. Watch PRs for Copilot review (one round).
-2. Run /backlog on each plan to gate through Tech Lead.
-3. Run /ship on approved plans.
+1. Run /backlog on each plan to gate through Tech Lead.
+2. Run /ship on approved plans — /fix-review runs automatically as part of /ship.
 ```
 
 ## Constraints (CRITICAL)
@@ -220,7 +219,7 @@ Next steps:
 
 - `/backlog` — gate plans through Tech Lead.
 - `/ship` — implement approved plan + create PR.
-- `/fix-review` — handle Copilot/Tech Lead review rounds.
+- `/fix-review` — parallel multi-model review + Claude arbiter.
 - `/revival` — health snapshot (synchronous, complementary to dreaming).
 
 ## See also

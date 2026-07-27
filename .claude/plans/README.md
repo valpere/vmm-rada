@@ -2,7 +2,7 @@
 
 Implementation plans for the VMM Rada backend.
 
-Plans are created by the `/plan` skill. Each plan can be promoted to a GitHub issue.
+Plans are created by the `/backlog` skill. Each plan can be promoted to a GitHub issue.
 
 ---
 
@@ -145,7 +145,7 @@ fix(scope): description ⚡
 
 ## GitHub Issue Creation
 
-After the plan is confirmed, `/plan` offers to create a GitHub issue:
+After Tech Lead approval, `/backlog` creates a GitHub issue:
 
 ```bash
 gh issue create \
