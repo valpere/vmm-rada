@@ -335,6 +335,8 @@ Key design constraints:
 | **SSE format** | `data: {...}\n\n` — no `event:` line; demux by `"type"` field |
 | **CORS** | Allowed origins hardcoded: `http://localhost:5173`, `http://localhost:3000` — both localhost-only dev origins, vestigial since the frontend extraction; `Vary: Origin` set when reflecting. See [`requirements.md`](./requirements.md#gap-analysis). |
 | **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'` applied to every route |
+| **Route table** | `routes []route` (package-level slice) is the single source of truth for registered endpoints; `RegisterRoutes` and the `handlerByOp` dispatch table both read from it — `internal/api/spec_test.go` walks the same slice to assert `docs/openapi.yaml` stays in lock-step |
+| **OpenAPI contract** | `docs/openapi.yaml` (OpenAPI 3.2) — machine-readable mirror of this table; SSE events modeled as a `oneOf`/`discriminator` union via `itemSchema` on the `text/event-stream` content |
 
 ---
 

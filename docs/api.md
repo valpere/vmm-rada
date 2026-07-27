@@ -1,5 +1,12 @@
 # VMM Rada — HTTP API Reference
 
+**Machine-readable contract:** [`docs/openapi.yaml`](./openapi.yaml) is the OpenAPI 3.2
+spec for this API, kept drift-proof against `internal/api/handler.go` via
+`internal/api/spec_test.go` (route↔spec agreement, SSE event discriminator, `$ref`
+resolution) and linted in CI via `redocly lint`. This document is the narrative
+companion — the same contract, in prose, with request/response examples and the
+per-endpoint error reference tables the spec's `description` fields summarise.
+
 ## Base URL
 
 The server listens on port `PORT` (default `8001`) and binds on all interfaces (`0.0.0.0`)
