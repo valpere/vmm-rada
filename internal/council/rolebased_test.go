@@ -13,12 +13,11 @@ func roleCouncilFixture(complete func(ctx context.Context, req CompletionRequest
 		"roles": {
 			Name:          "roles",
 			Strategy:      RoleBased,
-			Models:        []string{"model-a", "model-b"},
 			ChairmanModel: "chairman",
 			Temperature:   0.7,
 			Roles: []Role{
-				{Name: "security", Instruction: "Find security issues."},
-				{Name: "logic", Instruction: "Find logic errors."},
+				{Name: "security", Instruction: "Find security issues.", Model: "model-a"},
+				{Name: "logic", Instruction: "Find logic errors.", Model: "model-b"},
 			},
 		},
 	}
@@ -162,19 +161,22 @@ func TestRunRoleBased_Stage2CompleteData_HasLabelToModel(t *testing.T) {
 	}
 }
 
-func TestRunRoleBased_ModelsAssignedByIndex(t *testing.T) {
-	// 3 roles, 2 models → models assigned: role0→model-a, role1→model-b, role2→model-a
+func TestRunRoleBased_EachRoleUsesItsOwnModel(t *testing.T) {
+	// 3 roles, each with a distinct, explicitly-assigned model — named
+	// assignment, not positional. A regression back to index-based lookup
+	// (e.g. hardcoding role[0]'s model for every role) would pass a
+	// call-count-only check but fail this one, since it asserts which
+	// specific model each role's system prompt was sent to.
 	registry := map[string]CouncilType{
 		"three-roles": {
 			Name:          "three-roles",
 			Strategy:      RoleBased,
-			Models:        []string{"model-a", "model-b"},
 			ChairmanModel: "chairman",
 			Temperature:   0.7,
 			Roles: []Role{
-				{Name: "r0", Instruction: "Role 0"},
-				{Name: "r1", Instruction: "Role 1"},
-				{Name: "r2", Instruction: "Role 2"},
+				{Name: "r0", Instruction: "Role 0", Model: "model-r0"},
+				{Name: "r1", Instruction: "Role 1", Model: "model-r1"},
+				{Name: "r2", Instruction: "Role 2", Model: "model-r2"},
 			},
 		},
 	}
@@ -196,14 +198,43 @@ func TestRunRoleBased_ModelsAssignedByIndex(t *testing.T) {
 
 	_ = c.RunFull(context.Background(), "q", "three-roles", func(string, any) {})
 
-	if modelUsed["Role 0"] != "model-a" {
-		t.Errorf("role 0 should use model-a, got %q", modelUsed["Role 0"])
+	if modelUsed["Role 0"] != "model-r0" {
+		t.Errorf("role 0 should use model-r0, got %q", modelUsed["Role 0"])
 	}
-	if modelUsed["Role 1"] != "model-b" {
-		t.Errorf("role 1 should use model-b, got %q", modelUsed["Role 1"])
+	if modelUsed["Role 1"] != "model-r1" {
+		t.Errorf("role 1 should use model-r1, got %q", modelUsed["Role 1"])
 	}
-	if modelUsed["Role 2"] != "model-a" {
-		t.Errorf("role 2 should cycle back to model-a, got %q", modelUsed["Role 2"])
+	if modelUsed["Role 2"] != "model-r2" {
+		t.Errorf("role 2 should use model-r2, got %q", modelUsed["Role 2"])
 	}
 }
 
+func TestRunRoleBased_EmptyModel_ErrorsBeforeAnyLLMCall(t *testing.T) {
+	registry := map[string]CouncilType{
+		"broken-role": {
+			Name:          "broken-role",
+			Strategy:      RoleBased,
+			ChairmanModel: "chairman",
+			Temperature:   0.7,
+			Roles: []Role{
+				{Name: "r0", Instruction: "Role 0", Model: "model-r0"},
+				{Name: "r1", Instruction: "Role 1", Model: ""}, // missing
+			},
+		},
+	}
+	calls := 0
+	c := NewCouncil(&mockLLMClient{
+		complete: func(_ context.Context, _ CompletionRequest) (CompletionResponse, error) {
+			calls++
+			return makeResponse("[]"), nil
+		},
+	}, registry, nil)
+
+	err := c.RunFull(context.Background(), "q", "broken-role", func(string, any) {})
+	if err == nil {
+		t.Fatal("expected error for role with empty Model, got nil")
+	}
+	if calls != 0 {
+		t.Errorf("expected 0 LLM calls before the empty-Model error, got %d", calls)
+	}
+}

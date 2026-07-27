@@ -13,8 +13,10 @@ func (c *Rada) runRoleBased(ctx context.Context, query string, ct CouncilType, o
 	if len(ct.Roles) == 0 {
 		return fmt.Errorf("council type %q has no roles configured", ct.Name)
 	}
-	if len(ct.Models) == 0 {
-		return fmt.Errorf("council type %q has no models configured", ct.Name)
+	for _, r := range ct.Roles {
+		if r.Model == "" {
+			return fmt.Errorf("council type %q: role %q has no model configured", ct.Name, r.Name)
+		}
 	}
 
 	// Stage 1: parallel role execution.
@@ -59,7 +61,7 @@ func (c *Rada) runRoleBased(ctx context.Context, query string, ct CouncilType, o
 }
 
 // runRoleBasedStage1 executes all roles concurrently.
-// Model assignment: ct.Models[i % len(ct.Models)].
+// Model assignment: each Role's own Model field.
 func (c *Rada) runRoleBasedStage1(ctx context.Context, query string, ct CouncilType) []StageOneResult {
 	results := make([]StageOneResult, len(ct.Roles))
 	var wg sync.WaitGroup
@@ -68,7 +70,7 @@ func (c *Rada) runRoleBasedStage1(ctx context.Context, query string, ct CouncilT
 		wg.Add(1)
 		go func(idx int, r Role) {
 			defer wg.Done()
-			model := ct.Models[idx%len(ct.Models)]
+			model := r.Model
 			start := time.Now()
 
 			msgs := BuildRoleStage1Prompt(r, query)

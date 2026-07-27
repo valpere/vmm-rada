@@ -571,7 +571,7 @@ One model handles all roles; 4 models give one per role; any count wraps round-r
   { "role": "user",   "content": query } ]
 ```
 
-The `StageOneResult.Label` is set to the role's `Name` (`"Generator"`, `"Critic"`, etc.,
+The `StageOneResult.Label` is set to the role's `Name` (`"Creator"`, `"Critic"`, etc.,
 per `council.DefaultRoles`), not an anonymous `Response X` label.
 
 **Quorum:** `checkQuorum(results, ct.QuorumMin)`. The `"role-based"` registration sets
