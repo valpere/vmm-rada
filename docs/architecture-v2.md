@@ -185,8 +185,8 @@ lenses, not configurable per-domain personas).
 
 Registration is opt-in AND requires both `ROLE_BASED_MODELS` and
 `ROLE_BASED_CHAIRMAN_MODEL`. Role content (names/instructions) is fixed as
-`council.DefaultRoles` — Generator, Critic, Verifier, Simplifier — not env-configurable;
-see [`strategies.md`](./strategies.md) for the registration contract.
+`council.DefaultRoles` — Creator, Critic, Verifier, Simplifier, DevilsAdvocate — not
+env-configurable; see [`strategies.md`](./strategies.md) for the registration contract.
 
 #### `Majority` pipeline (2 stages, no LLM Stage 2)
 

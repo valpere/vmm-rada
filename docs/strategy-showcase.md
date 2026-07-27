@@ -20,12 +20,12 @@ deliberation strength. Machine-readable version: `eval/benchmarks/strategy-showc
 ## RoleBased
 
 *Best for multi-dimensional questions, where a broad-exploration draft, a self-critique
-pass, a fact-check pass, and a concise final distillation each surface something the
-others miss. The shipped role set (`council.DefaultRoles`: Generator/Critic/Verifier/
-Simplifier) is generic — these prompts are chosen so a genuinely thorough answer
-naturally needs to cover several angles, not because the system assigns one role per
-named domain (it doesn't have configurable domain-specialist roles like "legal" or
-"security").*
+pass, a fact-check pass, a concise final distillation, and a deliberate counter-argument
+each surface something the others miss. The shipped role set (`council.DefaultRoles`:
+Creator/Critic/Verifier/Simplifier/DevilsAdvocate) is generic — these prompts are chosen
+so a genuinely thorough answer naturally needs to cover several angles, not because the
+system assigns one role per named domain (it doesn't have configurable domain-specialist
+roles like "legal" or "security").*
 
 | # | Prompt |
 |---|--------|

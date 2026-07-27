@@ -129,21 +129,33 @@ func main() {
 
 	// RoleBased registration is opt-in AND requires both env vars. Stage 3
 	// chairman always runs; no no-LLM path. Role content (names/instructions)
-	// is fixed as council.DefaultRoles, not env-configurable. QuorumMin is
-	// set to len(DefaultRoles) — every role is a unique concern, so a
-	// missing role silently drops coverage rather than degrading gracefully.
+	// is fixed as council.DefaultRoles, not env-configurable — only the
+	// per-role Model assignment comes from ROLE_BASED_MODELS, reproducing the
+	// historical i % len(models) round-robin (env vars carry a flat model
+	// list, not named role assignments; that's what a future YAML-based
+	// config unlocks). QuorumMin is set to len(DefaultRoles) — every role is
+	// a unique concern, so a missing role silently drops coverage rather
+	// than degrading gracefully.
 	if len(cfg.RoleBasedModels) > 0 {
 		if cfg.RoleBasedChairmanModel == "" {
 			logger.Warn("ROLE_BASED_MODELS set but ROLE_BASED_CHAIRMAN_MODEL is empty; skipping registration of \"role-based\" council type")
 		} else {
-			registry["role-based"] = council.CouncilType{
-				Name:          "role-based",
-				Strategy:      council.RoleBased,
-				Roles:         council.DefaultRoles,
-				Models:        cfg.RoleBasedModels,
-				ChairmanModel: cfg.RoleBasedChairmanModel,
-				Temperature:   cfg.DefaultCouncilTemperature,
-				QuorumMin:     len(council.DefaultRoles),
+			roleModels := make(map[string]string, len(council.DefaultRoleKeys))
+			for i, key := range council.DefaultRoleKeys {
+				roleModels[key] = cfg.RoleBasedModels[i%len(cfg.RoleBasedModels)]
+			}
+			roles, err := council.RolesWithModels(roleModels)
+			if err != nil {
+				logger.Warn("failed to assign models to role-based roles; skipping registration", "error", err)
+			} else {
+				registry["role-based"] = council.CouncilType{
+					Name:          "role-based",
+					Strategy:      council.RoleBased,
+					Roles:         roles,
+					ChairmanModel: cfg.RoleBasedChairmanModel,
+					Temperature:   cfg.DefaultCouncilTemperature,
+					QuorumMin:     len(council.DefaultRoles),
+				}
 			}
 		}
 	}

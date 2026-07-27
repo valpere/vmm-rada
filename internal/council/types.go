@@ -39,7 +39,8 @@ const (
 // Role defines a named participant with a specific mandate in a role-based council.
 type Role struct {
 	Name        string `json:"name"`
-	Instruction string `json:"instruction"` // system-level prompt for this role
+	Instruction string `json:"instruction"`     // system-level prompt for this role
+	Model       string `json:"model,omitempty"` // LLM model this role runs on; set at registration time, not baked into DefaultRoles
 }
 
 // CouncilType describes a named council configuration.
@@ -48,7 +49,8 @@ type Role struct {
 // Field-usage matrix (which fields each strategy reads):
 //
 //	PeerReview         : Models, ChairmanModel, Temperature, QuorumMin
-//	RoleBased          : Models, Roles, ChairmanModel, Temperature, QuorumMin
+//	RoleBased          : Roles, ChairmanModel, Temperature, QuorumMin
+//	                     (Models is UNUSED — each Role carries its own Model)
 //	Majority           : Models, ChairmanModel (optional), Temperature, QuorumMin
 //	GenerateRankRefine : Models, ChairmanModel, Temperature, QuorumMin, RefineTopK
 //	MultiAgentDebate   : Models, ChairmanModel, Temperature, QuorumMin, MaxDebateRounds
@@ -59,15 +61,16 @@ type Role struct {
 //
 // MixtureOfAgents is the first strategy to skip both Models and ChairmanModel —
 // the runner reads the layer-specific ProposerModels / AggregatorModels /
-// RefinerModel fields directly. The Models/ChairmanModel fields stay zero-valued
-// for MoA registrations and are non-breaking for every other strategy.
+// RefinerModel fields directly. RoleBased similarly ignores Models — each Role's
+// own Model field is authoritative. Both patterns leave Models zero-valued/unused
+// without being breaking for other strategies.
 type CouncilType struct {
-	Name          string
-	Strategy      Strategy
-	Models        []string // Rada members. RoleBased assigns models to Roles by index mod len; other strategies use all.
-	Roles         []Role   // RoleBased only: role definitions with specialist instructions.
-	ChairmanModel string
-	Temperature   float64
+	Name            string
+	Strategy        Strategy
+	Models          []string // Rada members. Unused by RoleBased (see Roles[].Model); other strategies use all.
+	Roles           []Role   // RoleBased only: role definitions with specialist instructions and assigned models.
+	ChairmanModel   string
+	Temperature     float64
 	QuorumMin       int // 0 = strategy-specific default formula
 	RefineTopK      int // GenerateRankRefine only: how many ranked candidates advance to refinement; 0 = default (3)
 	MaxDebateRounds int // MultiAgentDebate only: number of debate rounds after Stage 1; 0 = default (2)
@@ -124,7 +127,7 @@ type EventFunc func(eventType string, data any)
 
 // StageOneResult holds a single council member's generated answer.
 type StageOneResult struct {
-	Label      string `json:"label"`      // anonymised label, e.g. "Response A"
+	Label      string `json:"label"` // anonymised label, e.g. "Response A"
 	Content    string `json:"content"`
 	Model      string `json:"model"`
 	DurationMs int64  `json:"duration_ms"` // elapsed milliseconds
@@ -246,10 +249,10 @@ type Debate struct {
 // whose drafts were fed into this aggregator (today: all-to-all fan-out, so
 // every aggregator sees every proposer).
 type AggregatorOutput struct {
-	Label      string   `json:"label"`        // anonymised, e.g. "Aggregator A"
-	Model      string   `json:"model"`        // OpenRouter ID, for transparency
-	Content    string   `json:"content"`      // aggregator's improved draft
-	Sources    []string `json:"sources"`      // proposer labels fed in (e.g. ["Response A", "Response B"])
+	Label      string   `json:"label"`   // anonymised, e.g. "Aggregator A"
+	Model      string   `json:"model"`   // OpenRouter ID, for transparency
+	Content    string   `json:"content"` // aggregator's improved draft
+	Sources    []string `json:"sources"` // proposer labels fed in (e.g. ["Response A", "Response B"])
 	DurationMs int64    `json:"duration_ms"`
 	Error      error    `json:"-"`
 }
@@ -267,9 +270,9 @@ type MoaAggregator struct {
 // SAME label as the rater's Stage 1 output (raters and proposers are the
 // same model pool in Delphi today; the label persists across rounds).
 type DelphiRating struct {
-	Label      string             `json:"label"`        // anonymised, e.g. "Response A"
-	Model      string             `json:"model"`        // OpenRouter ID
-	Scores     map[string]float64 `json:"scores"`       // criterion → 0.0–1.0
+	Label      string             `json:"label"`  // anonymised, e.g. "Response A"
+	Model      string             `json:"model"`  // OpenRouter ID
+	Scores     map[string]float64 `json:"scores"` // criterion → 0.0–1.0
 	Summary    string             `json:"summary,omitempty"`
 	DurationMs int64              `json:"duration_ms"`
 	Error      error              `json:"-"`
