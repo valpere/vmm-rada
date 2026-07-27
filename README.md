@@ -149,6 +149,10 @@ make clean      # Remove bin/vmm-rada
 | `POST` | `/api/conversations/{id}/message` | Send a message, wait for the full result |
 | `POST` | `/api/conversations/{id}/message/stream` | Send a message, receive stage results via SSE |
 
+Full request/response shapes, error codes, and the SSE event catalog: see
+[`docs/api.md`](docs/api.md) (narrative) or [`docs/openapi.yaml`](docs/openapi.yaml)
+(OpenAPI 3.2, machine-readable).
+
 ### Streaming events (`/message/stream`)
 
 Uses [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events).

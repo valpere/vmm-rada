@@ -13,7 +13,8 @@ codebase; the rewrite is well past the research phase.
 See `docs/` for the current source of truth:
 - `docs/architecture-v2.md` — package layout, layer boundaries, composition root, pipeline behaviour
 - `docs/strategies.md` — the 7 deliberation strategies (all implemented), per-registration model config, quorum defaults, SSE protocol
-- `docs/api.md` — REST + SSE event reference
+- `docs/api.md` — REST + SSE event reference (narrative companion to `docs/openapi.yaml`)
+- `docs/openapi.yaml` — OpenAPI 3.2 machine-readable API contract; kept drift-proof against `internal/api/handler.go` by `internal/api/spec_test.go` and linted in CI via `redocly lint`
 - `docs/pipeline.md` — Stage 0/1/2/3 internals
 - `docs/council-research-synthesis.md` — aggregated design research
 
