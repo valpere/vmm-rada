@@ -18,15 +18,17 @@ import (
 // Keep in sync with docs/openapi.yaml's structure; this is a *minimal*
 // projection, not a full validation of the spec.
 type openAPISpec struct {
-	OpenAPI  string         `yaml:"openapi"`
-	Info     map[string]any `yaml:"info"`
-	Paths    map[string]any `yaml:"paths"`
-	Schema   openAPIComponents `yaml:"components"`
+	OpenAPI string            `yaml:"openapi"`
+	Info    map[string]any    `yaml:"info"`
+	Paths   map[string]any    `yaml:"paths"`
+	Schema  openAPIComponents `yaml:"components"`
 }
 
 // openAPIComponents only carries what the test suite reaches for.
 type openAPIComponents struct {
-	Schemas map[string]any `yaml:"schemas"`
+	Schemas    map[string]any `yaml:"schemas"`
+	Responses  map[string]any `yaml:"responses"`
+	Parameters map[string]any `yaml:"parameters"`
 }
 
 // collectOperationIDs returns every operationId declared under
@@ -345,27 +347,45 @@ func TestSpec_AllRefsResolve(t *testing.T) {
 				continue
 			}
 			rest := strings.TrimPrefix(ref, prefix)
-			parts := strings.SplitN(rest, "/", 2)
-			if len(parts) != 2 {
+			// Resolve `kind` from the first segment, but the ref "name" may
+			// have additional JSON pointer segments (e.g.
+			// `schemas/Conversation/properties/id` is a valid OpenAPI pointer
+			// into a sub-property). For the kinds we know about, only the first
+			// segment needs to match a defined key — verifying the sub-path
+			// is out of scope for this test.
+			kind := rest
+			var name string
+			if i := strings.Index(rest, "/"); i >= 0 {
+				kind = rest[:i]
+				name = rest[i+1:]
+			}
+			if name == "" {
 				t.Errorf("malformed ref: %q", ref)
 				continue
 			}
-			kind, name := parts[0], parts[1]
 			switch kind {
 			case "schemas":
-				if _, ok := spec.Schema.Schemas[name]; !ok {
-					t.Errorf("dangling $ref %q: no such schema", ref)
+				// name may itself carry a JSON pointer into the schema (e.g.
+				// `Conversation/properties/id`) — only the first segment is
+				// the schema's own key; the rest is a sub-path this test
+				// does not resolve.
+				schemaName := name
+				if i := strings.Index(schemaName, "/"); i >= 0 {
+					schemaName = schemaName[:i]
+				}
+				if _, ok := spec.Schema.Schemas[schemaName]; !ok {
+					t.Errorf("dangling $ref %q: no such schema %q", ref, schemaName)
 				}
 			case "responses":
-				// The spec uses both inline $ref: '#/components/responses/X'
-				// (resolved against the spec's own components.responses
-				// block) and in-line responses within operation items. This
-				// test projection's components.responses is unexported, so
-				// we cross-check against the parsed spec's operation-level
-				// responses maps.
+				// First check the top-level components.responses block — that's
+				// the canonical OpenAPI location for shared response definitions.
+				if _, ok := spec.Schema.Responses[name]; ok {
+					continue
+				}
+				// Fall back to scanning per-operation responses maps for
+				// inline-only response definitions (less common but valid).
 				found := false
-				for pathKey, rawPath := range spec.Paths {
-					_ = pathKey
+				for _, rawPath := range spec.Paths {
 					pm, ok := rawPath.(map[string]any)
 					if !ok {
 						continue
@@ -385,10 +405,11 @@ func TestSpec_AllRefsResolve(t *testing.T) {
 					}
 				}
 				if !found {
-					t.Errorf("ref %q: response %q not found in any path item's responses", ref, name)
+					t.Errorf("ref %q: response %q not defined in components.responses or any path item's responses", ref, name)
 				}
-				if !found {
-					t.Errorf("ref %q: response %q not defined in any path item", ref, name)
+			case "parameters":
+				if _, ok := spec.Schema.Parameters[name]; !ok {
+					t.Errorf("dangling $ref %q: no such parameter", ref)
 				}
 			default:
 				t.Errorf("ref %q: unsupported kind %q", ref, kind)
@@ -404,19 +425,24 @@ func extractRefs(line string) []string {
 		if i < 0 {
 			return out
 		}
-		// Skip past "$ref:" plus the leading whitespace
+		// Skip past "$ref:" plus any leading whitespace
 		j := i + len("$ref:")
 		for j < len(line) && (line[j] == ' ' || line[j] == '\t') {
 			j++
 		}
-		// Value is a quoted string up to the next quote
-		if j >= len(line) || line[j] != '"' {
-			// not a ref we can parse
+		// Value is a quoted string — handle both single and double quotes
+		// (OpenAPI specs commonly use single quotes per the YAML community
+		// style; this test must handle both).
+		if j >= len(line) {
+			return out
+		}
+		quote := line[j]
+		if quote != '"' && quote != '\'' {
 			line = line[i+5:]
 			continue
 		}
 		j++
-		end := strings.IndexByte(line[j:], '"')
+		end := strings.IndexByte(line[j:], quote)
 		if end < 0 {
 			return out
 		}
