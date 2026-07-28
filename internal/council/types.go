@@ -75,6 +75,19 @@ func ParseStrategy(name string) (Strategy, bool) {
 	return 0, false
 }
 
+// AllStrategies returns every declared Strategy constant, in declaration
+// order. Lets a test enumerate every strategy programmatically (e.g. to
+// assert configs/council.yaml covers all of them) without re-parsing
+// types.go's const block via go/ast the way strategy_wiring_test.go does for
+// the env-fallback registration path.
+func AllStrategies() []Strategy {
+	all := make([]Strategy, len(strategyNames))
+	for i := range strategyNames {
+		all[i] = Strategy(i)
+	}
+	return all
+}
+
 // Role defines a named participant with a specific mandate in a role-based council.
 type Role struct {
 	Name        string `json:"name"`

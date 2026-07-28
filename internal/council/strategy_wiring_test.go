@@ -25,10 +25,10 @@ var registrationExemptions = map[string]string{}
 // decision — the exact gap RoleBased fell into.
 //
 // Scoped to the env-var fallback registry only (registry_env.go), not the
-// YAML-driven registry (registry_yaml.go) — a strategy missing from the
-// shipped configs/council.yaml is a config-authoring choice checked by
-// TestLoadCouncilRegistryYAML_ShippedConfig, not a structural reachability
-// gap this test is designed to catch.
+// YAML-driven registry (registry_yaml.go) — the YAML side has its own
+// structural check, internal/config's TestShippedConfigCoversAllStrategies,
+// which fails if any council.AllStrategies() value has no entry in
+// configs/council.yaml.
 func TestAllStrategiesRegisteredOrExempted(t *testing.T) {
 	root := projectRoot(t)
 

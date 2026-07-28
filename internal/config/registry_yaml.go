@@ -164,10 +164,21 @@ func buildCouncilType(name string, strat council.Strategy, e councilEntry, defau
 
 		ct.ChairmanModel = e.Arbiter
 		ct.Models = e.Members
-		ct.RefineTopK = e.RefineTopK
-		ct.MaxDebateRounds = e.MaxDebateRounds
-		ct.MaxDelphiRounds = e.MaxDelphiRounds
-		ct.DelphiConvergenceThreshold = e.DelphiConvergenceThreshold
+		// Only the strategy that actually owns each scalar override gets it
+		// assigned — forbidField above already errors (and the caller
+		// discards this ct entirely) if a field is set on the wrong
+		// strategy, but this keeps ct itself correct-by-construction rather
+		// than relying solely on that discard to prevent cross-strategy
+		// field leakage.
+		switch strat {
+		case council.GenerateRankRefine:
+			ct.RefineTopK = e.RefineTopK
+		case council.MultiAgentDebate:
+			ct.MaxDebateRounds = e.MaxDebateRounds
+		case council.Delphi:
+			ct.MaxDelphiRounds = e.MaxDelphiRounds
+			ct.DelphiConvergenceThreshold = e.DelphiConvergenceThreshold
+		}
 
 	case council.Majority:
 		if len(e.Members) < 2 {

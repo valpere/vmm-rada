@@ -170,3 +170,32 @@ func TestLoadCouncilRegistryYAML_ShippedConfig(t *testing.T) {
 		t.Errorf("configs/council.yaml: len(registry) = %d, want %d", len(registry), len(wantKeys))
 	}
 }
+
+// TestShippedConfigCoversAllStrategies is the YAML-path counterpart to
+// internal/council's TestAllStrategiesRegisteredOrExempted, which only
+// checks the env-var fallback registration path (registry_env.go). Since
+// configs/council.yaml is now the PRIMARY registration mechanism whenever
+// it's present, a Strategy declared in types.go but missing from this file
+// would be silently unreachable in the common case — this test makes that
+// structurally impossible to introduce unnoticed, the same way
+// TestAllStrategiesRegisteredOrExempted already does for the fallback path.
+func TestShippedConfigCoversAllStrategies(t *testing.T) {
+	path := filepath.Join("..", "..", "configs", "council.yaml")
+	registry, err := LoadCouncilRegistryYAML(path, 0.7)
+	if err != nil {
+		t.Fatalf("configs/council.yaml failed to load: %v", err)
+	}
+
+	covered := make(map[council.Strategy]bool, len(registry))
+	for _, ct := range registry {
+		covered[ct.Strategy] = true
+	}
+
+	for _, strat := range council.AllStrategies() {
+		if !covered[strat] {
+			t.Errorf("configs/council.yaml has no entry for strategy %q — every declared "+
+				"Strategy must have a registration in the shipped YAML config, since it's "+
+				"the primary registration mechanism whenever present", strat)
+		}
+	}
+}
