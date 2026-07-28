@@ -1,5 +1,7 @@
 package council
 
+import "fmt"
+
 // Strategy identifies the deliberation algorithm used by a CouncilType.
 type Strategy int
 
@@ -35,6 +37,56 @@ const (
 	// and convergence detection. Implemented in delphi.go.
 	Delphi
 )
+
+// strategyNames is the canonical name↔value table for Strategy, in
+// declaration order. Both String and ParseStrategy read from this single
+// source so the two stay in sync automatically as strategies are added.
+var strategyNames = [...]string{
+	PeerReview:         "PeerReview",
+	RoleBased:          "RoleBased",
+	Majority:           "Majority",
+	GenerateRankRefine: "GenerateRankRefine",
+	MultiAgentDebate:   "MultiAgentDebate",
+	MixtureOfAgents:    "MixtureOfAgents",
+	Delphi:             "Delphi",
+}
+
+// String returns the canonical name of s, e.g. "PeerReview". Unknown values
+// (out of range of the declared Strategy constants) render as "Strategy(N)"
+// rather than panicking — useful in error messages built from untrusted
+// input that failed to parse into a valid Strategy in the first place.
+func (s Strategy) String() string {
+	if int(s) < 0 || int(s) >= len(strategyNames) {
+		return fmt.Sprintf("Strategy(%d)", int(s))
+	}
+	return strategyNames[s]
+}
+
+// ParseStrategy converts a canonical Strategy name (as produced by String)
+// back into a Strategy value. ok is false for any name not in strategyNames —
+// callers must check ok rather than trust a zero Strategy (PeerReview) as a
+// "not found" sentinel.
+func ParseStrategy(name string) (Strategy, bool) {
+	for i, n := range strategyNames {
+		if n == name {
+			return Strategy(i), true
+		}
+	}
+	return 0, false
+}
+
+// AllStrategies returns every declared Strategy constant, in declaration
+// order. Lets a test enumerate every strategy programmatically (e.g. to
+// assert configs/council.yaml covers all of them) without re-parsing
+// types.go's const block via go/ast the way strategy_wiring_test.go does for
+// the env-fallback registration path.
+func AllStrategies() []Strategy {
+	all := make([]Strategy, len(strategyNames))
+	for i := range strategyNames {
+		all[i] = Strategy(i)
+	}
+	return all
+}
 
 // Role defines a named participant with a specific mandate in a role-based council.
 type Role struct {

@@ -82,10 +82,13 @@ Derived from what is actually built and wired (not aspirational — see
 
 ## 4. Non-functional constraints
 
-- **Standard-library-first backend.** The only non-stdlib dependency of the server binary
-  (`cmd/server`) is `github.com/joho/godotenv`. The eval binary (`cmd/eval`,
-  `internal/eval/`) additionally uses `gopkg.in/yaml.v3` for benchmark-file parsing — not
-  part of the running server. No ORM, no web framework, no DB driver.
+- **Standard-library-first backend.** The only non-stdlib dependencies of the server
+  binary (`cmd/server`) are `github.com/joho/godotenv` (`.env` loading) and
+  `gopkg.in/yaml.v3` (`internal/config`'s council registry YAML config —
+  see `docs/strategies.md` "Per-strategy configuration"). No CLI or config-management
+  framework (Cobra/Viper were considered and rejected — a plain YAML file plus the
+  existing env vars solves the actual problem without the added surface area). No ORM,
+  no web framework, no DB driver.
 - **No database.** One JSON file per conversation under `DATA_DIR`. This is an explicit v1
   choice, not an oversight — see [`council-research-synthesis.md`](./council-research-synthesis.md#12-implementation-design-decisions):
   the `Storer` interface is deliberately pluggable so a future backend swap doesn't touch

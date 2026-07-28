@@ -13,9 +13,9 @@ import (
 // Config holds all server configuration sourced from environment variables.
 // It contains raw primitive fields only — no domain types.
 type Config struct {
-	ProviderName    string
-	ProviderAPIKey  string
-	LLMBaseURL      string
+	ProviderName                string
+	ProviderAPIKey              string
+	LLMBaseURL                  string
 	DataDir                     string
 	DefaultCouncilType          string
 	Port                        string
@@ -90,6 +90,16 @@ type Config struct {
 	DelphiMaxRounds            int
 	DelphiConvergenceThreshold float64
 
+	// CouncilConfigPath is the path to a YAML file describing the full
+	// council type registry (see internal/config/registry_yaml.go). When the
+	// file exists, it builds the ENTIRE registry — every per-strategy env var
+	// above (MajorityModels, DebateModels, etc.) is ignored. When absent,
+	// BuildRegistry falls back to the env-var-driven construction those
+	// fields feed. Set COUNCIL_CONFIG_PATH="" explicitly to force the env
+	// fallback even if a file exists at the default path — distinct from
+	// leaving the env var unset, which uses the default path.
+	CouncilConfigPath string
+
 	// LLMAPIMaxRetries is the number of retries the OpenRouter client attempts
 	// on transient failures (HTTP 429/502/503/504, network timeouts, EOFs).
 	// 0 disables retries. Default: 2 (3 total attempts including the initial).
@@ -99,9 +109,9 @@ type Config struct {
 	// CBFailureThreshold: consecutive terminal failures before opening. Default 5.
 	// CBWindowDurationSecs: sliding failure-count window in seconds. Default 60.
 	// CBResetTimeoutSecs: seconds in open state before a probe is allowed. Default 30.
-	CBFailureThreshold    int
-	CBWindowDurationSecs  int
-	CBResetTimeoutSecs    int
+	CBFailureThreshold   int
+	CBWindowDurationSecs int
+	CBResetTimeoutSecs   int
 }
 
 // Load reads configuration from environment variables and returns an error if
@@ -360,6 +370,14 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// COUNCIL_CONFIG_PATH uses LookupEnv, not Getenv: an explicitly-empty
+	// value ("COUNCIL_CONFIG_PATH=") means "disable YAML, force the env-var
+	// registry" — distinct from unset, which uses the default path below.
+	councilConfigPath := "configs/council.yaml"
+	if raw, ok := os.LookupEnv("COUNCIL_CONFIG_PATH"); ok {
+		councilConfigPath = strings.TrimSpace(raw)
+	}
+
 	llmAPIMaxRetries := 2
 	if raw := os.Getenv("LLM_API_MAX_RETRIES"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
@@ -438,6 +456,8 @@ func Load() (*Config, error) {
 		DelphiChairmanModel:        delphiChairmanModel,
 		DelphiMaxRounds:            delphiMaxRounds,
 		DelphiConvergenceThreshold: delphiConvergenceThreshold,
+
+		CouncilConfigPath: councilConfigPath,
 
 		LLMAPIMaxRetries: llmAPIMaxRetries,
 
