@@ -33,6 +33,14 @@ mkdir -p "$PATTERNS_DIR"
 [[ -f "$WINS" ]]      || : > "$WINS"
 [[ -f "$MISTAKES" ]] || : > "$MISTAKES"
 
+# Unique per-invocation scratch files — Stop can fire from multiple
+# sessions in the same project concurrently, so a fixed /tmp path would
+# let two invocations clobber each other's intermediate state.
+MISTAKES_TMP=$(mktemp /tmp/self-learn-mistakes.XXXXXX)
+WINS_TMP=$(mktemp /tmp/self-learn-wins.XXXXXX)
+PARSE_ERR_TMP=$(mktemp /tmp/self-learn-parse-err.XXXXXX)
+trap 'rm -f "$MISTAKES_TMP" "$WINS_TMP" "$PARSE_ERR_TMP"' EXIT
+
 # Locate the session transcript — same logic session-end.sh uses, so the
 # two hooks stay in lockstep if the location changes upstream.
 TRANSCRIPT=$(echo "$INPUT" | python3 -c \
@@ -116,12 +124,26 @@ if [[ -z "$MODEL_OUT" ]]; then
   exit 0
 fi
 
-# Strip markdown fences / prose wrapping the JSON array. If parsing
-# fails, treat as empty array (silent skip).
-JSON=$(echo "$MODEL_OUT" \
-  | sed -n '/^\[/,/^\]/p' \
-  | sed 's/^```[a-zA-Z]*$//;s/^```$//' \
-  | tr -d '\r')
+# Strip markdown fences / prose wrapping the JSON array. Cheap models
+# emit two shapes: pretty-printed (multi-line, the JSON on its own lines)
+# and minified (single-line `[ {...}, {...} ]`). Both shapes are handled:
+# the first branch trims to whatever lines start with `[` and end with `]`,
+# the second branch keeps the raw output as-is for minified input. If
+# parsing fails downstream, treat as empty array (silent skip).
+if echo "$MODEL_OUT" | grep -q '^\['; then
+  if echo "$MODEL_OUT" | grep -q '^\]'; then
+    # Pretty-printed: select only the [...] block.
+    JSON=$(echo "$MODEL_OUT" \
+      | sed -n '/^\[/,/^\]/p' \
+      | sed 's/^```[a-zA-Z]*$//;s/^```$//' \
+      | tr -d '\r')
+  else
+    # Minified (single line): keep the whole output, strip CRs.
+    JSON=$(echo "$MODEL_OUT" | tr -d '\r')
+  fi
+else
+  JSON=""
+fi
 
 if [[ -z "$JSON" ]]; then
   echo "[$(date -Iseconds)] session-self-learn: no JSON array in model output, skipping" >> "$LOG_FILE"
@@ -153,31 +175,29 @@ for item in arr:
     elif 'win' in keys:
         if required_win.issubset(keys):
             wins.append(item)
-open('/tmp/self-learn-mistakes.tmp','w').write('\n'.join(json.dumps(m) for m in mistakes))
-open('/tmp/self-learn-wins.tmp','w').write('\n'.join(json.dumps(w) for w in wins))
-" 2>/tmp/self-learn-parse-err
+open('$MISTAKES_TMP','w').write('\n'.join(json.dumps(m) for m in mistakes))
+open('$WINS_TMP','w').write('\n'.join(json.dumps(w) for w in wins))
+" 2>"$PARSE_ERR_TMP"
 
 if [[ $? -ne 0 ]]; then
-  echo "[$(date -Iseconds)] session-self-learn: JSON validation failed: $(cat /tmp/self-learn-parse-err)" >> "$LOG_FILE"
-  rm -f /tmp/self-learn-parse-err /tmp/self-learn-mistakes.tmp /tmp/self-learn-wins.tmp
+  echo "[$(date -Iseconds)] session-self-learn: JSON validation failed: $(cat "$PARSE_ERR_TMP")" >> "$LOG_FILE"
   exit 0
 fi
-rm -f /tmp/self-learn-parse-err
 
 # Append each validated entry to its target file. Counting writes
-# separately so the log shows the actual pattern-store delta.
+# separately so the log shows the actual pattern-store delta. The trap
+# set earlier cleans up MISTAKES_TMP/WINS_TMP/PARSE_ERR_TMP on exit.
 WRITTEN=0
-if [[ -s /tmp/self-learn-mistakes.tmp ]]; then
-  N=$(grep -c . /tmp/self-learn-mistakes.tmp 2>/dev/null || echo 0)
-  cat /tmp/self-learn-mistakes.tmp >> "$MISTAKES"
+if [[ -s "$MISTAKES_TMP" ]]; then
+  N=$(grep -c . "$MISTAKES_TMP" 2>/dev/null || echo 0)
+  cat "$MISTAKES_TMP" >> "$MISTAKES"
   WRITTEN=$((WRITTEN + N))
 fi
-if [[ -s /tmp/self-learn-wins.tmp ]]; then
-  N=$(grep -c . /tmp/self-learn-wins.tmp 2>/dev/null || echo 0)
-  cat /tmp/self-learn-wins.tmp >> "$WINS"
+if [[ -s "$WINS_TMP" ]]; then
+  N=$(grep -c . "$WINS_TMP" 2>/dev/null || echo 0)
+  cat "$WINS_TMP" >> "$WINS"
   WRITTEN=$((WRITTEN + N))
 fi
-rm -f /tmp/self-learn-mistakes.tmp /tmp/self-learn-wins.tmp
 
 echo "[$(date -Iseconds)] session-self-learn: wrote $WRITTEN pattern entries" >> "$LOG_FILE"
 exit 0
