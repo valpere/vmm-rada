@@ -517,11 +517,13 @@ in the SSE payload.
 **File:** `internal/council/rolebased.go` — `runRoleBased`
 
 `RunFull` dispatches to `runRoleBased` when `ct.Strategy == RoleBased`. Registered under
-the `"role-based"` council type name in `cmd/server/main.go`, opt-in via
+the `"role-based"` council type name via `config.BuildRegistry` — either from
+`configs/council.yaml`'s `role-based` entry (primary) or, as a fallback, opt-in via
 `ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL` (both required — see
-[`strategies.md`](./strategies.md) for the full registration contract). Role content
-(names/instructions) is fixed as `council.DefaultRoles` (`internal/council/roles.go`),
-not env-configurable. There is no dedicated `/review` endpoint — `RegisterRoutes` in
+[`strategies.md`](./strategies.md) for the full registration contract, both mechanisms).
+Role content (names/instructions) is fixed as `council.DefaultRoles`
+(`internal/council/roles.go`), not configurable via either mechanism — only each role's
+assigned *model* is. There is no dedicated `/review` endpoint — `RegisterRoutes` in
 `internal/api/handler.go` only registers the strategy-agnostic `/message` and
 `/message/stream` routes; RoleBased is reached the same way every other strategy is,
 via `council_type: "role-based"` in the request body. (The earlier dedicated `/review*`

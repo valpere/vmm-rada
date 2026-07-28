@@ -1,0 +1,7 @@
+councils:
+  default:
+    strategy: NotARealStrategy
+    arbiter: chairman-model
+    members:
+      - member-a
+      - member-b

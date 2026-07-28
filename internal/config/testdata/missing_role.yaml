@@ -1,0 +1,10 @@
+councils:
+  role-based:
+    strategy: RoleBased
+    arbiter: chairman-model
+    roles:
+      creator: role-creator-model
+      critic: role-critic-model
+      verifier: role-verifier-model
+      simplifier: role-simplifier-model
+      # devils_advocate intentionally omitted

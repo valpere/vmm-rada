@@ -1,0 +1,53 @@
+councils:
+  default:
+    strategy: PeerReview
+    arbiter: chairman-model
+    members:
+      - member-a
+      - member-b
+
+  role-based:
+    strategy: RoleBased
+    arbiter: chairman-model
+    roles:
+      creator: role-creator-model
+      critic: role-critic-model
+      verifier: role-verifier-model
+      simplifier: role-simplifier-model
+      devils_advocate: role-devils-advocate-model
+
+  majority:
+    strategy: Majority
+    members:
+      - voter-a
+      - voter-b
+
+  generate-rank-refine:
+    strategy: GenerateRankRefine
+    arbiter: grr-chairman
+    members:
+      - grr-a
+      - grr-b
+
+  debate:
+    strategy: MultiAgentDebate
+    arbiter: debate-chairman
+    members:
+      - debater-a
+      - debater-b
+
+  moa:
+    strategy: MixtureOfAgents
+    refiner: moa-refiner
+    proposers:
+      - proposer-a
+      - proposer-b
+    aggregators:
+      - aggregator-a
+
+  delphi:
+    strategy: Delphi
+    arbiter: delphi-chairman
+    members:
+      - rater-a
+      - rater-b

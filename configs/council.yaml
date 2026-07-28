@@ -1,0 +1,102 @@
+# VMM Rada council type registry.
+#
+# When this file exists at the path COUNCIL_CONFIG_PATH points to (default:
+# configs/council.yaml, relative to the working directory the server is run
+# from), it builds the ENTIRE council registry — every per-strategy env var
+# in .env.example (RADA_MODELS, MAJORITY_MODELS, ROLE_BASED_MODELS, etc.) is
+# ignored while this file is present. To go back to the env-var-driven
+# registry without deleting this file, set COUNCIL_CONFIG_PATH="" (explicitly
+# empty, not just unset).
+#
+# Each entry's key is also the client-facing `council_type` request/response
+# value (see docs/api.md) — these match today's existing registration names
+# so switching to this file does not change any client-visible contract.
+# Each entry's `strategy:` field names which of the 7 Strategy enum values
+# (internal/council/types.go) it implements; at most one entry per strategy
+# is allowed.
+#
+# Field shape by strategy — see docs/strategies.md "Per-strategy
+# configuration" for the full reference:
+#   PeerReview, GenerateRankRefine, MultiAgentDebate, Delphi: arbiter + members (>=2)
+#   Majority: members (>=2); arbiter optional (empty = no tiebreak, ties error)
+#   RoleBased: arbiter + roles (exactly creator/critic/verifier/simplifier/devils_advocate)
+#   MixtureOfAgents: refiner + proposers (>=1) + aggregators (>=1)
+# Optional overrides available on any entry: temperature, quorum. Strategy-specific
+# optional overrides: refine_top_k (GenerateRankRefine), max_debate_rounds
+# (MultiAgentDebate), max_delphi_rounds / delphi_convergence_threshold (Delphi).
+
+councils:
+  default:
+    strategy: PeerReview
+    arbiter: glm-5.2:cloud
+    members:
+      - deepseek-v4-flash:cloud
+      - kimi-k2.6:cloud
+      - minimax-m3:cloud
+      - nemotron-3-super:cloud
+      - qwen3.5:cloud
+
+  role-based:
+    strategy: RoleBased
+    arbiter: kimi-k2.6:cloud
+    roles:
+      creator: glm-5.2:cloud
+      critic: deepseek-v4-pro:cloud
+      verifier: qwen3.5:cloud
+      simplifier: nemotron-3-super:cloud
+      devils_advocate: minimax-m3:cloud
+
+  majority:
+    strategy: Majority
+    members:
+      - glm-5.2:cloud
+      - deepseek-v4-flash:cloud
+      - kimi-k2.6:cloud
+      - minimax-m3:cloud
+      - nemotron-3-super:cloud
+      - qwen3.5:cloud
+
+  generate-rank-refine:
+    strategy: GenerateRankRefine
+    arbiter: minimax-m3:cloud
+    members:
+      - deepseek-v4-flash:cloud
+      - kimi-k2.6:cloud
+      - glm-5.2:cloud
+      - nemotron-3-super:cloud
+      - qwen3.5:cloud
+
+  debate:
+    strategy: MultiAgentDebate
+    arbiter: deepseek-v4-pro:cloud
+    members:
+      - minimax-m3:cloud
+      - kimi-k2.6:cloud
+      - glm-5.2:cloud
+      - nemotron-3-super:cloud
+      - qwen3.5:cloud
+
+  moa:
+    strategy: MixtureOfAgents
+    refiner: nemotron-3-super:cloud
+    proposers:
+      - minimax-m3:cloud
+      - glm-5.2:cloud
+      - deepseek-v4-pro:cloud
+      - qwen3.5:cloud
+    aggregators:
+      - kimi-k2.6:cloud
+      - gemma4:cloud
+
+  delphi:
+    strategy: Delphi
+    # Not in the original proposal — Delphi's Stage 3 chairman always runs
+    # (no no-LLM path), so an arbiter is required. Reused from debate's
+    # arbiter choice; kept distinct from delphi's own members below.
+    arbiter: deepseek-v4-pro:cloud
+    members:
+      - minimax-m3:cloud
+      - kimi-k2.6:cloud
+      - glm-5.2:cloud
+      - nemotron-3-super:cloud
+      - qwen3.5:cloud

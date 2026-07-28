@@ -1,0 +1,17 @@
+councils:
+  default:
+    strategy: PeerReview
+    arbiter: chairman-model
+    members:
+      - member-a
+      - member-b
+    temperature: 0.3
+    quorum: 5
+
+  generate-rank-refine:
+    strategy: GenerateRankRefine
+    arbiter: grr-chairman
+    members:
+      - grr-a
+      - grr-b
+    refine_top_k: 2

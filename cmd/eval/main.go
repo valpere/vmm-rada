@@ -128,7 +128,10 @@ func run() error {
 		inputSHA = eval.SuiteSHA256(data)
 	}
 
-	registry := buildRegistry(cfg)
+	registry, err := config.BuildRegistry(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("build council registry: %w", err)
+	}
 	if _, ok := registry[*councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", *councilType, knownTypes(registry))
 	}
@@ -214,7 +217,10 @@ func runBatch(
 		}
 	}
 
-	registry := buildRegistry(cfg)
+	registry, err := config.BuildRegistry(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("build council registry: %w", err)
+	}
 	if _, ok := registry[councilType]; !ok {
 		return fmt.Errorf("unknown council type %q (known: %v)", councilType, knownTypes(registry))
 	}
@@ -313,71 +319,6 @@ func runBatch(
 	fmt.Fprintf(os.Stdout, "%s\n", report.Summary.Format(len(results)))
 	fmt.Fprintf(os.Stderr, "wrote %s (tokens=%d cost=$%.4f)\n", outPath, report.TotalTokens, totalCost)
 	return nil
-}
-
-// buildRegistry constructs the council type registry from cfg, mirroring
-// cmd/server/main.go. Extracted here so runBatch can use it without
-// duplicating the long opt-in registration block.
-func buildRegistry(cfg *config.Config) map[string]council.CouncilType {
-	registry := map[string]council.CouncilType{
-		cfg.DefaultCouncilType: {
-			Name:          cfg.DefaultCouncilType,
-			Strategy:      council.PeerReview,
-			Models:        cfg.DefaultCouncilModels,
-			ChairmanModel: cfg.DefaultCouncilChairmanModel,
-			Temperature:   cfg.DefaultCouncilTemperature,
-		},
-	}
-	if len(cfg.MajorityModels) > 0 {
-		registry["majority"] = council.CouncilType{
-			Name:          "majority",
-			Strategy:      council.Majority,
-			Models:        cfg.MajorityModels,
-			ChairmanModel: cfg.MajorityChairmanModel,
-			Temperature:   cfg.DefaultCouncilTemperature,
-		}
-	}
-	if len(cfg.GenerateRankRefineModels) > 0 && cfg.GenerateRankRefineChairmanModel != "" {
-		registry["generate-rank-refine"] = council.CouncilType{
-			Name:          "generate-rank-refine",
-			Strategy:      council.GenerateRankRefine,
-			Models:        cfg.GenerateRankRefineModels,
-			ChairmanModel: cfg.GenerateRankRefineChairmanModel,
-			Temperature:   cfg.DefaultCouncilTemperature,
-		}
-	}
-	if len(cfg.DebateModels) > 0 && cfg.DebateChairmanModel != "" {
-		registry["debate"] = council.CouncilType{
-			Name:            "debate",
-			Strategy:        council.MultiAgentDebate,
-			Models:          cfg.DebateModels,
-			ChairmanModel:   cfg.DebateChairmanModel,
-			Temperature:     cfg.DefaultCouncilTemperature,
-			MaxDebateRounds: cfg.DebateMaxRounds,
-		}
-	}
-	if len(cfg.MoaProposerModels) > 0 && len(cfg.MoaAggregatorModels) > 0 && cfg.MoaRefinerModel != "" {
-		registry["moa"] = council.CouncilType{
-			Name:             "moa",
-			Strategy:         council.MixtureOfAgents,
-			ProposerModels:   cfg.MoaProposerModels,
-			AggregatorModels: cfg.MoaAggregatorModels,
-			RefinerModel:     cfg.MoaRefinerModel,
-			Temperature:      cfg.DefaultCouncilTemperature,
-		}
-	}
-	if len(cfg.DelphiModels) > 0 && cfg.DelphiChairmanModel != "" {
-		registry["delphi"] = council.CouncilType{
-			Name:                       "delphi",
-			Strategy:                   council.Delphi,
-			Models:                     cfg.DelphiModels,
-			ChairmanModel:              cfg.DelphiChairmanModel,
-			Temperature:                cfg.DefaultCouncilTemperature,
-			MaxDelphiRounds:            cfg.DelphiMaxRounds,
-			DelphiConvergenceThreshold: cfg.DelphiConvergenceThreshold,
-		}
-	}
-	return registry
 }
 
 // knownTypes returns the keys of registry sorted lexicographically — used

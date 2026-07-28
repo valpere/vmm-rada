@@ -1,0 +1,14 @@
+councils:
+  peer-review-a:
+    strategy: PeerReview
+    arbiter: chairman-a
+    members:
+      - member-a
+      - member-b
+
+  peer-review-b:
+    strategy: PeerReview
+    arbiter: chairman-b
+    members:
+      - member-c
+      - member-d

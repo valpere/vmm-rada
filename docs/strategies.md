@@ -47,19 +47,75 @@ Operators pick strategies on cost as much as on output quality. For a council of
 
 ## Per-strategy configuration
 
-Each registration in `cmd/server/main.go` and `cmd/eval/main.go` carries its own `Models` and `ChairmanModel`. Multiple registrations may reuse the same `Strategy` with different model sets — the registry is keyed by `Name`, not `Strategy`. New strategies adopt namespaced env var families with fall-through to the global defaults.
+The council type registry (`map[string]council.CouncilType`, consumed by both
+`cmd/server` and `cmd/eval` via `config.BuildRegistry`) is built one of two ways:
 
-| Strategy | What `Models` represents | What `ChairmanModel` represents | Env var family | Fall-through |
-|----------|--------------------------|---------------------------------|----------------|--------------|
-| `PeerReview` | Rada members (generators + reviewers) | Stage 3 synthesiser | `RADA_MODELS` / `CHAIRMAN_MODEL` | — (these are the defaults) |
-| `RoleBased` | **UNUSED** — each `Role` carries its own `Model`, assigned via `council.RolesWithModels`; `ROLE_BASED_MODELS` is distributed across the 5 fixed roles (`council.DefaultRoleKeys` order) by `i % len(models)`, reproducing the historical round-robin at the env layer only | Synthesiser across role findings (required) | `ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL` (both required) | none — registration is opt-in via both `ROLE_BASED_*` env vars; role content itself (`Roles []Role` — names/instructions) is fixed as `council.DefaultRoles`, not env-configurable |
-| `Majority` | Voters | Tiebreaker / polish (optional; `""` = no tiebreak, ties error) | `MAJORITY_MODELS` (required to register) / `MAJORITY_CHAIRMAN_MODEL` (optional) | none — registration is opt-in via `MAJORITY_MODELS`; chairman stays empty when unset (so the no-chairman path is reachable) |
-| `GenerateRankRefine` | Generators | Ranker + refiner (single model today) | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
-| `MultiAgentDebate` | Debaters | Synthesiser | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` | `RADA_MODELS` / `CHAIRMAN_MODEL` |
-| `MixtureOfAgents` | (UNUSED — MoA reads `ProposerModels`/`AggregatorModels`/`RefinerModel` directly) | (UNUSED — see above) | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` (ALL THREE required to register; partial config logs a warning and skips) | none — registration is opt-in via all three MoA env vars |
-| `Delphi` | Raters (also Stage 1 proposers — same pool serves both roles) | Synthesiser (required) | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` (both required); `DELPHI_MAX_ROUNDS` (optional, default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (optional, default 0.1) tune the rating loop | none — registration is opt-in via both DELPHI_* env vars |
+1. **YAML file** (primary) — `configs/council.yaml` (path overridable via
+   `COUNCIL_CONFIG_PATH`). When present, it builds the *entire* registry; every
+   per-strategy env var below is ignored.
+2. **Env vars** (fallback) — used only when the YAML file doesn't exist. Each
+   strategy gets its own namespaced env var family, opt-in (empty = not
+   registered). Multiple registrations of the *same* `Strategy` are not
+   possible via either mechanism — the registry is keyed by name, and both the
+   YAML loader and the env builder enforce at most one entry per `Strategy`.
 
-`MixtureOfAgents` is the only shipped strategy that does not fit the `Models` + `ChairmanModel` shape. `CouncilType` carries three MoA-only fields:
+Set `COUNCIL_CONFIG_PATH=""` (explicitly empty, not merely unset) to force the
+env fallback even when a YAML file exists at the default path.
+
+### YAML schema
+
+```yaml
+councils:
+  <registration-key>:        # also the client-facing council_type value (docs/api.md)
+    strategy: <StrategyName> # PeerReview | RoleBased | Majority | GenerateRankRefine
+                              # | MultiAgentDebate | MixtureOfAgents | Delphi
+    arbiter: <model>          # → ChairmanModel (required except Majority, MixtureOfAgents)
+    members: [<model>, ...]   # → Models (≥2; not used by RoleBased/MixtureOfAgents)
+    roles:                    # RoleBased only — exactly these 5 keys, each → a model
+      creator: <model>
+      critic: <model>
+      verifier: <model>
+      simplifier: <model>
+      devils_advocate: <model>
+    refiner: <model>          # MixtureOfAgents only
+    proposers: [<model>, ...] # MixtureOfAgents only, ≥1
+    aggregators: [<model>, ...] # MixtureOfAgents only, ≥1
+    temperature: <float>      # optional, any strategy; default DEFAULT_RADA_TEMPERATURE
+    quorum: <int>             # optional, any strategy; default = strategy formula
+                              # (RoleBased defaults to len(roles) = 5 when omitted)
+    refine_top_k: <int>       # optional, GenerateRankRefine only
+    max_debate_rounds: <int>  # optional, MultiAgentDebate only
+    max_delphi_rounds: <int>  # optional, Delphi only
+    delphi_convergence_threshold: <float> # optional, Delphi only
+```
+
+Loading is strict: unknown top-level fields, an unknown `strategy:` name, two
+entries declaring the same `strategy:`, or any strategy's required fields
+missing/misapplied are all hard errors collected together (`errors.Join`) —
+the server fails fast at startup with every problem listed, rather than
+silently registering a partial set of strategies. This is deliberately
+stricter than the env fallback's warn-and-skip: a YAML file at a configured
+path is an authored artifact, not ambient environment a deployment might
+inherit unintentionally.
+
+| Strategy | Required fields | Optional overrides |
+|----------|-----------------|---------------------|
+| `PeerReview` | `arbiter`, `members` (≥2) | `temperature`, `quorum` |
+| `RoleBased` | `arbiter`, `roles` (exactly 5 keys) | `temperature`, `quorum` (default: `len(roles)`) |
+| `Majority` | `members` (≥2) | `arbiter` (`""` = no tiebreak, ties error), `temperature`, `quorum` |
+| `GenerateRankRefine` | `arbiter`, `members` (≥2) | `temperature`, `quorum`, `refine_top_k` |
+| `MultiAgentDebate` | `arbiter`, `members` (≥2) | `temperature`, `quorum`, `max_debate_rounds` |
+| `MixtureOfAgents` | `refiner`, `proposers` (≥1), `aggregators` (≥1) | `temperature`, `quorum` |
+| `Delphi` | `arbiter`, `members` (≥2) | `temperature`, `quorum`, `max_delphi_rounds`, `delphi_convergence_threshold` |
+
+`RoleBased`'s `roles:` map assigns a distinct model to each of the 5 fixed roles
+(`council.DefaultRoleKeys`: `creator`/`critic`/`verifier`/`simplifier`/`devils_advocate`)
+via `council.RolesWithModels` — named assignment, not positional. Role *content*
+(names/instructions, `council.DefaultRoles`) is fixed in code either way, not
+configurable via YAML or env.
+
+`MixtureOfAgents` is the only strategy that doesn't use `Models`/`ChairmanModel` at
+all — `CouncilType` carries three MoA-only fields instead:
 
 ```go
 ProposerModels   []string  // Layer 1
@@ -67,7 +123,29 @@ AggregatorModels []string  // Layer 2
 RefinerModel     string    // Layer 3 (final)
 ```
 
-These fields are zero-valued for every other strategy. The `Models` and `ChairmanModel` fields are unused for MoA registrations — the runner reads the layer-specific fields directly. See the field-usage matrix in `CouncilType`'s doc-comment in `internal/council/types.go`.
+See the field-usage matrix in `CouncilType`'s doc-comment in `internal/council/types.go`.
+
+### Fallback: env-var registry (used when no YAML file is present)
+
+Each strategy gets its own namespaced env var family. `PeerReview` (keyed by
+`DEFAULT_RADA_TYPE`, default `"default"`) is always registered; the other six
+register only when their env var family is set — with the following variance
+in what's required vs optional:
+
+| Strategy | Env var family | Notes |
+|----------|-----------------|-------|
+| `PeerReview` | `RADA_MODELS` / `CHAIRMAN_MODEL` | Always registered — these are the global defaults |
+| `RoleBased` | `ROLE_BASED_MODELS` / `ROLE_BASED_CHAIRMAN_MODEL` (both required) | `ROLE_BASED_MODELS` is distributed across the 5 fixed roles by `i % len(models)`, reproducing the historical round-robin at the env layer only |
+| `Majority` | `MAJORITY_MODELS` (required) / `MAJORITY_CHAIRMAN_MODEL` (optional) | Chairman stays empty when unset — keeps the no-chairman tiebreak-error path reachable |
+| `GenerateRankRefine` | `GENERATE_RANK_REFINE_MODELS` / `GENERATE_RANK_REFINE_CHAIRMAN_MODEL` (both required) | — |
+| `MultiAgentDebate` | `DEBATE_MODELS` / `DEBATE_CHAIRMAN_MODEL` (both required) | `DEBATE_MAX_ROUNDS` optional, default 2 |
+| `MixtureOfAgents` | `MOA_PROPOSER_MODELS` / `MOA_AGGREGATOR_MODELS` / `MOA_REFINER_MODEL` (all three required) | Partial config logs a warning and skips registration |
+| `Delphi` | `DELPHI_MODELS` / `DELPHI_CHAIRMAN_MODEL` (both required) | `DELPHI_MAX_ROUNDS` (default 3) and `DELPHI_CONVERGENCE_THRESHOLD` (default 0.1) optional |
+
+Unlike the YAML path, a missing/invalid registration here warns and skips
+(server keeps running with fewer strategies) rather than failing startup —
+env vars are ambient, inherited by a deployment that may not have set every
+family intentionally.
 
 ---
 

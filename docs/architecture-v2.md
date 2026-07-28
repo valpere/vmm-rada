@@ -67,7 +67,8 @@ internal/openrouter
     └── must not import: internal/storage, internal/api
 
 internal/config
-    └── must not import any other internal/* package
+    ├── may import: internal/council (for CouncilType/Strategy/Role construction only)
+    └── must not import: internal/api, internal/storage, internal/openrouter, net/http
 ```
 
 `internal/api` currently imports `internal/council` and `internal/storage` directly.
@@ -92,6 +93,7 @@ var _ council.Runner    = (*council.Rada)(nil)
 
 ```
 config.Load()
+    → config.BuildRegistry(cfg, logger)
     → openrouter.NewCircuitBreaker(failureThreshold, windowDuration, resetTimeout)
     → openrouter.NewClient(apiKey, baseURL, timeout, maxRetries, logger, circuitBreaker)
     → council.NewCouncil(client, registry, logger)
@@ -100,6 +102,14 @@ config.Load()
     → api.NewHandler(runner, runner, store, logger, defaultCouncilType, clarificationCfg)
     → http.Server{Addr, Handler: mux}
 ```
+
+`config.BuildRegistry` builds the `map[string]council.CouncilType` registry from either
+a YAML file (`cfg.CouncilConfigPath`, default `configs/council.yaml`) or, if that file
+doesn't exist, `cfg`'s per-strategy env var fields — see `docs/strategies.md`
+"Per-strategy configuration" for the full YAML schema and the env fallback's opt-in
+semantics. This single function is shared by `cmd/server/main.go` and `cmd/eval/main.go`
+— previously each binary built its own inline copy of this logic, and the two had
+silently drifted (the eval copy omitted the `"role-based"` registration entirely).
 
 `runner` is passed twice to `NewHandler` — `council.Rada` implements both the
 `council.Runner` interface (Stage 1-3 dispatch) and the `council.Stage0Runner` interface
@@ -110,6 +120,11 @@ This keeps all dependency injection in one place and makes each package independ
 ### Rada pipeline (`internal/council`)
 
 The `Strategy` enum carries **7 constants — all implemented**. The strategy roadmap is complete. See [`strategies.md`](./strategies.md) for the full per-strategy reference.
+
+**Registration mechanism note:** the per-strategy "Registration is opt-in AND requires
+env var X" descriptions below describe `buildRegistryFromEnv`'s fallback path — used
+only when `configs/council.yaml` is absent. See [`strategies.md`](./strategies.md)
+"Per-strategy configuration" for the primary, YAML-driven mechanism and its schema.
 
 ```go
 type Strategy int

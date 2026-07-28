@@ -10,23 +10,30 @@ import (
 )
 
 // registrationExemptions lists Strategy names that are intentionally
-// implemented but not registered in cmd/server/main.go, with the reason.
-// TestAllStrategiesRegisteredOrExempted treats these as satisfied without
-// requiring a main.go registration path. Empty today — RoleBased was the
-// only entry and is now registered (see cmd/server/main.go's "role-based"
-// registration block).
+// implemented but not registered in internal/config/registry_env.go, with
+// the reason. TestAllStrategiesRegisteredOrExempted treats these as
+// satisfied without requiring an env-registry registration path. Empty
+// today — RoleBased was the only entry and is now registered (see
+// registry_env.go's "role-based" registration block).
 var registrationExemptions = map[string]string{}
 
 // TestAllStrategiesRegisteredOrExempted fails if a Strategy constant declared
-// in types.go has neither a registration path in cmd/server/main.go nor an
-// explicit entry in registrationExemptions. This makes "implemented but
-// silently unreachable" strategies structurally impossible to introduce
-// without a deliberate decision — the exact gap RoleBased fell into.
+// in types.go has neither a registration path in
+// internal/config/registry_env.go nor an explicit entry in
+// registrationExemptions. This makes "implemented but silently unreachable"
+// strategies structurally impossible to introduce without a deliberate
+// decision — the exact gap RoleBased fell into.
+//
+// Scoped to the env-var fallback registry only (registry_env.go), not the
+// YAML-driven registry (registry_yaml.go) — a strategy missing from the
+// shipped configs/council.yaml is a config-authoring choice checked by
+// TestLoadCouncilRegistryYAML_ShippedConfig, not a structural reachability
+// gap this test is designed to catch.
 func TestAllStrategiesRegisteredOrExempted(t *testing.T) {
 	root := projectRoot(t)
 
 	declared := strategyConstNames(t, filepath.Join(root, "internal", "council", "types.go"))
-	registered := registeredStrategyNames(t, filepath.Join(root, "cmd", "server", "main.go"))
+	registered := registeredStrategyNames(t, filepath.Join(root, "internal", "config", "registry_env.go"))
 
 	for _, name := range declared {
 		if registered[name] {
@@ -36,9 +43,9 @@ func TestAllStrategiesRegisteredOrExempted(t *testing.T) {
 			t.Logf("Strategy %q is exempted from registration: %s", name, reason)
 			continue
 		}
-		t.Errorf("Strategy %q has no registration path in cmd/server/main.go and no "+
-			"entry in registrationExemptions — either register it or add an exemption "+
-			"with a reason", name)
+		t.Errorf("Strategy %q has no registration path in internal/config/registry_env.go "+
+			"and no entry in registrationExemptions — either register it or add an "+
+			"exemption with a reason", name)
 	}
 
 	declaredSet := make(map[string]bool, len(declared))
@@ -109,12 +116,12 @@ func strategyConstNames(t *testing.T, path string) []string {
 	return nil
 }
 
-// registeredStrategyNames parses cmd/server/main.go and returns the set of
-// strategy names referenced as a `Strategy: council.<Name>` field inside a
-// composite literal. Deliberately scoped to main.go's registry-building
-// code, never internal/council/runner.go's dispatch switch — that switch
-// references every strategy by construction, which would make this check a
-// tautology.
+// registeredStrategyNames parses internal/config/registry_env.go and returns
+// the set of strategy names referenced as a `Strategy: council.<Name>` field
+// inside a composite literal. Deliberately scoped to the env-fallback
+// registry-building code, never internal/council/runner.go's dispatch switch
+// — that switch references every strategy by construction, which would make
+// this check a tautology.
 func registeredStrategyNames(t *testing.T, path string) map[string]bool {
 	t.Helper()
 	fset := token.NewFileSet()

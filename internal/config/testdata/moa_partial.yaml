@@ -1,0 +1,8 @@
+councils:
+  moa:
+    strategy: MixtureOfAgents
+    refiner: moa-refiner
+    proposers:
+      - proposer-a
+      - proposer-b
+    # aggregators intentionally omitted

@@ -1,0 +1,7 @@
+councils:
+  default:
+    strategy: PeerReview
+    arbitor: chairman-model
+    members:
+      - member-a
+      - member-b

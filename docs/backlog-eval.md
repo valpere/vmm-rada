@@ -104,6 +104,18 @@ Categories: `code`, `analysis`, `factual`, `creative` — 5 questions each = 20 
 
 ### #143 · feat(eval): load council rosters from YAML configs · `feature` `p2: medium` `eval`
 
+> **IMPLEMENTED** (differently from this draft) — see `configs/council.yaml`,
+> `internal/config/registry_yaml.go`, and `docs/strategies.md` "Per-strategy
+> configuration" for what actually shipped. The schema below (`name`/`members`/
+> `chairman`/`strategy`) predates `MixtureOfAgents` and named `RoleBased` roles —
+> it can't express either. What shipped instead: one entry per strategy keyed
+> by today's existing registration name (`default`, `role-based`, `majority`,
+> etc. — chosen specifically so `council_type` wire values never change), an
+> explicit `strategy:` field per entry, and MoA's `refiner`/`proposers`/
+> `aggregators` and RoleBased's `roles:` map as first-class shapes rather than
+> a flat `members` list. The "existing `.env`-based fallback" acceptance
+> criterion below did ship, unchanged in spirit.
+
 **Overview**
 
 Extend the `CouncilType` registry to load configurations from `configs/*.yaml` files at
