@@ -41,6 +41,14 @@ bin/
 .claude/worktrees/
 # agent-memory is version-controlled (project-scope memories shared with team)
 
+# Self-learning pattern store, project-local variant (.claude/_patterns/, not
+# the repo-root _patterns/ the rules further below cover). !.claude/** above
+# re-includes everything under .claude/ — including these — so they need
+# their own explicit exclusion, same policy as the repo-root pair: track the
+# directory, not the per-machine raw logs.
+.claude/_patterns/mistakes.jsonl
+.claude/_patterns/wins.jsonl
+
 data/
 
 # Eval harness — golden inputs ARE checked in (internal/eval/testdata/).
