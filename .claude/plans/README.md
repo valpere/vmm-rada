@@ -158,8 +158,6 @@ gh issue create \
 
 ## Acceptance Criteria
 - [ ] ...
-
-**Plan:** \`.claude/plans/{N}-{slug}.md\`
 EOF
 )"
 ```
