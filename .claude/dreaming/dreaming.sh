@@ -74,3 +74,26 @@ if [[ "$SIZE" -lt 500 ]]; then
 fi
 
 echo "[dreaming] OK: $REPORT ($SIZE bytes)"
+
+# Cron-safe safety net: verify the knowledge graph is current with the
+# current commit. The post-commit git hook fires `graphify update .`
+# automatically, but this catches silent failures from a fresh clone or
+# an alternative machine where the hook never got installed. Output goes
+# to the dreaming report — a stale graph is its own finding.
+GRAPH_AGE_DAYS=""
+if [[ -f graphify-out/graph.json ]]; then
+  GRAPH_MTIME=$(stat -c %Y graphify-out/graph.json)
+  NOW=$(date +%s)
+  GRAPH_AGE_DAYS=$(( (NOW - GRAPH_MTIME) / 86400 ))
+fi
+if [[ -z "$GRAPH_AGE_DAYS" || "$GRAPH_AGE_DAYS" -gt 7 ]]; then
+  echo "" >> "$REPORT"
+  echo "## graphify freshness" >> "$REPORT"
+  if [[ -z "$GRAPH_AGE_DAYS" ]]; then
+    echo "- graphify-out/graph.json: missing (graphify never built or was deleted)" >> "$REPORT"
+  else
+    echo "- graphify-out/graph.json: $GRAPH_AGE_DAYS days old (>7 → stale; post-commit hook may have failed)" >> "$REPORT"
+  fi
+  echo "  Fix: run \`graphify update .\` from this repo's root." >> "$REPORT"
+  echo "[dreaming] WARN: graphify graph stale or missing (age_days=${GRAPH_AGE_DAYS:-missing})" >> "$LOG"
+fi
