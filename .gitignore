@@ -88,3 +88,7 @@ runs/
 # MCP config — machine-specific, no secrets but per-machine server addresses
 .mcp.json
 frontend/.mcp.json
+
+# graphify — generated knowledge graph artifacts (built by `graphify update .`,
+# regenerated on every commit by the post-commit git hook). Not source code.
+graphify-out/

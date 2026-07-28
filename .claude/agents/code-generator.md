@@ -15,7 +15,7 @@ fix things you happen to notice.
 ## Position in Pipeline
 
 ```
-/plan → Tech Lead (APPROVED) → user confirms → code-generator → Tech Lead review → /ship
+/backlog → Tech Lead (APPROVED) → user confirms → code-generator → Tech Lead review → /ship
 ```
 
 **Never start without a Tech Lead-approved, user-confirmed plan.**
