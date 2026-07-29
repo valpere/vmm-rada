@@ -152,17 +152,19 @@ RUN_DIR=$(mktemp -d)
 PROMPT_FILE="$RUN_DIR/prompt.txt"
 printf '%s' "$PROMPT" > "$PROMPT_FILE"
 
+declare -a R
 for n in 1 2 3; do
   if try_external_agents "$n" "$PROMPT_FILE" .claude/skills/fix-review/config.yaml "$RUN_DIR"; then
-    eval "R${n}=\$(cat \"$RUN_DIR/round_${n}.raw.json\")"
+    R[$n]=$(cat "$RUN_DIR/round_${n}.raw.json")
     echo "round $n served by external_agents ($(cut -d: -f2 "$RUN_DIR/round_${n}.failover"))"
   else
     # Every external agent failed for this round — fall through to local Ollama.
     MODEL=$(yq -r ".reviewers.cli[$((n-1))].cmd" .claude/skills/fix-review/config.yaml)
-    eval "R${n}=\$(echo \"\$PROMPT\" | bash -c \"$MODEL\")"
+    R[$n]=$(echo "$PROMPT" | bash -c "$MODEL")
     echo "round $n served by cli (local Ollama) — external_agents exhausted"
   fi
 done
+# R[1], R[2], R[3] hold each round's raw output — same shape as $R1/$R2/$R3 above.
 ```
 
 Each call returns a JSON array (empty `[]` on parse failure — safe degradation).
