@@ -15,8 +15,21 @@ reviewers:
     round_2: { model: minimax-m2.7:cloud }          # MiniMax, non-thinking, long-ctx
     round_3: { model: gemma4:31b-cloud }            # Gemma code model, non-thinking
 
-  # Local failover tier — tools-capable models, no network dependency.
-  # Engages automatically when the Ollama cloud endpoint probe fails.
+  # External coding-agent CLIs — tier 2. Engages when the cloud probe fails,
+  # tried before the local Ollama tier below. Cascades in list order; first
+  # tool returning non-empty output wins. See .claude/skills/lib/agents.sh.
+  external_agents:
+    - { tool: cursor-agent, model: auto }
+    - { tool: omp }
+    - { tool: codex }
+    - { tool: opencode, model: "opencode/nemotron-3-ultra-free" }
+    - { tool: kilo }
+
+  # Local failover tier (tier 3) — tools-capable models, no network
+  # dependency. Key is named "cli" for historical reasons; it is actually
+  # local Ollama, not an external CLI tier (that's external_agents above).
+  # Engages automatically when the Ollama cloud endpoint probe fails AND
+  # every external_agents tool has also failed/returned empty.
   # ollama-review.sh reads the prompt from stdin, calls the OpenAI-compat
   # endpoint, and returns the model's raw content (JSON array expected).
   cli:

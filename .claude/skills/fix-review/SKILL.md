@@ -54,8 +54,11 @@ Note: `config.yaml` uses `round_1/round_2/round_3` keys for historical reasons �
 are concurrent dispatches, not sequential rounds. The models to use are always read from
 `config.yaml`; do not hardcode model names here.
 
-CLI failover tier (config.yaml `reviewers.cli`) engages automatically when the Ollama
-cloud endpoint probe fails — same flow, local models instead of cloud.
+Three-tier failover when the Ollama cloud endpoint probe fails:
+1. **`reviewers.external_agents`** (tier 2) — external coding-agent CLIs (cursor-agent,
+   omp, codex, opencode, kilo), cascaded in config order via `.claude/skills/lib/agents.sh`.
+2. **`reviewers.cli`** (tier 3) — actually local Ollama (key name is historical), used
+   only if every external agent also fails/returns empty.
 
 ## Step-by-step execution
 
@@ -80,7 +83,10 @@ Store it as the **baseline diff** (used in dispatch and arbiter pass).
 Read `.claude/skills/fix-review/config.yaml`. Extract:
 - `reviewers.openrouter.round_1/2/3` — cloud reviewer models
 - `openrouter_api_url` — Ollama endpoint (`http://localhost:11434/v1/chat/completions`)
-- `reviewers.cli` — local failover models (used if cloud endpoint unreachable)
+- `reviewers.external_agents` — ordered list of external agent CLIs (tier 2, tried per
+  round before local Ollama, used if cloud endpoint unreachable)
+- `reviewers.cli` — local Ollama failover models (tier 3, key name is historical; used
+  only if every external agent also fails for that round)
 
 First, extract the actual model names you just read from `config.yaml`:
 ```bash
@@ -112,7 +118,8 @@ else
 fi
 ```
 
-If `TIER="cli"` for any reason → use CLI failover tier (`reviewers.cli`).
+If `TIER="cli"` for any reason, do NOT go straight to the local Ollama tier — try the
+external-agent tier first, per round.
 
 ### 3. Concurrent review dispatch
 
@@ -123,17 +130,44 @@ Build the review prompt combining the baseline diff with instructions:
 > \"error|warn|sugg\", \"description\": \"...\"}`. Flag only real issues per the Code
 > Review Pyramid. Layer 5 (style) is never flagged."
 
-Send the prompt to each reviewer model via `ollama-review.sh`:
-
 ```bash
 PROMPT="<diff + instructions>"
+```
 
+**If `TIER="cloud"`** — send to each reviewer model via `ollama-review.sh`:
+
+```bash
 R1=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_1_model>)
 R2=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_2_model>)
 R3=$(echo "$PROMPT" | bash .claude/skills/fix-review/ollama-review.sh <round_3_model>)
 ```
 
+**If `TIER="cli"`** — try the external-agent cascade first, per round, falling back to
+local Ollama only for whichever round(s) every external agent fails on:
+
+```bash
+source .claude/skills/lib/agents.sh
+
+RUN_DIR=$(mktemp -d)
+PROMPT_FILE="$RUN_DIR/prompt.txt"
+printf '%s' "$PROMPT" > "$PROMPT_FILE"
+
+for n in 1 2 3; do
+  if try_external_agents "$n" "$PROMPT_FILE" .claude/skills/fix-review/config.yaml "$RUN_DIR"; then
+    eval "R${n}=\$(cat \"$RUN_DIR/round_${n}.raw.json\")"
+    echo "round $n served by external_agents ($(cut -d: -f2 "$RUN_DIR/round_${n}.failover"))"
+  else
+    # Every external agent failed for this round — fall through to local Ollama.
+    MODEL=$(yq -r ".reviewers.cli[$((n-1))].cmd" .claude/skills/fix-review/config.yaml)
+    eval "R${n}=\$(echo \"\$PROMPT\" | bash -c \"$MODEL\")"
+    echo "round $n served by cli (local Ollama) — external_agents exhausted"
+  fi
+done
+```
+
 Each call returns a JSON array (empty `[]` on parse failure — safe degradation).
+Note which tier actually served each round (`cloud` / `external_agents:<tool>` / `cli`)
+— the PR summary in step 6 reports it per round.
 
 ### 4. Tally findings
 
@@ -189,7 +223,7 @@ Post a single collapsible summary:
 | path/file.go:42 | 2/3 | 2 | error | CONFIRM | nil dereference on empty slice |
 | path/file.go:87 | 1/3 | 5 | sugg | DISMISS | style — not flagged by pyramid |
 
-Models: <round_1_model>, <round_2_model>, <round_3_model> (from config.yaml)
+Models: <round_1_model> (<tier>), <round_2_model> (<tier>), <round_3_model> (<tier>)
 Arbiter: Claude Sonnet 4.6
 
 </details>
@@ -225,7 +259,8 @@ git checkout main && git pull
 | State | Action |
 |-------|--------|
 | All findings arbitrated, no blockers | Merge |
-| Cloud endpoint unreachable | Fall back to CLI tier, proceed |
+| Cloud endpoint unreachable | Fall back to `external_agents` tier per round, proceed |
+| Every `external_agents` tool fails for a round | Fall back to local `cli` (Ollama) for that round, proceed |
 | Model returns non-JSON | Treat as 0 findings for that model, proceed |
 | Round fails to push | Stop, report error to user |
 | PR already merged | Report and exit |
