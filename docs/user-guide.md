@@ -46,15 +46,22 @@ frontend, or call the API directly (see [API Reference](#api-reference) below).
 
 ## Configuration
 
-All configuration is via environment variables. The server loads `.env` at startup via
-`godotenv` — no manual `source .env` needed; just have the file present in the working
-directory the server is started from.
+Two independent layers. **Which council strategies exist and which models they use**
+is either `configs/council.yaml` (if present — builds the whole registry, all 7
+strategies) or a per-strategy env var fallback (`RADA_MODELS`/`CHAIRMAN_MODEL` for the
+default `PeerReview` council, plus one env var family per other strategy — see
+[`strategies.md`](./strategies.md) "Per-strategy configuration" for the full YAML
+schema and the fallback table). **Everything else** — provider, port, storage,
+clarification — is always via environment variables, loaded from `.env` at startup via
+`godotenv` (no manual `source .env` needed; just have the file present in the working
+directory the server is started from).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AI_PROVIDER_API_KEY` | *(required)* | Your OpenRouter API key. The server refuses to start if this is not set. |
-| `RADA_MODELS` | See below | Comma-separated list of model IDs to use as council members. |
-| `CHAIRMAN_MODEL` | `openai/gpt-4o-mini` | Model that synthesizes the final answer in Stage 3. |
+| `COUNCIL_CONFIG_PATH` | `configs/council.yaml` | Path to the YAML council registry. Set to `""` explicitly to force the env-var fallback even if a file exists at the default path. |
+| `RADA_MODELS` | See below | **Fallback only** (ignored when the YAML config is in use). Comma-separated list of model IDs for the default `PeerReview` council. |
+| `CHAIRMAN_MODEL` | `openai/gpt-4o-mini` | **Fallback only.** Model that synthesizes the final answer in Stage 3. |
 | `DEFAULT_RADA_TEMPERATURE` | `0.7` | Sampling temperature for council and chairman calls. |
 | `PORT` | `8001` | TCP port the HTTP server listens on. |
 | `DATA_DIR` | `data/conversations` | Directory where conversation JSON files are stored. Relative to the working directory. |
@@ -63,7 +70,7 @@ directory the server is started from.
 | `CLARIFICATION_MAX_TOTAL_QUESTIONS` | `5` | Hard cap on questions accumulated across all rounds in one query. |
 | `CLARIFICATION_MAX_QUESTIONS_PER_ROUND` | `3` | Chairman trims to this many questions per round. |
 
-### Default council models
+### Default council models (env fallback, `PeerReview` only)
 
 ```
 openai/gpt-4o-mini
@@ -71,7 +78,7 @@ anthropic/claude-haiku-4-5
 google/gemini-flash-1.5
 ```
 
-### Custom council example
+### Custom council example (env fallback)
 
 ```bash
 RADA_MODELS="openai/gpt-4o,anthropic/claude-3-5-sonnet,google/gemini-flash-1.5" \
@@ -80,6 +87,15 @@ go run ./cmd/server
 ```
 
 Any model available on OpenRouter can be used. The council works best with at least 3 models.
+
+### Other strategies
+
+`PeerReview` (the walkthrough above) is one of **7 shipped strategies**
+(`RoleBased`, `Majority`, `GenerateRankRefine`, `MultiAgentDebate`, `MixtureOfAgents`,
+`Delphi` are the other six) — a request selects among them with the `council_type`
+field (defaults to `DEFAULT_RADA_TYPE`, env var, default `"default"`). See
+[`strategies.md`](./strategies.md) for what each strategy does, its SSE event shape,
+and its quorum defaults.
 
 ---
 
@@ -124,7 +140,8 @@ Returns all conversations, sorted by creation time (newest first).
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "created_at": "2026-03-22T09:00:00Z",
     "title": "What is the Fermi paradox?",
-    "message_count": 2
+    "message_count": 2,
+    "closed": false
   }
 ]
 ```
@@ -143,6 +160,7 @@ Creates a new empty conversation.
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "created_at": "2026-03-22T09:00:00Z",
   "title": "New Conversation",
+  "closed": false,
   "messages": []
 }
 ```
@@ -159,6 +177,7 @@ Returns a full conversation including all messages.
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "created_at": "2026-03-22T09:00:00Z",
   "title": "What is the Fermi paradox?",
+  "closed": false,
   "messages": [...]
 }
 ```
@@ -202,8 +221,11 @@ All error responses use the same shape:
 |--------|------|
 | `400` | Malformed JSON body or request too large (> 1 MB) |
 | `404` | Conversation not found |
-| `503` | Rada quorum not met (too many models failed) |
+| `409` | Message/answers sent to a closed conversation, or a round-N conflict (no pending round / round already answered) |
+| `503` | Rada quorum not met — blocking endpoint only; the streaming endpoint surfaces the same failure as a post-SSE `error` event instead |
 | `500` | Internal error (storage failure) |
+
+See [`api.md`](./api.md) for the full per-endpoint error reference (blocking vs. streaming differ in exactly how quorum failures surface).
 
 ---
 
@@ -258,6 +280,7 @@ Labels (`Response A`, `Response B`, …) are randomly assigned per request — t
 ```json
 {
   "type": "stage2_complete",
+  "kind": "peer_ranking",
   "data": [
     { "reviewer_label": "Response A", "rankings": ["Response C", "Response B", "Response A"] },
     { "reviewer_label": "Response B", "rankings": ["Response C", "Response A", "Response B"] }
@@ -279,7 +302,15 @@ Labels (`Response A`, `Response B`, …) are randomly assigned per request — t
 }
 ```
 
-`aggregate_rankings` is sorted ascending by `score` (lower = ranked higher). `consensus_w` is Kendall's W coefficient (0–1): ≥ 0.7 indicates strong agreement among reviewers.
+`kind` discriminates the strategy-specific shape — `"peer_ranking"` for `PeerReview`
+(shown above); the other 6 strategies each have their own `kind` value and populate
+different `metadata` sub-fields (e.g. `vote_tally`, `debate`, `delphi`) instead of
+`aggregate_rankings`/`consensus_w`. See [`strategies.md`](./strategies.md) for the full
+`kind` reference. Multi-round strategies (`MultiAgentDebate`, `Delphi`) additionally
+emit `stage2_round_complete` events (same shape, plus a required `round` field) before
+the terminal `stage2_complete`.
+
+`aggregate_rankings` is sorted ascending by `score` (lower = ranked higher). `consensus_w` is Kendall's W coefficient (0–1): ≥ 0.7 indicates strong agreement among reviewers. Both are always present but only meaningful for `kind: "peer_ranking"`.
 
 #### `stage3_complete`
 
