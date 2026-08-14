@@ -191,8 +191,12 @@ gh pr diff $PR
 expansion (`${var:+alt}` substitutes when set+non-empty; `${var:-default}` is
 the default-value form — models frequently conflate the two), redirect
 precedence (`< "$f"` on a command overrides an outer `</dev/null`), or stderr
-suppression (`2>/dev/null` on a command whose exit status is checked or has a
-fallback is fine; on an unchecked command it's a real Layer 2 finding): run a
+suppression (`2>/dev/null` is fine when the exit status is checked *and* the
+command's failure modes are indistinguishable from success without stderr —
+e.g. a plain nonzero-on-error command with a fallback path; it's a real
+Layer 2 finding on an unchecked command, or on one like `grep -q` where
+distinct exit codes carry meaning — `grep` exits 2 on a real error and 1 on
+a plain no-match, and `2>/dev/null` hides which one happened): run a
 literal reproduction before ruling **either way**. Required to CONFIRM *and*
 to DISMISS. If you cannot construct one, rule DEFER — never DISMISS an
 unreproduced finding in this class. (Confirmed false positives in PRs #328,
