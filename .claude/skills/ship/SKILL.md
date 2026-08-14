@@ -177,25 +177,21 @@ Debt emoji: `⚡` quick-fix · `⚖️` balanced · `🏗️` proper-refactor
 
 ## Step 7: Run /fix-review
 
-Invoke `/fix-review <number>`. It dispatches the diff concurrently to the
-reviewer models configured in `.claude/skills/fix-review/config.yaml`
-(`reviewers.openrouter.round_1/2/3`, falling back to the `external_agents`
-or local `cli` tiers if the cloud endpoint is unreachable), tallies findings
-by `file:line` (vote count is informational, not a gate), then a single
-Claude arbiter pass rules CONFIRM / ESCALATE / DISMISS / DEFER on each
-finding. `go-security-reviewer`, `code-simplifier`, and `tech-lead` still
-exist as agents in this repo — `/fix-review` just doesn't dispatch to them by
-name. See `.claude/skills/fix-review/SKILL.md` for the full pipeline; that
-file is the source of truth, don't duplicate its detail here.
+Invoke `/fix-review <number>`. It runs a concurrent multi-model review
+dispatch, then a single Claude arbiter pass rules CONFIRM / ESCALATE /
+DISMISS / DEFER on each finding. `go-security-reviewer`, `code-simplifier`,
+and `tech-lead` still exist as agents in this repo — `/fix-review` just
+doesn't dispatch to them by name. See `.claude/skills/fix-review/SKILL.md`
+for the full pipeline; that file is the source of truth, don't duplicate its
+detail here.
 
-Address all CONFIRM/ESCALATE findings in one commit; push. `/fix-review`
-posts a PR comment summarising the pass and merges when no blockers remain.
+Address all CONFIRM/ESCALATE findings in one commit; push.
 
 ---
 
 ## Step 8: (handled by /fix-review)
 
-`/fix-review` posts a PR comment summarising all rounds and merges once clean.
+`/fix-review` posts a PR comment summarising the pass and merges once clean.
 No manual polling or comment-fetching needed.
 
 ---
