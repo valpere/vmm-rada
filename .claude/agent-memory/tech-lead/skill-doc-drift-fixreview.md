@@ -27,5 +27,13 @@ DEFER) — with a 3-tier failover (`reviewers.openrouter` → `reviewers.externa
 4. Note that `go-security-reviewer`, `code-simplifier`, and `tech-lead` agents still
    exist and are used by other skills — the correction is "`/fix-review` does not
    dispatch to them", never "these agents are gone".
+5. **A pointer paragraph must stay a pointer.** The replacement text is capped at
+   roughly "what it is + one sentence + link". Restating failover tier order,
+   vote-tally semantics, or the arbiter's ruling vocabulary re-creates the same
+   duplication under a fresher timestamp — those are the volatile parts
+   (`external_agents` was a tier-2 addition in #328/#329, days old). A paragraph
+   that ends with "don't duplicate detail here" while duplicating ten lines of
+   detail is self-refuting; flag it. Ruled on issue #332 (2026-08-14).
 
 Related: [[stage0-done-not-on-wire]] — same recurring doc-drift shape.
+Related: [[review-verify-checked-out-branch]] — verify the branch before reviewing it.

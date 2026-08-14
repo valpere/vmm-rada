@@ -4,9 +4,9 @@ description: Implement a GitHub issue end-to-end — branch, code, tests, PR, /f
 user-invocable: true
 argument-hint: "[issue-number | issue-title]"
 metadata:
-  version: "3.1"
+  version: "3.2"
   author: backend-claude
-  last_updated: "2026-04-16"
+  last_updated: "2026-08-14"
 ---
 
 # /ship
@@ -21,7 +21,7 @@ select issue → read issue + files → resolve uncertainties → branch → imp
 
 - **One issue at a time.** Never work on multiple issues in parallel.
 - **Branch protection** — no direct pushes to `main`. Always use a PR.
-- **Run `/fix-review` after PR creation.** Three-round review (security + simplifier + tech-lead) then arbiter. Address findings in one commit. Then merge.
+- **Run `/fix-review` after PR creation.** Concurrent multi-model dispatch (see `.claude/skills/fix-review/SKILL.md`) then a single Claude arbiter pass. Address findings in one commit. Then merge.
 - Only ship PRs created by Claude or explicitly named by the user. Never touch Dependabot PRs.
 - After merge: checkout main, pull, then present the next unblocked issue.
 
@@ -177,19 +177,21 @@ Debt emoji: `⚡` quick-fix · `⚖️` balanced · `🏗️` proper-refactor
 
 ## Step 7: Run /fix-review
 
-Invoke `/fix-review <number>` to run the three-round review pipeline:
-1. Round 1 — `go-security-reviewer` (security vulnerabilities)
-2. Round 2 — `code-simplifier` (complexity, redundancy)
-3. Round 3 — `tech-lead` (architectural compliance)
-4. Round 4 — Arbiter: CONFIRM / DISMISS / DEFER each finding
+Invoke `/fix-review <number>`. It runs a concurrent multi-model review
+dispatch, then a single Claude arbiter pass rules CONFIRM / ESCALATE /
+DISMISS / DEFER on each finding. `go-security-reviewer`, `code-simplifier`,
+and `tech-lead` still exist as agents in this repo — `/fix-review` just
+doesn't dispatch to them by name. See `.claude/skills/fix-review/SKILL.md`
+for the full pipeline; that file is the source of truth, don't duplicate its
+detail here.
 
-Address all CONFIRM findings in one commit; push. `/fix-review` merges when no blockers remain.
+Address all CONFIRM/ESCALATE findings in one commit; push.
 
 ---
 
 ## Step 8: (handled by /fix-review)
 
-`/fix-review` posts a PR comment summarising all rounds and merges once clean.
+`/fix-review` posts a PR comment summarising the pass and merges once clean.
 No manual polling or comment-fetching needed.
 
 ---
