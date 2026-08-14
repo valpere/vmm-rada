@@ -1,8 +1,16 @@
 ---
 name: rolebased-strategy-orphan
-description: RoleBased resolved — registered as a standalone opt-in strategy (extraction-into-MoA plan overruled)
+description: "HISTORICAL (resolved 2026-07-21, both phases merged) — RoleBased registered as a standalone opt-in strategy; extraction-into-MoA plan overruled"
 type: project
+status: resolved-historical
 ---
+
+> **Status: RESOLVED.** Both phases below are merged (#301, and RoleBased's
+> registration + later #322/#323 evolution). Kept as the historical decision
+> record — the "why standalone, not MoA" reasoning stays load-bearing (don't
+> resurrect the extraction plan) — but there is no open work here. See
+> [[project_architecture]] for RoleBased's current shape (5 roles, YAML-first
+> registration).
 
 `council.RoleBased` (enum in `internal/council/types.go`, impl `rolebased.go`,
 dispatched via `runner.go`) is a real, tested 2-stage pipeline (parallel specialist
