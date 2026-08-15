@@ -27,5 +27,13 @@ docs above, or an explicit "docs: N/A — <reason>". At *code review*, check the
 Keep the trigger narrow: pure internal refactors, test-only, and dependency PRs are
 exempt — do not turn this into a blanket "every PR touches docs" tax.
 
+**Status 2026-08-15:** shipped into `.claude/agents/tech-lead.md` via issue #334 —
+plan-review criterion 6 (plan-time wording) + a `## Docs Sync Checklist` section
+(diff-time wording). `backlog/SKILL.md` deliberately not touched. The map now exists in
+*two* agent prompts: tech-lead's (current) and `docs-maintainer.md`'s (stale — still
+routes to `docs/architecture.md`, `go-implementation.md`, `council-stages.md`, none of
+which exist). Treat tech-lead's map as canonical until docs-maintainer is fixed.
+
 Related: [[governance-enforcement-point]] (this gate lives in `tech-lead.md`, not
-`backlog/SKILL.md`), [[stage0-done-not-on-wire]] (a concrete instance of this drift).
+`backlog/SKILL.md`), [[review-criteria-need-output-slot]] (the mechanical follow-ons any
+new criterion needs), [[stage0-done-not-on-wire]] (a concrete instance of this drift).

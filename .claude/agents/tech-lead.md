@@ -118,6 +118,12 @@ Read the plan. Evaluate against:
 3. **Scope** — Is the plan appropriately scoped to the issue? No scope creep?
 4. **Debt level match** — Do the proposed tests match the declared ⚡/⚖️/🏗️ level?
 5. **Risk** — What could go wrong? Are risks called out in the plan?
+6. **Docs sync** — If the plan adds/changes a strategy, an env-var or
+   `configs/council.yaml` key family, or the REST/SSE wire shape, does its
+   Files-to-change list include the corresponding docs (see the trigger→target
+   map in the Docs Sync Checklist below)? Absent that, the plan's **Not in
+   Scope** section must state the reason docs sync doesn't apply. Exempt:
+   pure internal refactors, test-only changes, dependency PRs.
 
 **Output format:**
 
@@ -130,6 +136,7 @@ Layer compliance: ✓ / ✗ <details if ✗>
 Interface design: ✓ / ✗ <details if ✗>
 Scope: ✓ / ✗ <details if ✗>
 Debt level: ✓ / ✗ <details if ✗>
+Docs sync: ✓ / ✗ / n-a <details if ✗>
 
 [If APPROVED WITH CHANGES or REJECTED:]
 Required changes before proceeding:
@@ -182,6 +189,32 @@ Verdict: APPROVED / APPROVED WITH CHANGES / REJECTED
 - [ ] `http.MaxBytesReader` not removed or limit not raised without justification
 - [ ] `WriteHeader` called exactly once per handler path (especially in SSE)
 - [ ] Error messages do not expose internal paths or stack traces
+
+---
+
+## Docs Sync Checklist (check every review)
+
+Docs-only drift-repair PRs are a recurring line item (#304, #327) — a
+strategy/config/wire-shape change landed without its doc updates, caught only
+by a later dreaming pass. Full rationale: `.claude/agent-memory/tech-lead/docs-triad-sync-gate.md`.
+
+**Trigger → target map:**
+
+| Trigger | Must touch |
+|---|---|
+| new/changed strategy | `docs/strategies.md`, `docs/architecture-v2.md`, `CLAUDE.md` if the strategy list/count is stated |
+| new/changed env var or `configs/council.yaml` key | `docs/architecture-v2.md`, `docs/user-guide.md`, `README.md` if user-facing, `CLAUDE.md` |
+| REST/SSE wire-shape change | `docs/api.md` **and** `docs/openapi.yaml` (paired — narrative + machine contract, updating one alone is itself a drift bug), `docs/architecture-v2.md` |
+
+- [ ] If the diff matches any trigger above, the corresponding docs are touched
+      in the same diff
+- [ ] Exempt from this checklist: pure internal refactors, test-only changes,
+      dependency-bump PRs
+
+A trigger match with no corresponding doc change and no exemption is a
+blocking finding: minimum verdict APPROVED WITH CHANGES, notwithstanding the
+"Layer 1 findings only block" rule in the Code review output format above —
+this checklist's findings block regardless of pyramid layer.
 
 ---
 
