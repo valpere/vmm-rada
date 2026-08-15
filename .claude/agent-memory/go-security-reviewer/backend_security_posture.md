@@ -34,6 +34,6 @@ were dropped; the backend facts that remain are still live and load-bearing.
 
 **How to apply:** For Go API changes, check CORS `Access-Control-Allow-Methods`
 includes all verbs the browser sends (DELETE, PATCH needed for conversation
-management). The CSP gap above is real and unfixed — flag it again if you
-review `internal/api/handler.go`'s response headers, but it has no tracked
-issue yet.
+management). Security headers are already set via `wrap()` — don't
+re-flag CSP/`X-Frame-Options`/`X-Content-Type-Options` as missing without
+first reading `internal/api/handler.go`.
