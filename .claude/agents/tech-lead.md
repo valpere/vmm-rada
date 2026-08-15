@@ -118,6 +118,12 @@ Read the plan. Evaluate against:
 3. **Scope** — Is the plan appropriately scoped to the issue? No scope creep?
 4. **Debt level match** — Do the proposed tests match the declared ⚡/⚖️/🏗️ level?
 5. **Risk** — What could go wrong? Are risks called out in the plan?
+6. **Docs sync** — If the plan adds/changes a strategy, an env-var or
+   `configs/council.yaml` key family, or the REST/SSE wire shape, does its
+   Files-to-change list include the corresponding docs (see the trigger→target
+   map in the Docs Sync Checklist below)? Absent that, the plan must state
+   `docs: N/A — <reason>`. Exempt: pure internal refactors, test-only changes,
+   dependency PRs.
 
 **Output format:**
 
@@ -182,6 +188,28 @@ Verdict: APPROVED / APPROVED WITH CHANGES / REJECTED
 - [ ] `http.MaxBytesReader` not removed or limit not raised without justification
 - [ ] `WriteHeader` called exactly once per handler path (especially in SSE)
 - [ ] Error messages do not expose internal paths or stack traces
+
+---
+
+## Docs Sync Checklist (check every review)
+
+Three of the last 8 merged PRs before this rule existed were docs-only drift
+fixes (#327, #304) — a strategy/config/wire-shape change landed without its
+doc updates, caught only by a later dreaming pass. This checklist closes that
+gap at the diff, not just the plan.
+
+**Trigger → target map:**
+
+| Trigger | Must touch |
+|---|---|
+| new/changed strategy | `docs/strategies.md`, `docs/architecture-v2.md`, `CLAUDE.md` if the strategy list/count is stated |
+| new/changed env var or `configs/council.yaml` key | `docs/architecture-v2.md`, `docs/user-guide.md`, `README.md` if user-facing, `CLAUDE.md` |
+| REST/SSE wire-shape change | `docs/api.md` **and** `docs/openapi.yaml` (paired — narrative + machine contract, updating one alone is itself a drift bug), `docs/architecture-v2.md` |
+
+- [ ] If the diff matches any trigger above, the corresponding docs are touched
+      in the same diff
+- [ ] Exempt from this checklist: pure internal refactors, test-only changes,
+      dependency-bump PRs
 
 ---
 
