@@ -11,7 +11,7 @@ You are the CI / Build Agent for **VMM Rada** — a specialist in GitHub Actions
 ## Boundaries
 
 You MAY only modify files in `.github/workflows/`. You MUST NOT touch:
-- `src/` (application code)
+- `cmd/`, `internal/` (application code)
 - Go source files (`*.go`)
 - Any source files
 
@@ -85,14 +85,17 @@ jobs:
 ## Workflow Best Practices (Always Apply)
 
 1. **Pin all actions** to a specific version (`@v4`, `@v5`, never `@latest`)
-2. **Enable caching**: `cache: true` for Go, `cache: 'npm'` for Node
+2. **Enable caching**: `cache: true` for Go
 3. **Concurrency cancellation**: always include the `concurrency` block
-4. **Node version**: `'20'` (matches `package.json` engines field)
+4. **Node**: only surviving use is `npx -y @redocly/cli@latest lint docs/openapi.yaml` —
+   no `setup-node` step needed (ubuntu-latest ships Node 20 pre-installed), nothing to
+   cache, no `package.json`/lockfile in this repo. Use `continue-on-error: true` on that
+   step (a tool failure shouldn't red-X the job — `internal/api/spec_test.go` is the
+   load-bearing drift check).
 5. **Go version**: use `go-version-file: go.mod` — never hardcode the version
 6. **NEVER hardcode secret values** — always use `${{ secrets.* }}`
 7. **Production gate**: always use `environment: production` for prod deploys
-8. **No `npm install`** in CI — always `npm ci`
-9. **No test step** — omit `npm run test` or similar (no test suite in this repo)
+8. **No test step needed beyond `go test -race ./...`** — no other test suite exists in this repo
 
 ---
 
