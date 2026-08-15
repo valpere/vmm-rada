@@ -12,12 +12,6 @@
         "matcher": "Edit|Write",
         "hooks": [
           {
-            "type": "command",
-            "command": "node .claude/hooks/eslint-fix.cjs",
-            "timeout": 15,
-            "statusMessage": "Running eslint --fix on frontend file..."
-          },
-          {
             "type": "prompt",
             "prompt": "A file was just edited or written. If this change introduces a new pattern, convention, reusable approach, or catches a non-obvious mistake, briefly remind the user to log it via /self-learn log. One sentence max. Only mention if genuinely worth remembering.",
             "statusMessage": "Checking for pattern logging..."

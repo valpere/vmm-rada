@@ -37,7 +37,7 @@ priority: p1        # p0 | p1 | p2 | p3
 status: draft       # draft | ready | in-progress | done | blocked
 debt: balanced      # quick-fix | balanced | proper-refactor  (⚡/⚖️/🏗️)
 effort: s           # xs | s | m | l | xl
-component:          # api | council | storage | openrouter | config | cmd | test | dx | frontend
+component:          # api | council | storage | openrouter | config | cmd | test | dx
   - api
   - test
 labels:             # used verbatim as GitHub issue labels
