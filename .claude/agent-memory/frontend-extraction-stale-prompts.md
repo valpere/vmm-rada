@@ -26,17 +26,24 @@ descriptive drift. The rest are descriptive-only and lower urgency.
 `.claude/skills/find-bugs/SKILL.md`
 
 **Legitimate hits — never prune (a naive `grep -i frontend|jsx|react|npm run` catches these):**
-- `.claude/agents/code-simplifier.md` ~L233 and `.claude/agents/go-security-reviewer.md` ~L242 —
-  boilerplate *examples* inside the memory-system instruction block ("first time touching the React
-  side of this repo"). Illustrative prose, not project invariants.
+- `.claude/agents/code-simplifier.md` ~L233 — boilerplate *example* inside the memory-system
+  instruction block ("first time touching the React side of this repo"). Illustrative prose,
+  not a project invariant. **Note (2026-08-14, issue #336):** the equivalent
+  `go-security-reviewer.md` ~L242 example was previously listed here too, but that PR rewrote it
+  to a Go-only example (JWT auth flow) as part of retiring `security-reviewer.md` — it is no
+  longer a hit, and no longer belongs on this allowlist.
 - `.claude/skills/self-learn/PORTABILITY-GUIDE.md` L104 — deliberately generic guidance for porting
   the skill to *other* projects, one of which may be a frontend.
 - `.claude/skills/housekeeping/SKILL.md` L79 — Check 5 is a general TODO/FIXME counter whose
   `grep --include` list happens to contain `*.tsx`. Only the dead `--include` flags are stale;
   deleting Check 5 would destroy a working Go check.
-- `.claude/agents/security-reviewer.md` — frontend-only *by design*; whether it is deleted, kept as a
-  cross-repo tool, or moved to `vmm-rada-web-ui` is a standalone judgment call, tracked separately.
-  `.claude/agents/go-security-reviewer.md` L21-24 cross-references it and must move in lockstep.
+- `.claude/agents/security-reviewer.md` — **RESOLVED 2026-08-14, issue #336: RETIRED (deleted),
+  not rescoped.** The rescope option would have overlapped `go-security-reviewer`'s existing
+  scope (CORS/security headers is Go backend code). `go-security-reviewer.md` L21-24's
+  cross-reference was removed in lockstep (description field, scope-boundary paragraph, memory
+  example — 3 edits, same PR). Nothing left to prune here now; this bullet stays only as a
+  record that the judgment call is closed, in case a future sweep encounters the pre-#336 memory
+  of this file via git history.
 
 **How to apply:** When reviewing or writing any "prune frontend refs" plan, check it against this
 inventory before approving. A plan asserting "grep returns no frontend hits afterwards" is
