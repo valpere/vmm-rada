@@ -12,9 +12,14 @@ frontend code in this repo for that agent to review. The frontend-specific
 observations below (react-markdown, `api.js`, `Stage2.jsx`, `VITE_API_BASE`)
 were dropped; the backend facts that remain are still live and load-bearing.
 
-**Known open security items:**
-- No CSP / security headers on Go backend responses (low severity, no issue
-  tracked).
+**Resolved (security headers):**
+- CSP / security headers ARE set on every response — `internal/api/handler.go`'s
+  `wrap()` sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Content-Security-Policy: default-src 'none'` (since the v2 API scaffold,
+  `f7cd7ad`). The previous version of this memory carried a stale v1-era
+  claim that this was an open gap — verified false 2026-08-14. HSTS is
+  absent but N/A: the server terminates no inbound TLS (consistent with the
+  GO-2026-5856 `p2` ruling below).
 
 **Resolved (Go toolchain CVE treadmill):**
 - `1.26.3` CVEs (GO-2026-5039/5037) fixed by the bump to `1.26.4` (PR #254).
