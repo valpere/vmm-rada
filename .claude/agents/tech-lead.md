@@ -121,9 +121,9 @@ Read the plan. Evaluate against:
 6. **Docs sync** — If the plan adds/changes a strategy, an env-var or
    `configs/council.yaml` key family, or the REST/SSE wire shape, does its
    Files-to-change list include the corresponding docs (see the trigger→target
-   map in the Docs Sync Checklist below)? Absent that, the plan must state
-   `docs: N/A — <reason>`. Exempt: pure internal refactors, test-only changes,
-   dependency PRs.
+   map in the Docs Sync Checklist below)? Absent that, the plan's **Not in
+   Scope** section must state the reason docs sync doesn't apply. Exempt:
+   pure internal refactors, test-only changes, dependency PRs.
 
 **Output format:**
 
@@ -136,6 +136,7 @@ Layer compliance: ✓ / ✗ <details if ✗>
 Interface design: ✓ / ✗ <details if ✗>
 Scope: ✓ / ✗ <details if ✗>
 Debt level: ✓ / ✗ <details if ✗>
+Docs sync: ✓ / ✗ / n-a <details if ✗>
 
 [If APPROVED WITH CHANGES or REJECTED:]
 Required changes before proceeding:
@@ -193,10 +194,9 @@ Verdict: APPROVED / APPROVED WITH CHANGES / REJECTED
 
 ## Docs Sync Checklist (check every review)
 
-Three of the last 8 merged PRs before this rule existed were docs-only drift
-fixes (#327, #304) — a strategy/config/wire-shape change landed without its
-doc updates, caught only by a later dreaming pass. This checklist closes that
-gap at the diff, not just the plan.
+Docs-only drift-repair PRs are a recurring line item (#304, #327) — a
+strategy/config/wire-shape change landed without its doc updates, caught only
+by a later dreaming pass. Full rationale: `.claude/agent-memory/tech-lead/docs-triad-sync-gate.md`.
 
 **Trigger → target map:**
 
@@ -210,6 +210,11 @@ gap at the diff, not just the plan.
       in the same diff
 - [ ] Exempt from this checklist: pure internal refactors, test-only changes,
       dependency-bump PRs
+
+A trigger match with no corresponding doc change and no exemption is a
+blocking finding: minimum verdict APPROVED WITH CHANGES, notwithstanding the
+"Layer 1 findings only block" rule in the Code review output format above —
+this checklist's findings block regardless of pyramid layer.
 
 ---
 
