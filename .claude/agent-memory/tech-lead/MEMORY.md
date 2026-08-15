@@ -8,4 +8,3 @@
 - [docs-triad-sync-gate.md](docs-triad-sync-gate.md) — Strategy/config/wire-shape changes must ship their doc updates in the same PR; canonical doc target map
 - [agent-scope-boundary-pairs.md](agent-scope-boundary-pairs.md) — security-reviewer retired 2026-08-14; deleting a cross-referencing agent requires editing the survivor's description + grep without name-substring filters
 - [review-verify-checked-out-branch.md](review-verify-checked-out-branch.md) — Confirm HEAD matches the branch named in a review request; use `git show <branch>:<file>`, not the working tree
-- [memory-rename-reverify-gate.md](memory-rename-reverify-gate.md) — Renaming an agent-memory file: re-grep every retained claim against code before bumping last-verified
