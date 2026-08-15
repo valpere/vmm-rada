@@ -187,6 +187,21 @@ Re-fetch the full diff post-dispatch (should be unchanged, but confirms branch s
 gh pr diff $PR
 ```
 
+**Recurring false-positive class:** for findings about shell parameter
+expansion (`${var:+alt}` substitutes when set+non-empty; `${var:-default}` is
+the default-value form — models frequently conflate the two), redirect
+precedence (`< "$f"` on a command overrides an outer `</dev/null`), or stderr
+suppression (`2>/dev/null` is fine when the exit status is checked *and* the
+command's failure modes are indistinguishable from success without stderr —
+e.g. a plain nonzero-on-error command with a fallback path; it's a real
+Layer 2 finding on an unchecked command, or on one like `grep -q` where
+distinct exit codes carry meaning — `grep` exits 2 on a real error and 1 on
+a plain no-match, and `2>/dev/null` hides which one happened): run a
+literal reproduction before ruling **either way**. Required to CONFIRM *and*
+to DISMISS. If you cannot construct one, rule DEFER — never DISMISS an
+unreproduced finding in this class. (Confirmed false positives in PRs #328,
+#329, #324 — always verify with a reproduction, don't pattern-match.)
+
 For each finding (ordered Layer 1 first), apply the Code Review Pyramid:
 
 | Ruling | Meaning | Action |
@@ -200,7 +215,12 @@ Also run an **independent scan** of the full diff — look for anything the mode
 
 For CONFIRM/ESCALATE findings:
 1. Apply the fix using Edit.
-2. Commit + push:
+2. Before considering the fix done, verify it — write a standalone
+   reproduction or minimal test, don't just trust plausible reasoning. PR
+   #324's arbiter caught its own bug (`grep -q '^['` — an unterminated POSIX
+   bracket class) this way, after already writing the fix; this is the
+   pattern to repeat, not a one-off.
+3. Commit + push:
 ```bash
 git add <files>
 git commit -m "fix(pr#$PR): arbiter — address confirmed findings"
