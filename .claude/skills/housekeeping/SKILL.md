@@ -76,7 +76,7 @@ TRACKED=$(git ls-files backup/ 2>/dev/null)
 ### Check 5 — TODO/FIXME Count (informational)
 
 ```bash
-COUNT=$(grep -r --include="*.go" --include="*.ts" --include="*.tsx" \
+COUNT=$(grep -r --include="*.go" \
   -E "//\s*(TODO|FIXME)" --exclude-dir=.worktrees . 2>/dev/null | wc -l | tr -d ' ')
 ```
 

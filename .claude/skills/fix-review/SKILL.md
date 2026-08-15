@@ -253,12 +253,6 @@ Arbiter: Claude Sonnet 4.6
 
 ### 7. Merge decision
 
-If the diff contains files under `frontend/`, run:
-```bash
-cd frontend && npm run lint
-```
-Block merge if lint fails.
-
 **Proceed to merge** if:
 - No unresolved CONFIRM blockers remain
 - All High-severity security findings are CONFIRM (fixed) or DISMISS (justified)

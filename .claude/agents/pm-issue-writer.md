@@ -62,20 +62,6 @@ Architecture constraints to check before writing requirements:
 - UUID regex validation MUST precede any `filepath.Join` with user-supplied IDs
 - Atomic write (write-tmp then rename) MUST NOT be simplified
 
-### Frontend (React/JS)
-
-Key locations:
-- `frontend/src/App.jsx` — state owner; all API-sourced state lives here
-- `frontend/src/api.js` — SSE adapter; sole HTTP/SSE client
-- `frontend/src/components/` — Stage1, Stage2, Stage3, ChatInterface, Sidebar
-
-Architecture constraints to check before writing requirements:
-- State mutations MUST go through `App.jsx` via `setCurrentConversation`
-- Components MUST NOT call `src/api.js` or `fetch` directly
-- `metadata.label_to_model` is ephemeral — not persisted
-- No TypeScript, no test suite, no Redux, no Context API
-- All LLM output MUST be rendered via `react-markdown`
-
 ---
 
 ## Issue Template
@@ -112,7 +98,7 @@ Describe affected components and users.>
 
 ## Affected Files
 
-- `path/to/file.go` or `frontend/src/path/to/file.jsx` — reason
+- `path/to/file.go` — reason
 
 ## Acceptance Criteria
 
@@ -138,12 +124,7 @@ Describe affected components and users.>
 | `openrouter` | Backend | LLM API client (`internal/openrouter/`) |
 | `config` | Backend | Config loading (`internal/config/`) |
 | `cmd` | Backend | Server wiring (`cmd/server/`) |
-| `stage1` | Frontend | Stage 1 display component |
-| `stage2` | Frontend | Stage 2 display component (peer reviews) |
-| `stage3` | Frontend | Stage 3 display component (synthesis) |
-| `api-client` | Frontend | SSE/HTTP adapter (`frontend/src/api.js`) |
-| `ui` | Frontend | General UI, layout, ChatInterface, Sidebar |
-| `dx` | Both | Developer experience (CI, docs, tooling) |
+| `dx` | Backend | Developer experience (CI, docs, tooling) |
 
 ---
 
@@ -175,9 +156,8 @@ Describe affected components and users.>
 
 Split into multiple issues when:
 1. Multiple independent components are involved
-2. Changes span both backend and frontend (unless tightly coupled)
-3. Different deployment risks exist (e.g., API change + UI change)
-4. The scope is large enough that one PR would be hard to review
+2. Different deployment risks exist (e.g., API change + config change)
+3. The scope is large enough that one PR would be hard to review
 
 When splitting, output all issue drafts in sequence, clearly labelled.
 
@@ -213,7 +193,7 @@ You MUST NOT:
 - Write, edit, or suggest production code
 - Make architecture decisions (direct to tech-lead agent)
 - Create GitHub issues directly (produce draft text only)
-- Propose changes that violate layer boundaries (backend) or the SSE adapter / App.jsx state model (frontend)
+- Propose changes that violate layer boundaries
 
 ---
 

@@ -46,14 +46,6 @@ For each changed file, identify and list:
 - [ ] **SSE correctness**: `w.WriteHeader` called exactly once? Headers set before body starts?
 - [ ] **Context propagation**: Request contexts passed through to all blocking calls?
 
-## Phase 3B: Frontend Checklist (check when files under `frontend/` are changed)
-
-- [ ] **Stale `useEffect` closures**: does the effect capture variables that change? Are all captured values in the deps array?
-- [ ] **State update after unmount**: async callbacks or SSE handlers — is the component still mounted before calling `setState`?
-- [ ] **Missing `key` props**: every `.map()` that renders JSX must have a stable, unique `key` on the top-level element.
-- [ ] **Direct state mutation**: objects/arrays in state mutated in place instead of creating new references?
-- [ ] **SSE parser edge cases**: can a chunk boundary split a `data:` line? Is the parser resilient to incomplete lines at buffer boundaries?
-
 ## Phase 4: Verification
 
 For each potential issue:

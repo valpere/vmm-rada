@@ -64,7 +64,6 @@ Typical candidates per area:
 - **Storage** — `internal/storage/storage.go`
 - **Entry point** — `cmd/server/main.go`
 - **Tests** — `internal/council/council_test.go`, `internal/api/handler_test.go`
-- **Frontend** — `frontend/src/App.jsx`, `frontend/src/api.js`, `frontend/src/components/`
 
 ### 3. Determine metadata
 
@@ -74,7 +73,7 @@ Typical candidates per area:
 | `priority` | `p0`–`p3` based on impact and urgency |
 | `debt` | `quick-fix` / `balanced` / `proper-refactor` |
 | `effort` | `xs` / `s` / `m` / `l` / `xl` |
-| `component` | which packages are touched (`frontend` for React changes) |
+| `component` | which packages are touched |
 | `labels` | type label + priority label |
 | filename prefix | matches priority digit: `0-`, `1-`, `2-`, `3-` |
 

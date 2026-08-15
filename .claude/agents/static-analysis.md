@@ -35,29 +35,13 @@ Perform deterministic static checks and apply **safe cosmetic fixes only**. Neve
 
 ---
 
-## Language Detection
-
-Before running any linter, determine which layers are affected:
-
-- **Go only** (no changed files under `frontend/`): run Go lint only.
-- **Frontend only** (all changed files under `frontend/`): run frontend lint only.
-- **Both**: run Go lint first, then frontend lint.
-
 ## Strict Workflow
 
 ### Step 1 — Run Linter
 
-**For Go files:**
-
 ```bash
 go build ./...
 make lint
-```
-
-**For frontend files:**
-
-```bash
-cd frontend && npm run lint
 ```
 
 Capture the full output: file path, line number, tool, and message for every violation.
@@ -117,25 +101,17 @@ These must **never be modified**, even if a tool flags them:
 | `sync.Mutex` scope in `Store` | Serializes the full atomic write sequence |
 | `context.WithTimeout(context.Background(), 30*time.Second)` in title goroutine | Intentional detachment from request context |
 
-**Frontend DO_NOT_TOUCH:**
-
-| Pattern | Reason |
-|---------|--------|
-| `metadata.label_to_model` de-anonymization in `Stage2.jsx` | Ephemeral mapping; logic is intentional |
-| SSE parsing logic in `api.js` | Streaming protocol is precise; changes break event sequencing |
-| State update callbacks using `prev =>` form | Depends on previous state; safe rewrite not possible without logic review |
-
 ---
 
 ## Self-Check Before Reporting
 
-- [ ] `make lint` reports 0 violations (Go) and/or `cd frontend && npm run lint` reports 0 errors (frontend)
+- [ ] `make lint` reports 0 violations
 - [ ] Only cosmetic fixes were applied
 - [ ] No runtime behavior changed
 - [ ] No concurrency logic altered
-- [ ] No DO_NOT_TOUCH patterns modified (Go or frontend)
+- [ ] No DO_NOT_TOUCH patterns modified
 - [ ] No error checks removed or weakened
-- [ ] `go build ./...` still passes (if Go files were touched)
+- [ ] `go build ./...` still passes
 
 ---
 

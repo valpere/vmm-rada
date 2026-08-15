@@ -54,28 +54,7 @@ These areas must not be modified without explicit user instruction — if the bu
 - **UUID validation regex in storage** — path traversal prevention, do not relax
 - **Atomic write pattern in `storage.go`** (write-to-tmp → rename) — crash safety, do not simplify
 
-## Frontend Bug Verification
-
-When the bug file is under `frontend/`, verification commands differ:
-
-```bash
-cd frontend && npm run lint
-```
-
-There is no test suite for the frontend — `npm run lint` is the only automated quality gate.
-
-**JS-specific patterns to watch:**
-
-| Category | Pattern | Diagnostic |
-|----------|---------|------------|
-| **Stale closure** | `useEffect` captures a variable that changes but dependency array is incomplete | Does the effect reference state/props not in `[]`? |
-| **Missing key prop** | Array rendered with `.map()` missing `key=` attribute | React warning in console; causes reconciliation bugs |
-| **Unsafe LLM output rendering** | LLM output injected as raw HTML instead of using react-markdown | Should route through `react-markdown`, never raw HTML injection |
-| **Forgotten await** | Async function called without `await`; promise silently dropped | Is the caller `async`? Is the return value used? |
-
 ## Self-Check Before Committing
-
-**For Go changes:**
 
 ```bash
 go build ./...
@@ -84,14 +63,6 @@ go test ./...
 ```
 
 All three must pass. If `go test` was already failing before your fix, note that explicitly — only fix the target bug, do not fix pre-existing failures.
-
-**For frontend changes:**
-
-```bash
-cd frontend && npm run lint
-```
-
-Must report zero errors. If lint was already failing before your fix, note that explicitly.
 
 ## Output Format
 

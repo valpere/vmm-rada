@@ -61,7 +61,6 @@ Say: "This is new design — want me to run /improve on it before we build?"
 - Does it keep storage behind the Storer interface?
 - Does it introduce package cycles?
 - Does it follow Dependency Inversion (consumers define interfaces, not implementors)?
-- **Frontend (when target is a file under `frontend/`):** the following are architectural invariants that must be preserved even under a RETHINK IT verdict — `api.js` as the sole SSE adapter boundary (components never consume raw SSE), `App.jsx` as the single state owner, co-located CSS modules, and the `react-markdown` rendering contract.
 
 #### 3B. Flaws & risks
 - What can go wrong?
