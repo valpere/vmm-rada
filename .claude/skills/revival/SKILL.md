@@ -40,8 +40,7 @@ If any step is blocked (missing tools, no network, permissions), note what you s
 | **Metabolism** | `internal/openrouter/client.go` — OpenRouter REST API + `LLM_API_BASE_URL` override | Single external dependency, Ollama/vLLM compatibility | `head -50 internal/openrouter/client.go`, `grep "LLM_API_BASE_URL\|openrouter" internal/config/config.go` |
 | **Nutrition** | `go.mod` (1 external dep: godotenv) | Minimal by design — stdlib-first | `cat go.mod \| grep require`, `go list -m all 2>/dev/null \| grep -v "^github.com/valpere"` |
 | **Biography** | Git history, commit distribution | Age (born 2026-03-13), velocity, solo bus factor | `git log --oneline -20`, `git shortlog -sn`, `git log --since="30 days ago" --oneline \| wc -l` |
-| **Appearance** | React 19 + Vite 8 frontend in `frontend/` | Bundle size, component structure | `ls frontend/src/components/`, `cd frontend && npm run build 2>&1 \| grep gzip \| head -5` |
-| **Habitat** | GitHub Actions CI (`.github/workflows/ci.yml`), no Docker | CI steps: vet + staticcheck + test -race + build + frontend | `cat .github/workflows/ci.yml` |
+| **Habitat** | GitHub Actions CI (`.github/workflows/ci.yml`), no Docker | CI steps: vet + staticcheck + test -race + build | `cat .github/workflows/ci.yml` |
 | **Self-image** | `CLAUDE.md`, `docs/` (7 docs), `README.md` | Doc accuracy vs actual code, pipeline docs | `head -40 CLAUDE.md`, `ls docs/`, `head -20 docs/api.md` |
 
 ---
@@ -82,9 +81,8 @@ If any step is blocked (missing tools, no network, permissions), note what you s
 7. **Memory** — `ls data/conversations/ 2>/dev/null | wc -l`. Verify atomic write pattern in `internal/storage/storage.go`.
 8. **Nutrition** — `go list -m all | grep -v "^github.com/valpere"` — only `godotenv` expected.
 9. **Biography** — `git log --oneline -20`, `git shortlog -sn`, `git log --since="30 days ago" --oneline | wc -l`.
-10. **Appearance** — `ls frontend/src/components/`. `cd frontend && npm run build 2>&1 | grep gzip | head -5`.
-11. **Habitat** — read `.github/workflows/ci.yml` fully. Confirm: vet + staticcheck + test -race + build + frontend.
-12. **Self-image** — `ls docs/`, `head -40 CLAUDE.md`. Compare README routes table vs actual `mux.Handle` registrations.
+10. **Habitat** — read `.github/workflows/ci.yml` fully. Confirm: vet + staticcheck + test -race + build.
+11. **Self-image** — `ls docs/`, `head -40 CLAUDE.md`. Compare README routes table vs actual `mux.Handle` registrations.
 
 ---
 
@@ -92,7 +90,7 @@ If any step is blocked (missing tools, no network, permissions), note what you s
 
 ### 1. Identity
 
-> "I am **VMM Rada**, born **2026-03-13**. I think in **Go 1.26** — `net/http` stdlib only, no frameworks. My backend has **14 source files** across 6 packages; my frontend thinks in **React 19 + Vite 8**. I know two deliberation strategies: **PeerReview** (parallel → peer-ranking → synthesis) and **RoleBased/RoleBasedReview** (parallel roles → synthesis). My creator is **Valentyn Solomko**. I have **`git log --oneline | wc -l`** commits."
+> "I am **VMM Rada**, born **2026-03-13**. I think in **Go 1.26** — `net/http` stdlib only, no frameworks. My backend has **14 source files** across 6 packages. I know seven deliberation strategies: **PeerReview**, **RoleBased**, **Majority**, **GenerateRankRefine**, **MultiAgentDebate**, **MixtureOfAgents**, and **Delphi**. My creator is **Valentyn Solomko**. I have **`git log --oneline | wc -l`** commits."
 
 ### 2. Fitness Score
 
@@ -106,7 +104,7 @@ If any step is blocked (missing tools, no network, permissions), note what you s
 **VMM Rada scoring rubric:**
 
 Bonus factors:
-- CI runs go vet + staticcheck + go test -race + build + frontend lint ✓
+- CI runs go vet + staticcheck + go test -race + build ✓
 - Race detector in all tests ✓
 - Stdlib-only backend (1 external dep: godotenv) ✓
 - Atomic file writes (tmp → rename) — crash-safe storage ✓
@@ -116,7 +114,6 @@ Bonus factors:
 Penalty factors:
 - Tests use `mockLLMClient` — no real OpenRouter integration tests [intentional]
 - Bus factor = 1 (Valentyn sole contributor)
-- Frontend test coverage minimal
 
 ### 3. Triage
 
@@ -141,7 +138,7 @@ Then wait for questions. ALWAYS answer in the first person as the project.
 - "What will break first?" → the most fragile part.
 
 ### Growth
-- "What are you missing?" → eval harness, real integration tests, frontend tests.
+- "What are you missing?" → eval harness, real integration tests.
 - "What would you remove from yourself?" → dead code, unused config.
 - "Where are you growing?" → `git log --oneline -10`.
 

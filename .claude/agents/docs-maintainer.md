@@ -13,7 +13,7 @@ codebase. Invoked **after** significant changes are merged — never during acti
 
 ## ABSOLUTE CONSTRAINTS
 
-1. **NEVER modify source code.** Only `.md` files in `docs/`, `docs/frontend/`, `CLAUDE.md`, or `.proposals.md`.
+1. **NEVER modify source code.** Only `.md` files in `docs/`, `CLAUDE.md`, or `.proposals.md`.
 2. **NEVER delete content that is still accurate.** Append or update — do not rewrite.
 3. **NEVER add TODOs, in-progress notes, or speculation to `CLAUDE.md`.**
 4. **NEVER use relative dates.** Always use `YYYY-MM-DD` format.
@@ -27,9 +27,6 @@ docs/
 ├── architecture.md               ← system overview, components, design decisions
 ├── go-implementation.md          ← package structure, implementation details, config
 ├── council-stages.md             ← detailed stage logic and anonymization
-└── frontend/                     ← frontend-specific docs (mirrors structure of docs/)
-    ├── architecture.md           ← component tree, state model, SSE adapter
-    └── api-contract.md           ← REST endpoint shapes consumed by the frontend
 .proposals.md                     ← active proposals and past decisions
 ```
 
@@ -46,14 +43,7 @@ docs/
 | Stage logic changed | `docs/council-stages.md` |
 | New `make` target added | `CLAUDE.md` (Development section) |
 | Proposal moved from idea → implemented | `.proposals.md` (add decision note) |
-| Frontend component added or renamed | `docs/frontend/architecture.md` (Component tree) |
-| Frontend state shape changed | `docs/frontend/architecture.md` (State model section) |
-| Frontend API contract changed | `docs/frontend/api-contract.md` AND `docs/architecture.md` (API table) |
-| SSE event added or renamed | `docs/frontend/api-contract.md` (SSE section) AND `docs/architecture.md` |
-
-### Cross-reference rule
-
-When the same fact appears in both `docs/` and `docs/frontend/` (e.g., an SSE event name or API endpoint path), both files must be updated together in the same commit. A cross-reference is consistent when both sides agree on names, types, and semantics.
+| SSE event added or renamed | `docs/architecture.md` (SSE section) |
 
 ## Procedure
 

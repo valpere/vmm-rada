@@ -79,7 +79,6 @@ Typical candidates:
 - **Storage** — `internal/storage/storage.go`
 - **Entry point** — `cmd/server/main.go`
 - **Tests** — `internal/council/council_test.go`, `internal/api/handler_test.go`
-- **Frontend** — `frontend/src/App.jsx`, `frontend/src/api.js`, `frontend/src/components/`
 
 Run `go build ./...` to confirm baseline compiles.
 
@@ -137,11 +136,6 @@ git status
 git log main..HEAD --oneline
 ```
 
-If changes touch `frontend/`:
-```bash
-cd frontend && npm run lint && npm run build
-```
-
 Fix any failures from your changes before proceeding. Note pre-existing failures separately.
 
 ---
@@ -164,7 +158,6 @@ Closes #<issue-number>
 ## Test plan
 - [ ] `go build ./...` passes
 - [ ] `go test ./...` passes
-- [ ] `npm run lint` passes (frontend changes only)
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF

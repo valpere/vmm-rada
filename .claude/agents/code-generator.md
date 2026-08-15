@@ -66,15 +66,7 @@ Test patterns for this codebase:
 - Table-driven tests with `t.Run(tc.name, ...)` are the standard
 - `reflect.DeepEqual` for slice/map comparison; order-independent checks where needed
 
-### 4. Language detection and pre-flight
-
-Determine which layers are affected before running any checks:
-
-- **Go only** (no files under `frontend/`): run the Go pre-flight.
-- **Frontend only** (all changed files under `frontend/`): run the frontend pre-flight.
-- **Both** (changes span `frontend/` and Go packages): run both pre-flights.
-
-**Go pre-flight:**
+### 4. Pre-flight
 
 ```bash
 go build ./...     # must pass
@@ -84,15 +76,6 @@ go test ./...      # must pass
 
 If `go vet` or `go test` fails due to your changes, fix before proceeding.
 If a pre-existing test was already failing before your changes, note it explicitly — do not fix it.
-
-**Frontend pre-flight:**
-
-```bash
-cd frontend && npm run lint && npm run build
-```
-
-Both must pass. There is no test suite for the frontend — lint + build is the complete quality gate.
-If a pre-existing lint failure exists, note it explicitly — do not fix it as part of this change.
 
 ### 5. Commit
 

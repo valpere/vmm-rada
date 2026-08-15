@@ -163,30 +163,6 @@ Type organization follows the project hierarchy: common types in `internal/types
 
 ---
 
-## Frontend (JS / React) Simplification
-
-When the file under review is in `frontend/`, apply these JS-specific transformations:
-
-### Extract repeated JSX patterns
-If the same JSX block appears more than once with minor variations, extract it into a named component or a helper function. Apply only when the extraction is clearly simpler than the original.
-
-### Eliminate inline styles in favour of CSS classes
-Inline `style={{ ... }}` props make components harder to scan and override. Move them to the existing CSS file as a named class. Exception: dynamic styles computed from props/state may remain inline.
-
-### Simplify useEffect dependency arrays
-Stale or over-inclusive dependency arrays are common sources of bugs and complexity. Ensure the dependency array contains exactly what the effect body reads. If an effect has no dependencies, confirm `[]` is correct. Do not restructure an effect's logic — only adjust the dependency array.
-
-### Flatten nested ternaries
-Ternaries nested more than one level deep are hard to read. Replace with early returns, `if`/`else` blocks, or a small helper function. Target: no ternary deeper than one level in JSX.
-
-### JS Safety Rules — Do Not Simplify
-- Event handler binding logic (affects event propagation)
-- SSE / fetch logic in `api.js` (streaming protocol is precise)
-- State update callbacks that depend on the previous state (`setState(prev => ...)`)
-- The `metadata.label_to_model` de-anonymization logic in `Stage2.jsx`
-
----
-
 ## Self-Verification Checklist
 
 Before presenting output, verify:

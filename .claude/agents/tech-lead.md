@@ -195,52 +195,6 @@ Verdict: APPROVED / APPROVED WITH CHANGES / REJECTED
 
 ---
 
-## Frontend Architecture (enforce strictly)
-
-### State ownership
-
-`App.jsx` is the sole state owner. All conversation state lives in `currentConversation` and is mutated only through `setCurrentConversation`. Components MUST NOT manage their own copies of API-sourced state. Prop drilling is acceptable up to 2 levels — beyond that, restructure the component tree rather than threading props deeper.
-
-### API boundary
-
-`src/api.js` is the only file allowed to call `fetch` or open SSE connections. Components MUST NOT call `fetch` directly. Violations of this boundary are Layer 1 errors — always REJECT.
-
-### Component responsibilities
-
-| Component | Role |
-|-----------|------|
-| `Stage1.jsx` | Display-only — renders Stage 1 model responses |
-| `Stage2.jsx` | Display-only — renders peer reviews; handles de-anonymization via `metadata.label_to_model` |
-| `Stage3.jsx` | Display-only — renders synthesis |
-| `ChatInterface.jsx` | Handles user input (prompt textarea, submit) |
-| `Sidebar.jsx` | Conversation list and navigation |
-| `App.jsx` | State owner, SSE coordinator, layout root |
-
-### LLM output rendering
-
-All LLM-generated content (stage1 responses, stage2 reviews, stage3 synthesis) MUST be rendered via `react-markdown`. Rendering raw strings as HTML is a security violation — always REJECT.
-
-### De-anonymization pattern
-
-The `metadata.label_to_model` map in Stage 2 is ephemeral — it is returned by the API and used only at render time; it is not persisted. `Stage2.jsx` receives this map as a prop and uses it to display actual model names alongside anonymous labels. Do not attempt to persist or move this mapping.
-
-### No TypeScript
-
-The frontend is plain JavaScript. Do not introduce TypeScript, type annotations, or `.ts`/`.tsx` files. Proposals to add TypeScript require explicit user approval and a dedicated migration plan.
-
-### Frontend quality gate
-
-There is no frontend test suite. `npm run lint` is the only automated quality check. Plans that propose adding a test suite require explicit user approval.
-
-### Frontend layer violations (always REJECT)
-
-- `fetch` or SSE calls outside `api.js`
-- State mutations outside `App.jsx` for API-sourced data
-- LLM output rendered without `react-markdown`
-- TypeScript introduced without explicit approval
-
----
-
 ## Bash permissions
 
 You may run only:
@@ -248,7 +202,6 @@ You may run only:
 go build ./...              # compile check
 go vet ./...                # static analysis
 go test ./...               # test suite
-cd frontend && npm run lint # frontend lint
 ```
 
 Never run: `git push`, `gh pr merge`, destructive filesystem commands.
