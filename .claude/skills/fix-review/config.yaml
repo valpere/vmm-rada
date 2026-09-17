@@ -10,8 +10,16 @@ provider: ollama
 api_key_env: AI_PROVIDER_API_KEY
 
 reviewers:
+  # 2026-09-17: qwen3.5:397b-cloud (the size-suffixed model plain
+  # qwen3.5:cloud aliases to — confirmed via usage-dashboard bucket
+  # matching in ollama-general-models.md) retires on Ollama Cloud
+  # 2026-09-25 (forced). Ollama's announcement offers two 1:1
+  # replacements (glm-5.3-flash or deepseek-v4.1-flash); picked
+  # deepseek-v4.1-flash — no family collision with round_2/round_3 here
+  # (minimax/gemma), and deepseek has the stronger cost track record in
+  # our own calibration data (ollama-general-models.md).
   openrouter:
-    round_1: { model: qwen3.5:cloud }               # coding-focused, cloud quality
+    round_1: { model: deepseek-v4.1-flash:cloud }   # coding-focused, cloud quality
     round_2: { model: minimax-m2.7:cloud }          # MiniMax, non-thinking, long-ctx
     round_3: { model: gemma4:31b-cloud }            # Gemma code model, non-thinking
 
@@ -51,7 +59,7 @@ telemetry_enabled: true
 
 pricing:
   # Active cloud reviewers (reviewers.openrouter.round_1/2/3)
-  "qwen3.5:cloud":       { input: 0.00, output: 0.00 }
+  "deepseek-v4.1-flash:cloud": { input: 0.00, output: 0.00 }
   "minimax-m2.7:cloud":  { input: 0.00, output: 0.00 }
   "gemma4:31b-cloud":    { input: 0.00, output: 0.00 }
   # Local failover models (reviewers.cli)
