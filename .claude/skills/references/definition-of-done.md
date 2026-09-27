@@ -44,7 +44,7 @@ The depth behind these items lives in `fix-review` (multi-model review) and the 
 
 ### Documentation
 - [ ] Public interfaces, APIs, and user-facing behavior are documented
-- [ ] Architectural decisions worth preserving are recorded (see the `docs-maintainer` agent, or `docs/architecture.md` convention)
+- [ ] Architectural decisions worth preserving are recorded (see the `docs-maintainer` agent — § Documentation Structure in `.claude/agents/docs-maintainer.md` lists the doc set, including `docs/council-research-synthesis.md` § 12 for design-decision rationale)
 - [ ] Documentation describes the current state in timeless language, not the change history
 
 ### Ship-readiness
