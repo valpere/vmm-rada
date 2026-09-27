@@ -2,6 +2,7 @@
 name: usage-cost-aggregation
 description: Per-call LLM usage/cost must be aggregated via an eval-side LLMClient decorator, not smuggled through council.Metadata
 type: reference
+last-verified: 2026-09-27
 ---
 
 Token/cost telemetry (and any other per-`Complete()`-call metric) is aggregated by
