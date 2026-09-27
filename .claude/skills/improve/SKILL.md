@@ -39,7 +39,7 @@ Say: "This is new design — want me to run /improve on it before we build?"
 **Internal first:**
 - Read `CLAUDE.md` for architecture constraints and conventions
 - Read `.proposals.md` for related decisions already made
-- Read `docs/architecture.md` and `docs/go-implementation.md` for system context
+- Read `docs/architecture-v2.md`, `docs/strategies.md`, `docs/pipeline.md` for system context (see `.claude/agents/docs-maintainer.md` Documentation Structure for the full doc set)
 - Read `internal/council/interfaces.go` if the change touches the council pipeline
 - Read affected source files directly
 
