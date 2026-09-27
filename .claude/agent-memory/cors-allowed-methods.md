@@ -1,12 +1,14 @@
 ---
 name: cors-allowed-methods
-description: CORS middleware in handler.go hardcodes allowed methods — any new HTTP verb (DELETE/PATCH/PUT) requires updating it
+description: CORS middleware in handler.go hardcodes allowed methods — any new HTTP verb requires updating it
 type: project
+last-verified: 2026-09-27
 ---
 
 The `wrap()` CORS middleware in `internal/api/handler.go` hardcodes
-`Access-Control-Allow-Methods: "GET, POST, OPTIONS"`. Allowed CORS origins are
-a hardcoded allowlist (`allowedOrigins`: localhost:5173, localhost:3000).
+`Access-Control-Allow-Methods: "GET, POST, PATCH, DELETE, OPTIONS"` (verified
+2026-09-27 at `handler.go:168`). Allowed CORS origins are a hardcoded allowlist
+(`allowedOrigins` at `handler.go:33`: localhost:5173, localhost:3000).
 
 **Why:** Any plan that adds an endpoint using a verb beyond GET/POST (DELETE,
 PATCH, PUT) will pass Go-side tests but fail in the browser at CORS preflight,

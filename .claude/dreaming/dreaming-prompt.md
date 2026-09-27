@@ -6,7 +6,7 @@ patterns, suggest curation.
 ## Project context
 
 - **vmm-rada** — multi-LLM deliberation system (Go backend + React frontend)
-- Workflow: `/backlog → Tech Lead → /ship → Copilot → /fix-review → squash merge`
+- Workflow: `/backlog → Tech Lead → /ship → /fix-review → squash merge` (Copilot retired from workflow 2026-05-13)
 - Source of truth: `CLAUDE.md` (project instructions)
 - See `.claude/context-essentials.md` for immutable rules
 

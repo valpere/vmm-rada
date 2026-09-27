@@ -2,6 +2,7 @@
 name: stage0-done-not-on-wire
 description: stage0_done is an internal EventFunc-only event, never emitted on the SSE wire — recurring source of doc drift
 type: project
+last-verified: 2026-09-27
 ---
 
 `stage0_done` fires on the `council.EventFunc` callback but is **never written to the SSE

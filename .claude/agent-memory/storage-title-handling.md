@@ -2,6 +2,7 @@
 name: storage-title-handling
 description: SaveTitle already exists on Storer; title limit is maxTitleRunes=50 with truncation, not 200 with rejection
 type: reference
+last-verified: 2026-09-27
 ---
 
 Conversation title persistence is already implemented:
