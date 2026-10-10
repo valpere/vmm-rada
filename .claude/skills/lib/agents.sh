@@ -41,7 +41,7 @@ agent_agy() {
   # argument, not stdin/file-ref — verified 2026-07-30. --prompt is an
   # alias for the --print boolean flag, not a value-taking option; the
   # actual prompt text goes after -p as a trailing positional argument.
-  agy -p "$(cat "$prompt_file")" --model "${model:-Gemini 3.5 Flash (Low)}" \
+  agy -p "$(cat "$prompt_file")" --model "${model:-Gemini 3.8 Flash (Low)}" \
     --mode plan --output-format json 2>/dev/null \
     | jq -r '.response // empty'
 }
