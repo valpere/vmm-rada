@@ -15,10 +15,11 @@ BASE_URL="${OLLAMA_HOST:-http://localhost:11434}"
 SYS="Your entire response MUST be a raw JSON array — nothing else. Start with [ and end with ]. No prose, no markdown fences."
 PROMPT=$(cat)
 
-# Some cloud models return empty content on large prompts under load (no
-# error, just a truncated/empty response body) — observed repeatedly with
-# qwen3.5:cloud on full-diff review prompts. Retry once with a smaller
-# max_tokens cap before giving up.
+# Thinking models (deepseek-v4.1-flash, minimax-m3, ...) spend the whole
+# max_tokens budget on the `reasoning` field and return empty `content`
+# (finish_reason=length). reasoning_effort:"none" disables that. Retry once
+# with the same budget for transient empty responses — a smaller cap would
+# only make a truncated answer more likely.
 call_model() {
   local max_tokens="$1"
   curl -sf --max-time 180 \
@@ -26,7 +27,7 @@ call_model() {
     -H "Content-Type: application/json" \
     -d "$(jq -n \
           --arg m "$MODEL" --arg sys "$SYS" --arg usr "$PROMPT" --argjson mt "$max_tokens" \
-          '{model:$m,messages:[{role:"system",content:$sys},{role:"user",content:$usr}],stream:false,max_tokens:$mt}')" \
+          '{model:$m,messages:[{role:"system",content:$sys},{role:"user",content:$usr}],stream:false,max_tokens:$mt,reasoning_effort:"none"}')" \
     | jq -r '.choices[0].message.content // empty'
 }
 
@@ -34,7 +35,7 @@ CONTENT=$(call_model 4096 || true)
 
 if [ -z "$(printf '%s' "$CONTENT" | tr -d '[:space:]')" ]; then
   echo "warn: $MODEL returned empty content — retrying once" >&2
-  CONTENT=$(call_model 2048 || true)
+  CONTENT=$(call_model 4096 || true)
 fi
 
 printf '%s' "${CONTENT:-[]}"
