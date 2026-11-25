@@ -92,7 +92,7 @@ First, extract the actual model names you just read from `config.yaml`:
 ```bash
 # Use the exact model name strings from reviewers.openrouter.round_1/2/3
 ROUND1="<exact round_1 model string>"   # e.g. qwen3-coder-next:cloud
-ROUND2="<exact round_2 model string>"   # e.g. minimax-m2.7:cloud
+ROUND2="<exact round_2 model string>"   # e.g. minimax-m3:cloud
 ROUND3="<exact round_3 model string>"   # e.g. devstral-small-2:24b-cloud
 ```
 

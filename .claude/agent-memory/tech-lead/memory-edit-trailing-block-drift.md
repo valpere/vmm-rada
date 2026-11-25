@@ -15,7 +15,7 @@ left the trailing "How to apply" line saying "The CSP gap above is real and
 unfixed" unchanged. Same author, same PR, same file — the trailing block
 simply wasn't re-scanned after the section above it changed meaning.
 `/fix-review` caught it (2/3 models flagged it as a self-contradiction), not
-the author. Surfaced by dreaming pass 2026-W33 §2 as a recurring shape (see
+the author. Surfaced by automated audit 2026-W33 §2 as a recurring shape (see
 also PR #339's `review-verify-checked-out-branch.md` — a related but distinct
 "verify before trusting" failure mode: that one is about the *reviewer*
 trusting a stale working tree, this one is about the *author* not re-scanning

@@ -102,7 +102,7 @@ internal/eval/                — Eval harness: judge, report, eval runner; LLM-
 ## What changed since 2026-03-14 (previous version of this file)
 
 This memory was updated and expanded on 2026-05-10 from current code state,
-after a dreaming pass (W19) flagged 4 false claims:
+after an automated audit (W19) flagged 4 false claims:
 - ❌ "No tests exist yet" → ✅ 14 Go test files (+ frontend Vitest harness)
 - ❌ "No structured logging; stdlib log only" → ✅ `log/slog` in 8 files
 - ❌ "No graceful shutdown" → ✅ `srv.Shutdown` with signal trap
@@ -115,13 +115,13 @@ Two additional drifts found while rewriting:
 - `github.com/google/uuid` dep was removed; UUIDs validated via regex now.
 
 CORS hardcoding was also flagged as "false (PR #31 made it configurable)" by
-dreaming, but verification against actual code shows the hardcoded map is still
-in place. Treat dreaming reports as evidence, not as truth — verify against
+the audit, but verification against actual code shows the hardcoded map is still
+in place. Treat audit reports as evidence, not as truth — verify against
 current code before believing claims.
 
 ## What changed since 2026-05-10 (previous version of this file)
 
-Rewritten 2026-08-14 (dreaming pass W32, §4) — this file had drifted badly:
+Rewritten 2026-08-14 (automated audit W32, §4) — this file had drifted badly:
 strategy count (claimed 3 implemented + 4 planned; verified 7/7 via
 `internal/council/types.go` Strategy enum + `configs/council.yaml`'s 7
 `strategy:` entries), Go version (claimed 1.26.3; `go.mod` says 1.26.5), and

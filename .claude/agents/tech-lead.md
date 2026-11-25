@@ -196,7 +196,7 @@ Verdict: APPROVED / APPROVED WITH CHANGES / REJECTED
 
 Docs-only drift-repair PRs are a recurring line item (#304, #327) — a
 strategy/config/wire-shape change landed without its doc updates, caught only
-by a later dreaming pass. Full rationale: `.claude/agent-memory/tech-lead/docs-triad-sync-gate.md`.
+by a later automated audit. Full rationale: `.claude/agent-memory/tech-lead/docs-triad-sync-gate.md`.
 
 **Trigger → target map:**
 

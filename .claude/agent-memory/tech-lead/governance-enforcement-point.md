@@ -36,5 +36,5 @@ rule 1: *is there an agent prompt actually loaded at the moment this criterion m
 fire?* If no, the skill file is the enforcement point. Confirmed on issue #335
 (2026-08-14, shell false-positive class + verify-before-done notes).
 
-Ruling issued 2026-08-14 while reviewing plan `1-dreaming-w32-backlog-docs-triad.md`
-(docs-triad pre-flight gate, dreaming pass 2026-W32).
+Ruling issued 2026-08-14 while reviewing the W32 backlog docs-triad plan
+(docs-triad pre-flight gate, 2026-W32 audit).

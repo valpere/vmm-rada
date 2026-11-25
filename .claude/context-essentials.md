@@ -36,7 +36,7 @@ This repo is the backend API only.
 - **Mark planned vs current explicitly.** When a doc describes a feature
   not yet wired into code, prefix the section with `PLANNED:` or
   `NOT YET WIRED:`. Never write future-tense behaviour as if it were
-  current. Recurring `/fix-review` theme — see dreaming W19 §2.
+  current. Recurring `/fix-review` theme.
 - **Docs land in the same PR as the change, never a follow-up.** Which
   docs depends on what changed: strategy → `strategies.md`,
   `strategy-showcase.md`, `architecture-v2.md`; env var or

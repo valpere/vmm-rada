@@ -30,7 +30,7 @@ were dropped; the backend facts that remain are still live and load-bearing.
 - This recurring manual-detection gap is now closed structurally: a
   scheduled daily `govulncheck.yml` CI gate (PR #286, issue #283) opens a
   `p1`/`security` issue automatically on future toolchain CVEs — no longer
-  dependent on a dreaming pass noticing.
+  dependent on an automated audit noticing.
 
 **How to apply:** For Go API changes, check CORS `Access-Control-Allow-Methods`
 includes all verbs the browser sends (DELETE, PATCH needed for conversation
