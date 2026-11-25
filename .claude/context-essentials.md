@@ -15,14 +15,14 @@ This repo is the backend API only.
 
 ## Stack constraints
 
-- Backend: **Go**. Run `go build`, `go vet`, `go test ./...` before `/ship`.
+- Backend: **Go**. Run `go build`, `go vet`, `go test ./...` before `/deliver`.
 - LLM Gateway: configurable (`AI_PROVIDER_NAME`, default `openrouter`). Key in `.env` as `AI_PROVIDER_API_KEY`.
 
 ## Workflow gates
 
 ```
 /backlog → Tech Lead (APPROVED) → gh issue create → plan file deleted
-    → /ship → code-generator → [/fix-review rounds] → squash merge
+    → /deliver → code-generator → [/fix-review rounds] → squash merge
 ```
 
 - **Plans** live in `.claude/plans/` with frontmatter (type, priority, labels,

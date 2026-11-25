@@ -26,7 +26,7 @@ created. The GitHub issue is the canonical record.
 
 If `/backlog` is called with no argument, list draft plan files from `.claude/plans/`
 (files without a GitHub issue yet), sorted by priority prefix, excluding `README.md`.
-**Do NOT list open GitHub issues** — those are already created and belong to `/ship`.
+**Do NOT list open GitHub issues** — those are already created and belong to `/deliver`.
 
 ```
 Queued drafts:
@@ -143,7 +143,7 @@ The GitHub issue is now the canonical record. The plan file is no longer needed.
 ### 8. Report and stop
 
 Report the created issue URL and confirm the plan file was deleted. Stop.
-Implementation is triggered separately via `/ship`.
+Implementation is triggered separately via `/deliver`.
 
 ---
 

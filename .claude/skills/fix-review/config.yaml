@@ -31,7 +31,7 @@ reviewers:
     - { tool: agy, model: "Gemini 3.8 Flash (Low)" }
     - { tool: omp }
     - { tool: codex }
-    - { tool: opencode, model: "opencode/nemotron-3-ultra-free" }
+    - { tool: opencode, model: "opencode/mimo-v2.6-flash-free" }
     - { tool: kilo }
 
   # Local failover tier (tier 3) — tools-capable models, no network

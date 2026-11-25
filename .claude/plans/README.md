@@ -137,7 +137,7 @@ fix(scope): description ⚡
 - [ ] `go build ./...` passes
 - [ ] `go vet ./...` passes
 - [ ] `go test ./...` passes
-- [ ] `/ship` to create PR and merge
+- [ ] `/deliver` to create PR and merge
 - [ ] Update plan `status: done`, fill `github_issue` if created
 ```
 

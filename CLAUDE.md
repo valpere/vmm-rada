@@ -26,7 +26,7 @@ See `docs/` for the current source of truth:
 
 ```
 /backlog → Tech Lead (APPROVED) → gh issue create → plan file deleted
-    → /ship → code-generator → /fix-review → squash merge → git checkout main && git pull
+    → /deliver → code-generator → /fix-review → squash merge → git checkout main && git pull
 ```
 
 ### Skills
@@ -34,7 +34,7 @@ See `docs/` for the current source of truth:
 | Skill | Invoke | Purpose |
 |-------|--------|---------|
 | `/backlog` | `/backlog <task or issue#>` | Plan → Tech Lead gate → creates GitHub issue → deletes plan file |
-| `/ship` | `/ship [issue#]` | Select issue → implement → PR → `/fix-review` → squash merge |
+| `/deliver` | `/deliver [issue#]` | Select issue → implement → PR → `/fix-review` → squash merge |
 | `/fix-review` | `/fix-review [pr#]` | Parallel multi-model review (`config.yaml`) + Claude arbiter |
 | `/find-bugs` | `/find-bugs` | Audit current branch changes for bugs/security — report only |
 | `/improve` | `/improve <target>` | Critic pass: SHIP IT / IMPROVE IT / RETHINK IT / KILL IT |
