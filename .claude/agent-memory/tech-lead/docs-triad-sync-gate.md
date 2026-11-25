@@ -15,7 +15,7 @@ as a follow-up. Canonical target map (backend-only repo as of 2026-07-19):
 | REST/SSE wire-shape change | `docs/api.md` **and** `docs/openapi.yaml` (pair — never one alone), `docs/architecture-v2.md` |
 
 **Why:** docs-only drift-repair PRs are a recurring line item (#304, #327 among the last
-8 merges). Dreaming 2026-W32 §1 classified this as structural, not incidental.
+8 merges). The 2026-W32 audit §1 classified this as structural, not incidental.
 `docs/openapi.yaml` drift is partially machine-caught by `internal/api/spec_test.go`, but
 only for the assertions that test already makes.
 
@@ -29,7 +29,7 @@ exempt — do not turn this into a blanket "every PR touches docs" tax.
 section (diff-time wording). `backlog/SKILL.md` deliberately not touched.
 `docs-maintainer.md`'s own copy of this map (and its broader doc-routing table beyond
 just the strategy/env-var/wire-shape triad) was fixed 2026-09-06 (issue #351, flagged by
-three consecutive dreaming passes W34/W35/W36) — it now points at real `docs/` files and
+three consecutive automated audits W34/W35/W36) — it now points at real `docs/` files and
 section headings, with an explicit note that the triad rows are sourced from this file's
 map in `tech-lead.md` and must be kept in sync with it, not edited independently. The map
 now correctly exists in exactly two places by design (plan/code review gate in

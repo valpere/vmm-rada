@@ -11,8 +11,8 @@ continuously during a session. A single long-running session does not grow
 the file at all until it stops; growth is proportional to how many sessions
 end, not to how long any one session runs.
 
-**Data points:** 131.6 MB (2026-08-23, dreaming W34 report) → 138.3 MB same
-day (`/apply-dreaming` triage, several sessions/`/exit`s later) → 139.3 MB
+**Data points:** 131.6 MB (2026-08-23, W34 audit report) → 138.3 MB same
+day (audit triage, several sessions/`/exit`s later) → 139.3 MB
 (~1 hour after that, one more session-end) → still 139.3 MB the next day
 (2026-08-24) after one very long continuous session with no `Stop` event yet.
 ~565K→568K rows. Growth per session-end event: roughly hundreds of KB to a
@@ -25,13 +25,13 @@ usage it would take a very long time to become an actual problem. Revisit
 only if the file exceeds roughly 500MB–1GB, or if `session-recall`
 reads/writes start showing observable latency — neither has happened.
 
-**Why:** The original concern (dreaming W34 §7) assumed continuous/unbounded
+**Why:** The original concern (W34 audit §7) assumed continuous/unbounded
 growth without checking the actual write trigger. Once the trigger is known
 to be discrete and infrequent (one `Stop` event, not a per-tool-call or
 per-message write), the "I/O pressure" worry loses its basis — this file
 writes maybe a few times a day at most, not thousands of times.
 
-**How to apply:** If a future dreaming pass re-flags `sessions.db` size,
+**How to apply:** If a future audit re-flags `sessions.db` size,
 check this decision first before re-opening the investigation — re-open only
 if the file has actually crossed the ~500MB–1GB threshold or a real
 performance symptom is observed, not on size alone.

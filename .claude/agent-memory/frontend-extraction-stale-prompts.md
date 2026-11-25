@@ -10,7 +10,7 @@ type: project
 > `.claude/hooks/eslint-fix.cjs` (both listed below as "missed by both sweeps") are confirmed
 > gone. Kept as the historical inventory record — if a future `.claude/` restructure
 > reintroduces frontend-shaped content, this file documents what "done" looked like and where
-> the two audits (dreaming W32, the 15-file sweep) both missed things the first time.
+> the two audits (W32 audit, the 15-file sweep) both missed things the first time.
 
 `frontend/` was extracted to `vmm-rada-web-ui` on 2026-07-19; this repo is backend-only Go.
 Stale frontend content lived in prompt files under `.claude/` until the sweep above completed.
@@ -54,7 +54,7 @@ descriptive drift. The rest are descriptive-only and lower urgency.
   record that the judgment call is closed, in case a future sweep encounters the pre-#336 memory
   of this file via git history.
 
-**Missed by BOTH the dreaming inventory and my own 15-file audit — found at code review of
+**Missed by BOTH the audit inventory and my own 15-file audit — found at code review of
 issue #333 (2026-08-15):**
 - `.claude/hooks/eslint-fix.cjs` + its `PostToolUse` registration in `.claude/settings.json`
   (`"Running eslint --fix on frontend file..."`). A *live executable hook*, not a prompt file —
