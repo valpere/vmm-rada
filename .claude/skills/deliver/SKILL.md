@@ -1,5 +1,5 @@
 ---
-name: ship
+name: deliver
 description: Implement a GitHub issue end-to-end — branch, code, tests, PR, /fix-review, merge, resolve. Without args: shows top 5 unblocked issues to select from. With issue number or title: ships that issue directly.
 user-invocable: true
 argument-hint: "[issue-number | issue-title]"
@@ -9,7 +9,7 @@ metadata:
   last_updated: "2026-08-14"
 ---
 
-# /ship
+# /deliver
 
 Implement one GitHub issue from selection to merged PR, then present the next.
 
@@ -29,11 +29,11 @@ select issue → read issue + files → resolve uncertainties → branch → imp
 
 ## Step 0: Select issue
 
-**`/ship <number>`** — fetch that issue directly, skip menu.
+**`/deliver <number>`** — fetch that issue directly, skip menu.
 
-**`/ship <title>`** — search open issues for a title match, skip menu if unambiguous.
+**`/deliver <title>`** — search open issues for a title match, skip menu if unambiguous.
 
-**`/ship` (no args)** — list the top 5 open, unblocked issues sorted by priority:
+**`/deliver` (no args)** — list the top 5 open, unblocked issues sorted by priority:
 
 ```bash
 gh issue list --repo valpere/vmm-rada --state open \

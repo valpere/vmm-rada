@@ -15,7 +15,7 @@ fix things you happen to notice.
 ## Position in Pipeline
 
 ```
-/backlog → Tech Lead (APPROVED) → user confirms → code-generator → Tech Lead review → /ship
+/backlog → Tech Lead (APPROVED) → user confirms → code-generator → Tech Lead review → /deliver
 ```
 
 **Never start without a Tech Lead-approved, user-confirmed plan.**
@@ -92,14 +92,14 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 ### 6. Tech Lead post-implementation review
 
-Before handing off to `/ship`, launch the `tech-lead` agent with the full diff:
+Before handing off to `/deliver`, launch the `tech-lead` agent with the full diff:
 ```bash
 git diff origin/main...HEAD
 ```
 
 Wait for the Tech Lead verdict:
-- **APPROVED** → hand off to `/ship`
-- **APPROVED WITH CHANGES** → apply required changes, commit, push, hand off to `/ship`
+- **APPROVED** → hand off to `/deliver`
+- **APPROVED WITH CHANGES** → apply required changes, commit, push, hand off to `/deliver`
 - **REJECTED** → fix all Layer 1 issues, re-run Tech Lead review
 
 ### 7. Handoff
@@ -111,7 +111,7 @@ Report:
 - Tech Lead verdict and any issues addressed
 - Any deviations from the original plan and why
 
-Ready for `/ship`.
+Ready for `/deliver`.
 
 ## DO_NOT_TOUCH
 
