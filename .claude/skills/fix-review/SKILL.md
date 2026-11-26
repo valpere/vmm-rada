@@ -132,7 +132,13 @@ Build the review prompt combining the baseline diff with instructions:
 
 ```bash
 PROMPT="<diff + instructions>"
+RUN_DIR=$(mktemp -d -t fix-review-XXXX)   # shared by both tiers and by step 3a
 ```
+
+If the prompt is assembled from a template with placeholders, use plain bash
+substitution — `PROMPT="${TPL//\{DIFF\}/"$DIFF"}"` — never `sed`: it breaks on
+newlines or `|` in the diff and leaves `PROMPT` empty. The quoted replacement keeps
+`&` literal (bash 5.2).
 
 **If `TIER="cloud"`** — send to each reviewer model via `ollama-review.sh`:
 
@@ -148,7 +154,6 @@ local Ollama only for whichever round(s) every external agent fails on:
 ```bash
 source .claude/skills/lib/agents.sh
 
-RUN_DIR=$(mktemp -d)
 PROMPT_FILE="$RUN_DIR/prompt.txt"
 printf '%s' "$PROMPT" > "$PROMPT_FILE"
 
@@ -167,9 +172,35 @@ done
 # R[1], R[2], R[3] hold each round's raw output — same shape as $R1/$R2/$R3 above.
 ```
 
-Each call returns a JSON array (empty `[]` on parse failure — safe degradation).
 Note which tier actually served each round (`cloud` / `external_agents:<tool>` / `cli`)
 — the PR summary in step 6 reports it per round.
+
+### 3a. Parse rounds — keep unparsed answers
+
+A model can return prose or broken JSON. Its findings must not be silently lost:
+
+```bash
+parse_round() {   # $1 = round number, $2 = raw output
+  local n="$1" content
+  content=$(printf '%s' "$2" | sed -E 's/^```(json)?//; s/```$//')   # strip stray fences
+  if printf '%s' "$content" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    printf '%s\n' "$content" > "$RUN_DIR/round_${n}.findings.json"
+    return
+  fi
+  # [] only keeps the tally working; such a round is NOT clean.
+  echo "[]" > "$RUN_DIR/round_${n}.findings.json"
+  if [ -n "$(printf '%s' "$content" | tr -d '[:space:]')" ]; then
+    printf '%s\n' "$content" > "$RUN_DIR/round_${n}.unparsed.txt"
+    echo "warn: round ${n} is not a valid JSON array — kept in round_${n}.unparsed.txt for the arbiter" >&2
+  else
+    echo "warn: round ${n} returned empty content — 0 findings" >&2
+  fi
+}
+# cloud tier: parse_round 1 "$R1"; parse_round 2 "$R2"; parse_round 3 "$R3"
+# cli tier:   for n in 1 2 3; do parse_round "$n" "${R[$n]}"; done
+```
+
+Don't retry the model and don't repair the JSON with regexes — dispatch runs once.
 
 ### 4. Tally findings
 
@@ -211,6 +242,10 @@ For each finding (ordered Layer 1 first), apply the Code Review Pyramid:
 | **DISMISS** | False positive or conflicts with project patterns | Skip, note reason |
 | **DEFER** | Valid concern, out of scope for this PR | Create a GitHub issue |
 
+**Unparsed rounds**: for each `$RUN_DIR/round_*.unparsed.txt`, read the model's
+answer and carry its findings over by hand, as that model's vote (same `file:line`
+grouping as step 4). Note in step 6 whether it was carried over.
+
 Also run an **independent scan** of the full diff — look for anything the models missed.
 
 For CONFIRM/ESCALATE findings:
@@ -234,6 +269,18 @@ gh issue create --title "..." --body "..."
 
 ### 6. Post PR comment
 
+`UNPARSED` lists the rounds whose answer was kept in `round_N.unparsed.txt`
+(compute before posting):
+```bash
+UNPARSED=""
+for n in 1 2 3; do
+  [ -f "$RUN_DIR/round_${n}.unparsed.txt" ] || continue
+  [ -n "$UNPARSED" ] && UNPARSED+="; "
+  UNPARSED+="round ${n}"
+done
+UNPARSED="${UNPARSED:-none}"   # add "(<model>) — carried over by arbiter" per round when printing
+```
+
 Post a single collapsible summary:
 
 ```
@@ -246,7 +293,8 @@ Post a single collapsible summary:
 | path/file.go:87 | 1/3 | 5 | sugg | DISMISS | style — not flagged by pyramid |
 
 Models: <round_1_model> (<tier>), <round_2_model> (<tier>), <round_3_model> (<tier>)
-Arbiter: Claude Sonnet 4.6
+Arbiter: <current session model, as named in this session's instructions>
+Unparsed: ${UNPARSED}
 
 </details>
 ```
@@ -277,7 +325,7 @@ git checkout main && git pull
 | All findings arbitrated, no blockers | Merge |
 | Cloud endpoint unreachable | Fall back to `external_agents` tier per round, proceed |
 | Every `external_agents` tool fails for a round | Fall back to local `cli` (Ollama) for that round, proceed |
-| Model returns non-JSON | Treat as 0 findings for that model, proceed |
+| Model returns non-JSON | Keep it in `round_N.unparsed.txt`, arbiter carries its findings over, report in `Unparsed:` |
 | Round fails to push | Stop, report error to user |
 | PR already merged | Report and exit |
 | PR has merge conflicts | Stop, ask user to resolve |
